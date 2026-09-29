@@ -13,7 +13,7 @@
   - Criterio: `tsc --noEmit` pasa sin errores.
 - [x] **T-003**: Inicializar `client/` con Vite + React + TypeScript
   - Criterio: `npm run dev` en client levanta la app en `:5173`.
-- [ ] **T-004**: Configurar proxy de Vite `/api` → `http://localhost:3000`
+- [x] **T-004**: Configurar proxy de Vite `/api` → `http://localhost:3000`
   - Criterio: una llamada a `/api/health` devuelve `{ status: 'ok' }`.
 - [ ] **T-005**: Configurar Tailwind en `client/`
   - Criterio: una clase de Tailwind se aplica visualmente en `App.tsx`.
@@ -257,6 +257,32 @@
 - Impacto en otras tareas: T-004 añade el proxy `/api` en `vite.config.ts`; T-005 añade
   Tailwind y reemplaza `index.css`; T-006 añade ESLint/Prettier y los scripts raíz
   (`dev:client`, `lint`, `typecheck`); T-030 reemplaza el texto de `App.tsx` por `t('app.title')`.
+
+### 2026-09-29 — T-004 (setup)
+- Archivos modificados: `client/vite.config.ts` y `server/src/app.ts`. Ningún archivo nuevo.
+- Criterio verificado de extremo a extremo: con ambos servidores arriba,
+  `http://localhost:5173/api/health` devolvió `{"status":"ok","timestamp":"2026-09-29T21:45:52.612Z"}`
+  y el acceso directo a `http://localhost:3000/api/health` devolvió lo mismo.
+  `npx tsc --noEmit` (server) y `npx tsc -b --noEmit` (client) pasan ambos.
+- **Cambio de alcance respecto a T-002:** `app.ts` ahora hace `app.listen(PORT)` en el
+  arranque del módulo. T-002 lo dejó explícitamente sin arrancar, pero el criterio de
+  T-004 exige el server en `:3000`, así que el `listen` es indispensable. Sigue exportando
+  `app` para que las pruebas de T-093 puedan importar la instancia.
+- Decisión tomada: `PORT` se lee de `process.env.PORT ?? '3000'` **sin validación Zod todavía**;
+  la validación con Zod llega en **T-008**, que sustituirá esta línea por `env.PORT`.
+  Se usó el env directo para no adelantar trabajo de T-008.
+- Decisión tomada: `strictPort: true` en el server de Vite. Sin esto, Vite cae
+  automáticamente a `5174`, `5175`... si el puerto está ocupado, y el proxy y los
+  tests que apunten a `:5173` fallarían de forma confusa. Fallar rápido es preferible.
+- Decisión tomada: `changeOrigin: true` en el proxy. Sin él, Express recibe
+  `Host: localhost:5173` en vez del original; hoy es inocuo, pero lo necesitará
+  cuando haya CORS/origins validados en T-008+.
+- Gotcha registrado: el import `./logger.js` lleva extensión `.js` aunque el archivo sea
+  `.ts` — requisito de `moduleResolution: NodeNext` de T-002. Sin la extensión,
+  `tsc --noEmit` pasa pero el runtime revienta con `ERR_MODULE_NOT_FOUND`.
+- Impacto en otras tareas: T-007 sustituye el `logger.info` directo por el nivel/config
+  definitivos; T-008 mueve el puerto a `env.PORT` validado; T-009 movdrá la ruta de
+  `app.ts` a `src/modules/health/health.routes.ts` con un router propio.
 
 ---
 

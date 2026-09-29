@@ -50,7 +50,7 @@
 > Snapshot rápido. Fuente de verdad del avance: `docs/TASKLIST.md`.
 
 **Completadas:** T-001 (estructura de carpetas), T-002 (server con TS estricto),
-T-003 (client con Vite + React + TS).
+T-003 (client con Vite + React + TS), T-004 (proxy /api + endpoint de health).
 
 **Estado del árbol:**
 
@@ -60,7 +60,7 @@ osito_a_la_carta/
 │   ├── package.json          # type: module, scripts dev/build/start/typecheck
 │   ├── tsconfig.json         # strict + NodeNext
 │   └── src/
-│       ├── app.ts            # exporta instancia de Express (SIN listen)
+│       ├── app.ts            # instancia Express + GET /api/health + listen
 │       ├── logger.ts         # pino() base, sin configurar
 │       └── config/index.ts   # placeholder; env.ts llega en T-008
 ├── client/
@@ -68,7 +68,7 @@ osito_a_la_carta/
 │   ├── tsconfig.json         # project references → app + node
 │   ├── tsconfig.app.json     # strict + flags
 │   ├── tsconfig.node.json    # strict, cubre vite.config.ts
-│   ├── vite.config.ts        # solo plugin-react; proxy /api en T-004
+│   ├── vite.config.ts        # plugin-react + proxy /api → :3000 (strictPort)
 │   ├── index.html
 │   └── src/
 │       ├── main.tsx
@@ -86,19 +86,26 @@ osito_a_la_carta/
 └── .gitignore
 ```
 
-**Backend: todavía no sirve peticiones.** `src/app.ts` solo crea y exporta la
-instancia de Express; no hay `app.listen()`, ni rutas, ni validación de env.
-`npm run dev` en `server/` ejecuta `tsx watch src/app.ts`: el watcher queda vivo
-esperando cambios de archivo, pero **no se abre ningún puerto** y
-`http://localhost:3000` no responde. El listen real llega en **T-004** (endpoint
-de health) o **T-007** (log de arranque).
+**Backend: ya arranca y responde.** `server/src/app.ts` hace `app.listen(PORT)` y expone
+`GET /api/health` → `{ status: 'ok', timestamp }`. Todavía **no** hay validación de env con
+Zod, así que `PORT` se lee directo de `process.env` con default `3000` (eso cambia en T-008).
+
+**El proxy de Vite funciona.** Con ambos servidores arriba,
+`http://localhost:5173/api/health` devuelve el mismo JSON que `http://localhost:3000/api/health`.
 
 **Comandos que sí funcionan hoy:**
+- `cd server && npm run dev` — Express en `http://localhost:3000` (funciona)
 - `cd server && npx tsc --noEmit` — typecheck
 - `cd server && npm run build` — compila a `server/dist/`
-- `cd server && npm start` — corre `dist/app.js` (no hace nada todavía)
+- `cd server && npm start` — corre `dist/app.js`
 - `cd client && npm run dev` — Vite en `http://localhost:5173` (funciona)
 - `cd client && npx tsc -b --noEmit` — typecheck del cliente
+
+**Para probar el flujo completo hacen falta las dos terminales:**
+```bash
+cd server && npm run dev   # terminal 1 → :3000
+cd client && npm run dev   # terminal 2 → :5173
+```
 
 **Versiones instaladas (verificadas con `npm ls --workspaces`):**
 react 19.3.0 · react-dom 19.3.0 · vite 8.3.1 · @vitejs/plugin-react 6.1.1 ·
@@ -107,8 +114,9 @@ pino 9.14.0 · zod 3.25.76 · @types/node 22.20.4
 
 **Pendientes de infraestructura:**
 - El `package.json` raíz **no tiene scripts** (`dev`, `dev:server`, `dev:client`,
-  `lint`, `typecheck`, `test`, `build`). Hay que agregarlos en T-003 y T-006.
-- No hay `.env` real; solo `.env.example` en la raíz.
+  `lint`, `typecheck`, `test`, `build`). Hay que agregarlos en T-006.
+  Mientras tanto hay que abrir dos terminales (ver arriba).
+- No hay `.env` real; solo `.env.example` en la raíz. T-008 validará las variables.
 
 ---
 
@@ -183,6 +191,24 @@ T-006, y TS 5.9 es la rama que shadcn/ui, drizzle-kit y Recharts ya soportan.
 **Consecuencias:** el `caret` de `^5.7.3` permite subir a 5.x sin tocar los manifests.
 Si alguna dependencia exige TS 6, habrá que migrar los dos workspaces a la vez.
 
+### 2026-09-29 — `listen` en `app.ts` (el módulo arranca al importarse)
+**Contexto:** T-002 dejó `app.ts` sin `app.listen()` por requisito explícito de esa
+tarea ("exporta una instancia de express, sin arrancar"). T-004 exige que el server
+responda en `:3000`, y el script `dev` es `tsx watch src/app.ts`.
+**Decisión:** el `listen` va **dentro de `app.ts`**, no en un `index.ts` separado.
+`app.ts` sigue exportando `app` para que las pruebas de T-093 puedan importar la
+instancia sin abrir un puerto.
+**Alternativas consideradas:** (a) crear `src/index.ts` con el `listen` y apuntar el
+script `dev` a él — más limpio por separación de responsabilidades, pero rompe el
+criterio literal de T-004 ("en server/src/app.ts agrega la ruta") y añade un archivo
+que SPEC §5 no contempla; (b) dejar el listen en `app.ts` — elegida.
+**Motivo:** cumple el criterio de aceptación tal como está escrito y evita inventar
+estructura no documentada en SPEC §5.
+**Consecuencias:** **importar `app.ts` arranca un servidor como efecto secundario.**
+Eso importa para T-093: los tests que importen `app` abrirán el puerto. Si molesta,
+la extracción a `index.ts` es el camino natural, pero requiere actualizar SPEC §5.
+Además, `PORT` se lee de `process.env` sin validar hasta T-008.
+
 ### 2026-09-29 — Project references en el tsconfig del cliente
 **Contexto:** el template actual de Vite no trae un `tsconfig.json` único sino tres
 archivos: `tsconfig.json` (solo `references`) + `tsconfig.app.json` + `tsconfig.node.json`.
@@ -213,6 +239,16 @@ no son intercambiables.
 - **El backend todavía no sirve nada.** `app.listen()` no existe hasta T-004/T-007.
   `npm run dev` en `server/` deja el watcher de `tsx` vivo pero sin puerto abierto:
   no es un bug, es el estado esperado del proyecto.
+- ~~**El backend todavía no sirve nada**~~ → **RESUELTO en T-004**: ya hace `listen`
+  y expone `GET /api/health`. Ver "Estado actual del proyecto".
+- **Los imports del backend necesitan extensión `.js`** (`from './logger.js'`),
+  por `moduleResolution: NodeNext`. Sin ella `tsc --noEmit` **pasa** y el runtime
+  falla con `ERR_MODULE_NOT_FOUND`. El typecheck no detecta este error.
+- **`PORT` no está validado todavía.** Se lee de `process.env` con default `3000`.
+  T-008 lo sustituye por `env.PORT` (Zod). No confiar en el default para producción.
+- **`strictPort: true` en el server de Vite es intencional.** Sin él Vite cae a
+  `5174`, `5175`... si el puerto está ocupado, y el proxy `/api` y cualquier test
+  que apunte a `:5173` fallarían de forma confusa y difícil de diagnosticar.
 - ~~**SPEC.md §4 dice "React 18" pero el código usa React 19.3.0**~~ → **RESUELTO
   2026-09-29**: el dueño autorizó actualizar SPEC.md. §4 ahora dice "React 19 + Vite 8"
   y §10 registra la decisión. SPEC.md y el código vuelven a coincidir.
@@ -232,6 +268,50 @@ no son intercambiables.
 ## Historial de entradas
 
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
+### 2026-09-29 — T-004 Proxy de Vite + endpoint de health
+**Estado:** completada
+
+**Qué se hizo:**
+- Proxy `/api` → `http://localhost:3000` en el server de Vite.
+- Ruta `GET /api/health` en `server/src/app.ts` que devuelve
+  `{ status: 'ok', timestamp: <ISO> }`.
+- `app.listen(PORT)` para que el backend quede accesible.
+- Log de arranque con pino: `Server starting on port 3000`.
+
+**Cómo se hizo:**
+- Modificados: `client/vite.config.ts`, `server/src/app.ts`. Sin archivos nuevos
+  y sin dependencias nuevas.
+- Decisiones: ver "listen en app.ts (el módulo arranca al importarse)" en la sección
+  de decisiones arquitectónicas.
+- `PORT` se lee de `process.env.PORT ?? '3000'` sin Zod; la validación llega en T-008.
+- `strictPort: true` para que Vite no caiga a otro puerto si `:5173` está ocupado.
+
+**Por qué se hizo así:**
+- El `listen` contradice explícitamente lo que T-002 pedía ("sin arrancar"), pero sin
+  él el criterio de T-004 (server en `:3000`) es imposible. T-004 prevalece.
+- Se puso la ruta directamente en `app.ts` porque así lo pide el enunciado de T-004.
+  T-009 la moverá a `src/modules/health/health.routes.ts` con su propio router, que
+  es donde debe vivir según AGENT.md §2.2.
+- `changeOrigin: true` incluido desde el inicio: hoy es inocuo, pero hace falta cuando
+  se validen orígenes en el backend.
+
+**Impacto en otras tareas:**
+- T-007 ajusta el nivel y el formato del log de arranque.
+- T-008 sustituye `process.env.PORT` por `env.PORT` validado con Zod.
+- T-009 extrae la ruta de `app.ts` al módulo `health` y añade `uptime` y `version`.
+- T-005 y T-035 no se ven afectados; el proxy no interfiere con HMR.
+- T-093 debe tener en cuenta que importar `app.ts` abre el puerto 3000.
+
+**Pendientes / deuda técnica:**
+- `PORT` sin validar: si alguien exporta `PORT=abc`, `app.listen` falla con una
+  excepción poco descriptiva. T-008 lo resuelve.
+- La ruta vive en `app.ts` y no en un router por módulo. Es deuda temporal
+  hasta T-009.
+- `app.listen` sin manejar `EADDRINUSE` ni apagado limpio (SIGTERM/SIGINT).
+  Relevante para T-094 (PM2), que necesitará un `process.on('SIGTERM')`.
+
+---
 
 ### 2026-09-29 — Actualización de SPEC.md §4 (React 19)
 **Estado:** completada
