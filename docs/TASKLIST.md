@@ -11,7 +11,7 @@
   - Criterio: existen las carpetas y cada una con su `package.json` (donde aplique).
 - [x] **T-002**: Inicializar `server/` con TypeScript estricto
   - Criterio: `tsc --noEmit` pasa sin errores.
-- [ ] **T-003**: Inicializar `client/` con Vite + React + TypeScript
+- [x] **T-003**: Inicializar `client/` con Vite + React + TypeScript
   - Criterio: `npm run dev` en client levanta la app en `:5173`.
 - [ ] **T-004**: Configurar proxy de Vite `/api` → `http://localhost:3000`
   - Criterio: una llamada a `/api/health` devuelve `{ status: 'ok' }`.
@@ -223,6 +223,40 @@
 - Impacto en otras tareas: T-004 y T-009 colgarán routers sobre esta instancia; T-007
   reconfigurará `src/logger.ts`. El `package.json` raíz sigue sin scripts (`dev`, `lint`,
   `typecheck`) — se completan en T-003/T-006.
+
+### 2026-09-29 — T-003 (setup)
+- Archivos creados: `client/index.html`, `client/vite.config.ts`, `client/tsconfig.json`,
+  `client/tsconfig.app.json`, `client/tsconfig.node.json`, `client/src/main.tsx`,
+  `client/src/App.tsx`, `client/src/index.css`, y las carpetas vacías
+  `client/src/{pages,components,api,hooks,store,locales,lib}`. Modificado `client/package.json`.
+- Criterio verificado: `npm run dev` levanta Vite en `http://localhost:5173` (HTTP 200) y
+  `App.tsx` se sirve con el texto "Osito a la carta". `npx tsc -b --noEmit` en client y
+  `npx tsc --noEmit` en server pasan ambos.
+- **Decisión del dueño:** se usa **React 19.3.0**, no React 18. `create-vite@latest
+  --template react-ts` ya no genera React 18. **SPEC.md §4 fue actualizado** el
+  2026-09-29 con autorización explícita del dueño: ahora dice "React 19 + Vite 8" y
+  §10 registra la decisión como cerrada. SPEC.md y el código ya coinciden.
+- Decisión tomada: **TypeScript unificado a 5.9.3** en todo el monorepo (el template traía
+  ~6.0.2, el server ya tenía ^5.7.3). Se declares `^5.7.3` en ambos package.json y npm
+  deduplica una sola instalación. Así `npx tsc` se comporta igual en los dos workspaces.
+- Decisión tomada: se conserva la estructura de **tsconfig con project references**
+  (`tsconfig.json` + `tsconfig.app.json` + `tsconfig.node.json`) que genera el template.
+  El `strict` se aplicó manualmente porque el template actual **no lo trae activado**:
+  se añadió `strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`,
+  `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`.
+- Decisión tomada: `exactOptionalPropertyTypes` **no** se activó en el client (sí está en el
+  server). Motivo: con las librerías de UI que llegan en T-005/T-035 (Tailwind, shadcn/ui)
+  suele generar falsos positivos al tipar props. Es el flag prescindible del backend.
+- Decisión tomada: se eliminaron del template los archivos de demo no usados
+  (`App.css`, `assets/`, `public/vite.svg`, `README.md`, `.oxlintrc.json`, `.gitignore`
+  del client) y los scripts `lint`/`build` con oxlint. El linting es tarea de **T-006**
+  (ESLint + Prettier); dejar oxlint habría creado un conflicto de herramientas.
+- Gotcha registrado: en PowerShell, `npm create vite@latest <path> -- --template react-ts`
+  ignora `--template` (npm se lo come como config propia) y scaffoldea **vanilla**, no React.
+  Hay que usar `npx --yes create-vite@latest <path> --template react-ts`.
+- Impacto en otras tareas: T-004 añade el proxy `/api` en `vite.config.ts`; T-005 añade
+  Tailwind y reemplaza `index.css`; T-006 añade ESLint/Prettier y los scripts raíz
+  (`dev:client`, `lint`, `typecheck`); T-030 reemplaza el texto de `App.tsx` por `t('app.title')`.
 
 ---
 

@@ -1,7 +1,7 @@
 # SPEC.md — Osito a la carta
 
 > Fuente de verdad del proyecto. Ningún agente debe modificar este archivo sin autorización explícita del dueño del proyecto.
-> Última actualización: [fecha]
+> Última actualización: 2026-09-29
 
 ---
 
@@ -46,7 +46,7 @@ Español (es), Ruso (ru) e Inglés (en).
 | Runtime            | Node.js (LTS)               | Conocimiento del desarrollador               |
 | Backend            | Express + TypeScript        | Familiaridad, ecosistema maduro              |
 | Base de datos      | SQLite + Drizzle ORM        | Ligera, archivo único, agregación SQL nativa |
-| Frontend           | React 18 + Vite             | SPA, ecosistema, agentes lo dominan          |
+| Frontend           | React 19 + Vite 8           | SPA, ecosistema, agentes lo dominan          |
 | Estilos            | Tailwind CSS + shadcn/ui    | Rapidez de desarrollo                        |
 | Estado global      | Zustand                     | Simple, suficiente para carrito y sesión     |
 | Fetching           | TanStack Query              | Caché, reintentos, refetch automático        |
@@ -247,5 +247,9 @@ osito-a-la-carta/
 - **react-i18next + columnas multi-idioma**: separación clara entre UI y contenido.
 - **JWT** en lugar de sesiones en servidor: simplicidad y escalabilidad futura.
 - **Monolito modular** en lugar de microservicios: equipo de una sola persona.
+- **React 19** en lugar de React 18: el template oficial de Vite ya no genera React 18
+  y el stack actual es lo que soporta shadcn/ui de forma nativa.
+  Decidido el 2026-09-29 durante T-003. Ver `docs/MEMORY.md` ("React 19").
+- **TypeScript 5.9.3 unificado** en `server/` y `client/`, sin versiones divergentes.
 
 ---

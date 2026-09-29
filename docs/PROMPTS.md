@@ -88,8 +88,8 @@ Al terminar, responde con:
 - Si una decisión antigua ya no aplica, NO la borres: propón una entrada nueva 
   que documente el cambio, y espera mi aprobación.
 
-## TAREA A IMPLEMENTAR
-[pegar aquí el prompt específico de la tarea]
+## TAREA A IMPLEMENTAR:
+
 ```
 
 ---

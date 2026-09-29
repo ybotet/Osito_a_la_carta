@@ -49,7 +49,8 @@
 
 > Snapshot rápido. Fuente de verdad del avance: `docs/TASKLIST.md`.
 
-**Completadas:** T-001 (estructura de carpetas), T-002 (server con TS estricto).
+**Completadas:** T-001 (estructura de carpetas), T-002 (server con TS estricto),
+T-003 (client con Vite + React + TS).
 
 **Estado del árbol:**
 
@@ -63,7 +64,17 @@ osito_a_la_carta/
 │       ├── logger.ts         # pino() base, sin configurar
 │       └── config/index.ts   # placeholder; env.ts llega en T-008
 ├── client/
-│   └── package.json          # mínimo, sin dependencias
+│   ├── package.json          # dev/build/preview/typecheck, React 19
+│   ├── tsconfig.json         # project references → app + node
+│   ├── tsconfig.app.json     # strict + flags
+│   ├── tsconfig.node.json    # strict, cubre vite.config.ts
+│   ├── vite.config.ts        # solo plugin-react; proxy /api en T-004
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx
+│       ├── App.tsx           # <h1>Osito a la carta</h1>
+│       ├── index.css          # global; Tailwind lo reemplaza en T-005
+│       └── pages/ components/ api/ hooks/ store/ locales/ lib/   (vacías)
 ├── shared/
 │   ├── types.ts              # vacío
 │   └── schemas.ts            # vacío
@@ -86,6 +97,13 @@ de health) o **T-007** (log de arranque).
 - `cd server && npx tsc --noEmit` — typecheck
 - `cd server && npm run build` — compila a `server/dist/`
 - `cd server && npm start` — corre `dist/app.js` (no hace nada todavía)
+- `cd client && npm run dev` — Vite en `http://localhost:5173` (funciona)
+- `cd client && npx tsc -b --noEmit` — typecheck del cliente
+
+**Versiones instaladas (verificadas con `npm ls --workspaces`):**
+react 19.3.0 · react-dom 19.3.0 · vite 8.3.1 · @vitejs/plugin-react 6.1.1 ·
+typescript 5.9.3 (**una sola versión para todo el monorepo**) · express 5.2.1 ·
+pino 9.14.0 · zod 3.25.76 · @types/node 22.20.4
 
 **Pendientes de infraestructura:**
 - El `package.json` raíz **no tiene scripts** (`dev`, `dev:server`, `dev:client`,
@@ -137,6 +155,45 @@ Olvidarlo compila pero rompe en runtime.
 **Consecuencias:** código más verboso al construir objetos opcionales. Si en algún
 punto genera fricción, `exactOptionalPropertyTypes` es el flag más prescindible.
 
+### 2026-09-29 — React 19 (desvío autorizado de SPEC.md §4)
+**Contexto:** SPEC.md §4 fija "React 18 + Vite". La tarea T-003 indicaba usar
+`npm create vite@latest . -- --template react-ts`, pero ese template hoy genera
+React 19.3.0 (React 19.3.0 es `latest` en npm; la última 18 es 18.3.1).
+**Decisión:** se usa **React 19.3.0**, según autorizó explícitamente el dueño.
+SPEC.md §4 fue actualizado el 2026-09-29 (con autorización posterior explícita)
+para decir "React 19 + Vite 8", y §10 registra la decisión como cerrada.
+**Alternativas consideradas:** (a) pinear React 18.3.1, fiel a SPEC; (b) React 18 + Vite 7,
+más conservador; (c) React 19 del template — **elegida por el dueño**.
+**Motivo:** el dueño prefiere el stack actual que genera el tooling oficial, aceptando
+el desajuste con SPEC.md.
+**Consecuencias:** SPEC.md §4 ya no está desactualizado. Cualquier agente que lea
+SPEC como fuente de verdad verá "React 19" y no intentó revertirlo. shadcn/ui y
+TanStack Query soportan React 19 sin cambios.
+
+### 2026-09-29 — TypeScript unificado a 5.9.3 en todo el monorepo
+**Contexto:** el template de Vite trae `typescript ~6.0.2`; T-002 había fijado
+`^5.7.3` en el server. Con npm workspaces, dos versiones de `tsc` conviven y una
+queda anidada en `node_modules`, lo que hace ambiguo qué versión ejecuta `npx tsc`.
+**Decisión:** declarar `^5.7.3` en **ambos** `package.json`. npm deduplica y ambos
+workspaces resuelven a **5.9.3** (una sola instalación hoisteada).
+**Alternativas consideradas:** (a) TS 6.0.2 solo en client; (b) subir el server a 6.0.2
+—descartada, mezclaba un cambio de T-002 dentro de T-003.
+**Motivo:** una sola versión hace que `npm run typecheck` en la raíz sea predecible en
+T-006, y TS 5.9 es la rama que shadcn/ui, drizzle-kit y Recharts ya soportan.
+**Consecuencias:** el `caret` de `^5.7.3` permite subir a 5.x sin tocar los manifests.
+Si alguna dependencia exige TS 6, habrá que migrar los dos workspaces a la vez.
+
+### 2026-09-29 — Project references en el tsconfig del cliente
+**Contexto:** el template actual de Vite no trae un `tsconfig.json` único sino tres
+archivos: `tsconfig.json` (solo `references`) + `tsconfig.app.json` + `tsconfig.node.json`.
+**Decisión:** conservar esa estructura tal cual la genera Vite.
+**Alternativas consideradas:** un `tsconfig.json` único y plano.
+**Motivo:** es el estándar de la herramienta y separa el código de la app (DOM,
+`jsx: react-jsx`) del de las herramientas (`vite.config.ts`, tipos de Node).
+**Consecuencias:** el typecheck del cliente es `tsc -b --noEmit`, **no** `tsc --noEmit`.
+Ojo: el backend sí usa `tsc --noEmit` porque tiene un solo tsconfig. Los dos comandos
+no son intercambiables.
+
 ---
 
 ## Problemas conocidos / gotchas
@@ -156,12 +213,103 @@ punto genera fricción, `exactOptionalPropertyTypes` es el flag más prescindibl
 - **El backend todavía no sirve nada.** `app.listen()` no existe hasta T-004/T-007.
   `npm run dev` en `server/` deja el watcher de `tsx` vivo pero sin puerto abierto:
   no es un bug, es el estado esperado del proyecto.
+- ~~**SPEC.md §4 dice "React 18" pero el código usa React 19.3.0**~~ → **RESUELTO
+  2026-09-29**: el dueño autorizó actualizar SPEC.md. §4 ahora dice "React 19 + Vite 8"
+  y §10 registra la decisión. SPEC.md y el código vuelven a coincidir.
+- **PowerShell rompe el flag `--template` de create-vite.**
+  `npm create vite@latest <path> -- --template react-ts` ignora el flag (npm lo
+  interpreta como config propia) y scaffoldea **vanilla**, no React, sin avisar.
+  Usar siempre: `npx --yes create-vite@latest <path> --template react-ts`.
+- **El typecheck cambia de comando entre workspaces.** Cliente: `tsc -b --noEmit`
+  (project references). Backend: `tsc --noEmit` (tsconfig único). Usar el correcto
+  según la carpeta.
+- **El template de Vite ya no incluye `strict: true`.** Viene implícito en algunas
+  configuraciones de Vite pero el `tsconfig.app.json` que genera create-vite actual
+  **no lo declara**. Hay que añadirlo a mano, igual que los flags de AGENT.md.
 
 ---
 
 ## Historial de entradas
 
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
+### 2026-09-29 — Actualización de SPEC.md §4 (React 19)
+**Estado:** completada
+
+**Qué se hizo:**
+- SPEC.md §4: la fila Frontend pasó de "React 18 + Vite" a "React 19 + Vite 8".
+- SPEC.md encabezado: `Última actualización: [fecha]` → `2026-09-29`.
+- SPEC.md §10: se registren como decisiones cerradas React 19 y TypeScript unificado.
+
+**Cómo se hizo:**
+- Modificado: `docs/SPEC.md` (3 ediciones puntuales), `docs/MEMORY.md`.
+- Editadas también las entradas previas de MEMORY.md y TASKLIST.md que decían que
+  SPEC.md estaba desactualizado, para eliminar la contradicción.
+
+**Por qué se hizo así:**
+- El dueño autorizó explícitamente la edición de SPEC.md, que por norma requería
+  autorización previa. Se hizo el cambio mínimo: solo lo que el código ya refleja.
+- No se tocó la sección 5 (estructura de carpetas): la de `client/` sigue describiendo
+  `index.html`, `vite.config.ts`, `tailwind.config.js` y `package.json`, pero ahora
+  falta `tsconfig*.json` en el árbol documentado. Esa omisión es preexistente y
+  corresponde a la tarea que inicialice el cliente con su toolchain completa.
+
+**Impacto en otras tareas:**
+- SPEC.md vuelve a ser fuente de verdad coherente con el código. Los agentes ya no
+  deberían intentar "corregir" React 19 de vuelta a React 18.
+
+**Pendientes / deuda técnica:**
+- SPEC.md §5 no lista `client/tsconfig*.json` en el árbol de carpetas. Cosmético.
+
+---
+
+### 2026-09-29 — T-003 Client con Vite + React + TypeScript
+**Estado:** completada
+
+**Qué se hizo:**
+- Scaffold de `client/` con Vite 8 + React 19 + TypeScript 5.9.3.
+- `tsconfig` con project references y `strict` activado a mano.
+- Estructura `src/` con las 7 carpetas vacías que pide SPEC §5.
+- `App.tsx` mínimo con `<h1>Osito a la carta</h1>`.
+
+**Cómo se hizo:**
+- Archivos creados: `client/index.html`, `client/vite.config.ts`, `client/tsconfig.json`,
+  `client/tsconfig.app.json`, `client/tsconfig.node.json`, `client/src/main.tsx`,
+  `client/src/App.tsx`, `client/src/index.css`, más las carpetas
+  `client/src/{pages,components,api,hooks,store,locales,lib}/`.
+  Modificado: `client/package.json`.
+- Dependencias agregadas (con autorización): `react`, `react-dom` (runtime);
+  `vite`, `@vitejs/plugin-react`, `typescript`, `@types/react`, `@types/react-dom`,
+  `@types/node` (dev). Todas justificadas por SPEC §4 y por el template oficial.
+- Decisiones: ver "React 19 (desvío autorizado de SPEC.md §4)", "TypeScript unificado
+  a 5.9.3" y "Project references en el tsconfig del cliente".
+
+**Por qué se hizo así:**
+- El scaffold se generó en un directorio temporal con `npx create-vite` y se copiaron
+  solo los archivos necesarios, en vez de correr el comando dentro de `client/`.
+  Motivo: el directorio ya contenía un `package.json` de T-001 y create-vite habría
+  prompted para sobrescribirlo o abortado por directorio no vacío.
+- Se descartaron del template `App.css`, `assets/`, `public/vite.svg`, `README.md`,
+  `.oxlintrc.json` y el `.gitignore` propio del client: el `.gitignore` raíz ya cubre
+  esos patrones, y oxlint entraría en conflicto con el ESLint + Prettier de T-006.
+- `main.tsx` valida `document.getElementById('root')` con un guard explícito en vez
+  del `!` non-null assertion del template, por coherencia con la regla de "sin `any`"
+  y por `strict` real.
+
+**Impacto en otras tareas:**
+- T-004 modifica `client/vite.config.ts` para el proxy `/api`.
+- T-005 reemplaza `client/src/index.css` por las directivas de Tailwind.
+- T-006 añade ESLint + Prettier y los scripts raíz (`dev:client`, `lint`, `typecheck`).
+- T-030 sustituye el texto hardcodeado de `App.tsx` por `t('app.title')` con i18n.
+- Nota: `App.tsx` tiene hoy un texto visible hardcodeado, technically en contra de
+  AGENT.md §2.3, pero es exactamente lo que pide el criterio de T-003. Se corrige en T-030.
+
+**Pendientes / deuda técnica:**
+- Las 7 carpetas de `src/` están vacías y **git no trackea directorios vacíos**.
+  Si desaparecen al clonar, recrearlas antes de T-030.
+- `index.css` tiene estilos base mínimos que T-005 reemplazará por completo.
+
+---
 
 ### 2026-09-29 — T-001 Estructura de carpetas
 **Estado:** completada
