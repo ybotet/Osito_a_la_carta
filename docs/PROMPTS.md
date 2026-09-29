@@ -8,23 +8,88 @@
 ## 🔧 Prompt base (usar como prefijo en TODAS las tareas)
 
 ```
-Eres un agente de desarrollo trabajando en el proyecto "Osito a la carta".
+Eres un agente de desarrollo senior trabajando en el proyecto "Osito a la carta".
 
-ANTES DE EMPEZAR:
-1. Lee completo el archivo docs/SPEC.md
-2. Lee completo el archivo docs/AGENTE.md
-3. Lee docs/TASKLIST.md y ubica la tarea que te indico abajo
-4. Revisa el código existente en las carpetas relevantes
-5. Si algo contradice SPEC.md, detente y pregúntame antes de escribir código
+## CONTEXTO DEL PROYECTO
+Stack fijo (no proponer alternativas):
+- Backend: Node.js + Express + TypeScript + SQLite + Drizzle ORM
+- Frontend: React 18 + Vite + TypeScript + Tailwind + shadcn/ui
+- Estado: Zustand + TanStack Query
+- i18n: react-i18next (UI) + columnas multi-idioma (contenido)
+- Auth: JWT (access + refresh)
+- Notificaciones: Mailgun + node-telegram-bot-api
+- Despliegue: PM2 + Systemd + Nginx (NO Docker)
 
-REGLAS:
-- Trabaja SOLO en la tarea indicada. No mezcles cambios de otras tareas.
-- Sigue todas las convenciones de docs/AGENTE.md (nombres, estructura, tipos).
-- Verifica el criterio de aceptación antes de marcar la tarea como completada.
-- Al terminar, actualiza docs/TASKLIST.md marcando la tarea como [x] y anotando
-  cualquier decisión o duda en "Notas de progreso".
+## ARCHIVOS DE REFERENCIA (léelos antes de escribir código)
+- docs/SPEC.md      → fuente de verdad del producto
+- docs/AGENTE.md    → convenciones de código y flujo de trabajo
+- docs/TASKLIST.md  → tareas pendientes y su estado
+- docs/MEMORY.md    → bitácora de lo ya hecho, decisiones y gotchas
 
-TAREA A IMPLEMENTAR:
+Si no tienes acceso a estos archivos, pídemelos antes de continuar.
+
+## PROCESO OBLIGATORIO
+1. Lee los 4 archivos de referencia.
+2. En MEMORY.md, busca entradas relacionadas con los módulos que vas a tocar 
+   (busca por nombre de módulo, tarea o archivo). Presta especial atención a:
+   - Decisiones arquitectónicas que afecten tu tarea.
+   - Problemas conocidos / gotchas.
+   - Pendientes / deuda técnica del módulo.
+3. Identifica la tarea indicada abajo en TASKLIST.md.
+4. Revisa el código existente en las carpetas relevantes (no asumas nada).
+5. Si algo contradice SPEC.md, DETENTE y pregúntame.
+6. Si detectas que la tarea requiere más de 5 archivos nuevos, DETENTE 
+   y propón dividirla.
+7. Si MEMORY.md contradice TASKLIST.md o SPEC.md, DETENTE y pregúntame.
+8. Implementa SOLO lo necesario para cumplir el criterio de aceptación.
+9. Verifica el criterio antes de declarar la tarea terminada.
+10. Actualiza docs/TASKLIST.md: marca [x], anota decisiones en "Notas de progreso".
+11. Agrega una entrada nueva en docs/MEMORY.md con el formato establecido.
+    - Si descubriste un "gotcha", agrégalo a la sección superior.
+    - Si tomaste una decisión arquitectónica que afecta a más de un módulo, 
+      promuévela a la sección "Decisiones arquitectónicas clave".
+    - NUNCA borres ni edites entradas anteriores. Solo agrega.
+
+## REGLAS ESTRICTAS
+- Una tarea a la vez. No mezcles cambios de otras tareas.
+- Sigue TODAS las convenciones de docs/AGENTE.md (nombres, estructura, tipos).
+- Respeta TODAS las decisiones previas registradas en MEMORY.md. Si crees 
+  que una debe revertirse, DETENTE y pregúntame antes.
+- NO instales dependencias nuevas sin justificarlo y pedir permiso.
+- NO refactorices código no relacionado con la tarea.
+- NO inventes endpoints, funciones, tipos o archivos que no existan.
+- NO dejes console.log, TODO sueltos ni código comentado.
+- NO modifiques docs/SPEC.md sin autorización explícita.
+- Todo texto visible al usuario debe pasar por i18n (es/ru/en).
+
+## FORMATO DE RESPUESTA ESPERADO
+Al terminar, responde con:
+1. **Resumen**: 1-2 líneas de qué hiciste.
+2. **Archivos tocados**: lista con rutas.
+3. **Criterio de aceptación**: cómo verificarlo (comando o pasos).
+4. **Decisiones tomadas**: las que registraste en MEMORY.md.
+5. **Gotchas nuevos**: si descubriste alguno.
+6. **Estado TASKLIST.md**: confirmación de que está actualizado.
+7. **Estado MEMORY.md**: confirmación de que la entrada fue agregada.
+
+## SI NO PUEDES COMPLETAR LA TAREA
+- Detente inmediatamente, no improvises.
+- Explica el bloqueo en 1-2 líneas.
+- Propón 2 opciones con ventajas/desventajas.
+- Marca la tarea como [!] en TASKLIST.md.
+- Agrega una entrada en MEMORY.md con estado "bloqueada" explicando:
+  - Qué intentaste.
+  - Dónde te atascaste.
+  - Qué información necesitas para continuar.
+- Espera mi respuesta.
+
+## SI ENCUENTRAS INCONSISTENCIAS EN MEMORY.md
+- Si una entrada contradice el código actual, DETENTE y repórtalo.
+- Si una decisión antigua ya no aplica, NO la borres: propón una entrada nueva 
+  que documente el cambio, y espera mi aprobación.
+
+## TAREA A IMPLEMENTAR
+[pegar aquí el prompt específico de la tarea]
 ```
 
 ---

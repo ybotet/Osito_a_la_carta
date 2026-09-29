@@ -9,7 +9,7 @@
 
 - [x] **T-001**: Crear estructura de carpetas `server/`, `client/`, `shared/`, `docs/`
   - Criterio: existen las carpetas y cada una con su `package.json` (donde aplique).
-- [ ] **T-002**: Inicializar `server/` con TypeScript estricto
+- [x] **T-002**: Inicializar `server/` con TypeScript estricto
   - Criterio: `tsc --noEmit` pasa sin errores.
 - [ ] **T-003**: Inicializar `client/` con Vite + React + TypeScript
   - Criterio: `npm run dev` en client levanta la app en `:5173`.
@@ -199,6 +199,30 @@
 - El `package.json` raíz todavía **no** tiene scripts (`dev`, `lint`, `typecheck`, `build`, `test`).
   Se agregarán en T-002 (dev/typecheck del server), T-003 (dev del client) y T-006 (lint/format).
 - Impacto en otras tareas: ninguna dependencia instalada todavía, según lo pedido.
+
+### 2026-09-29 — T-002 (setup)
+- Archivos creados: `server/tsconfig.json`, `server/src/app.ts`, `server/src/logger.ts`,
+  `server/src/config/index.ts`. Dependencias instaladas y añadidas a `server/package.json`.
+- Criterio verificado: `npx tsc --noEmit` pasa sin errores y `npx tsx src/app.ts` carga el
+  módulo sin abrir el puerto (no hay `app.listen`).
+- Decisión tomada: `module`/`moduleResolution` = **NodeNext**, coherente con `"type": "module"`.
+  Esto obliga a escribir imports relativos con extensión `.js` (p. ej. `./logger.js`).
+- Decisión tomada: se activaron flags adicionales de strict: `noUncheckedIndexedAccess`,
+  `noImplicitOverride`, `noFallthroughCasesInSwitch` y `exactOptionalPropertyTypes`.
+  `exactOptionalPropertyTypes` puede obligar a propagar `prop?: T` en vez de `prop: T | undefined`
+  al construir objetos; ajustar en T-008 si incomoda.
+- Decisión tomada: `src/logger.ts` se creó ya con `pino()` base (sin opciones) porque la
+  estructura lo exige. La configuración por entorno y `pino-pretty` quedan para **T-007**;
+  no se-forward-dejó configuración adelantada para no mezclar tareas.
+- Decisión tomada: `src/config/index.ts` existe como punto de extensión para el barrel de configuración.
+  `config/env.ts` (validación Zod) se crea en **T-008**.
+- Nota: `npm install` se ejecutó desde `server/`, pero por los workspaces de la raíz los
+  paquetes se hoistean a `<raíz>/node_modules` y se creó `<raíz>/package-lock.json`. Es el
+  comportamiento esperado; no hay `node_modules` dentro de `server/`.
+- No se agregó ninguna ruta: `app.ts` solo exporta la instancia de Express.
+- Impacto en otras tareas: T-004 y T-009 colgarán routers sobre esta instancia; T-007
+  reconfigurará `src/logger.ts`. El `package.json` raíz sigue sin scripts (`dev`, `lint`,
+  `typecheck`) — se completan en T-003/T-006.
 
 ---
 
