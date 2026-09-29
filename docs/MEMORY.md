@@ -50,7 +50,8 @@
 > Snapshot rápido. Fuente de verdad del avance: `docs/TASKLIST.md`.
 
 **Completadas:** T-001 (estructura de carpetas), T-002 (server con TS estricto),
-T-003 (client con Vite + React + TS), T-004 (proxy /api + endpoint de health).
+T-003 (client con Vite + React + TS), T-004 (proxy /api + endpoint de health),
+T-005 (Tailwind CSS 4 en el cliente).
 
 **Estado del árbol:**
 
@@ -68,12 +69,12 @@ osito_a_la_carta/
 │   ├── tsconfig.json         # project references → app + node
 │   ├── tsconfig.app.json     # strict + flags
 │   ├── tsconfig.node.json    # strict, cubre vite.config.ts
-│   ├── vite.config.ts        # plugin-react + proxy /api → :3000 (strictPort)
+│   ├── vite.config.ts        # plugin-react + tailwindcss() + proxy /api (:3000)
 │   ├── index.html
 │   └── src/
 │       ├── main.tsx
-│       ├── App.tsx           # <h1>Osito a la carta</h1>
-│       ├── index.css          # global; Tailwind lo reemplaza en T-005
+│       ├── App.tsx           # <h1 class="mt-10 text-center text-3xl font-bold">
+│       ├── index.css          # @import 'tailwindcss'  (Tailwind 4, CSS-first)
 │       └── pages/ components/ api/ hooks/ store/ locales/ lib/   (vacías)
 ├── shared/
 │   ├── types.ts              # vacío
@@ -92,6 +93,11 @@ Zod, así que `PORT` se lee directo de `process.env` con default `3000` (eso cam
 
 **El proxy de Vite funciona.** Con ambos servidores arriba,
 `http://localhost:5173/api/health` devuelve el mismo JSON que `http://localhost:3000/api/health`.
+
+**Estilos:** Tailwind **4.3.3** vía plugin `@tailwindcss/vite`. No hay
+`tailwind.config.js`, ni `postcss`, ni `autoprefixer`. El tema se configura con
+`@theme` dentro de `client/src/index.css`. No existen las directivas `@tailwind`
+de la versión 3.
 
 **Comandos que sí funcionan hoy:**
 - `cd server && npm run dev` — Express en `http://localhost:3000` (funciona)
@@ -209,6 +215,32 @@ Eso importa para T-093: los tests que importen `app` abrirán el puerto. Si mole
 la extracción a `index.ts` es el camino natural, pero requiere actualizar SPEC §5.
 Además, `PORT` se lee de `process.env` sin validar hasta T-008.
 
+### 2026-09-29 — Tailwind 4 con plugin de Vite (CSS-first, sin config.js)
+**Contexto:** el enunciado de T-005 pedía el setup clásico de Tailwind v3:
+`tailwind.config.js` con `content: ['./src/**/*.{ts,tsx}']`, `postcss` + `autoprefixer`
+y las directivas `@tailwind base/components/utilities`. La versión vigente es
+**Tailwind 4.3.3** (la 3.4.19 está bajo el tag `v3-lts`, en mantenimiento).
+**Decisión:** se instala **tailwindcss 4.3.3 + @tailwindcss/vite 4.3.3**, con
+configuración CSS-first: `@import 'tailwindcss'` en `index.css` y tokens de tema
+vía `@theme` dentro del mismo CSS. **Autorizado explícitamente por el dueño.**
+SPEC.md §4 no fijaba versión ("Tailwind CSS"), así que no hubo que modificarlo.
+**Alternativas consideradas:** (a) Tailwind 3.4.19 literal al enunciado, descartado
+porque shadcn/ui ya considera legacy el modelo de v3 y obligaría a migrar en T-035;
+(b) híbrido v4 + config.js vía `@config`; (c) v4 CSS-first — elegida.
+**Motivo:** el plugin oficial de Vite hace el build más rápido, elimina la capa de
+PostCSS por completo y es el camino que shadcn/ui prueba de forma nativa.
+**Consecuencias:**
+- **No existe `client/tailwind.config.js`**, pero SPEC.md §5 lo documenta en el árbol
+  de carpetas. Discrepancia pendiente de corregir en SPEC (requiere autorización).
+- **No hay `postcss` ni `autoprefixer`** instalados, y no hacen falta.
+- **Las directivas `@tailwind` ya no existen** en v4. Si un agente las escribe,
+  el CSS se rompe silenciosamente.
+- Extender el tema (colores, fuentes) se hace con `@theme { --color-marca: ... }`
+  en `index.css`, no en un objeto JS.
+- La detección automática de clases escanea el proyecto, pero **las cadenas
+  construidas dinámicamente** (`` `text-${color}-500` ``) no se detectan. Usar
+  siempre clases completas.
+
 ### 2026-09-29 — Project references en el tsconfig del cliente
 **Contexto:** el template actual de Vite no trae un `tsconfig.json` único sino tres
 archivos: `tsconfig.json` (solo `references`) + `tsconfig.app.json` + `tsconfig.node.json`.
@@ -262,12 +294,58 @@ no son intercambiables.
 - **El template de Vite ya no incluye `strict: true`.** Viene implícito en algunas
   configuraciones de Vite pero el `tsconfig.app.json` que genera create-vite actual
   **no lo declara**. Hay que añadirlo a mano, igual que los flags de AGENT.md.
+- **Tailwind 4 no usa `tailwind.config.js` ni directivas `@tailwind`.** Es CSS-first:
+  `@import 'tailwindcss'` y `@theme` dentro del CSS. SPEC.md §5 todavía lista
+  `client/tailwind.config.js` en el árbol de carpetas: **esa línea está desactualizada.**
+  No instalar `postcss`/`autoprefixer` salvo que una dependencia los exija.
+- **Las clases de Tailwind construidas por interpolación no se detectan.**
+  `` `text-${color}-500` `` no genera CSS. Escribir siempre la clase completa.
+  Esto aplica a T-035 (shadcn/ui) y a cualquier badge de color por estado de pedido.
 
 ---
 
 ## Historial de entradas
 
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
+### 2026-09-29 — T-005 Tailwind CSS 4 en el cliente
+**Estado:** completada (confirmación visual del dueño pendiente)
+
+**Qué se hizo:**
+- Tailwind 4.3.3 instalado con el plugin `@tailwindcss/vite`.
+- `index.css` reducido a `@import 'tailwindcss'`.
+- `App.tsx` con `<h1 class="mt-10 text-center text-3xl font-bold">Osito a la carta</h1>`.
+
+**Cómo se hizo:**
+- Modificados: `client/vite.config.ts` (se añadió `tailwindcss()` al array de plugins),
+  `client/src/index.css` (sustituido por completo), `client/src/App.tsx`,
+  `client/package.json`. Sin archivos nuevos.
+- Dependencias agregadas (con autorización del dueño): `tailwindcss@^4.3.3` y
+  `@tailwindcss/vite@^4.3.3`, ambas devDependencies. Ambas justificadas por SPEC §4.
+- Decisión: ver "Tailwind 4 con plugin de Vite (CSS-first, sin config.js)".
+
+**Por qué se hizo así:**
+- El enunciado describía el setup de Tailwind v3, que ya no es el vigente. Se optó por
+  la versión 4 con autorización explícita en lugar de fijar una versión en mantenimiento.
+- Las clases se ordenaron como `mt-10 text-center text-3xl font-bold` (layout, luego
+  tipografía) para que el criterio de aceptación sea legible de un vistazo.
+
+**Impacto en otras tareas:**
+- T-035 (shadcn/ui) debe usar el esquema CSS-first: los tokens del tema se redefinen
+  con `@theme` en `index.css`, no en un `tailwind.config.js`. Es el punto de mayor
+  fricción probable de todo el proyecto.
+- T-091 (responsive) tiene todas las utilities disponibles desde ahora.
+- T-006 (ESLint/Prettier) no se ve afectado; no hay configuración de PostCSS que mantener.
+
+**Pendientes / deuda técnica:**
+- **SPEC.md §5 documenta `client/tailwind.config.js`, que ya no existe con Tailwind 4.**
+  Corregir SPEC requiere autorización del dueño.
+- `App.tsx` sigue con el texto hardcodeado, sin pasar por i18n. Esto viola AGENT.md §2.3
+  pero es lo que pide el criterio de T-005; se corrige en T-030.
+- El tema de Tailwind está sin personalizar: sin colores de marca, sin fuentes.
+  Se definirá con `@theme` cuando se conozca la identidad visual.
+
+---
 
 ### 2026-09-29 — T-004 Proxy de Vite + endpoint de health
 **Estado:** completada

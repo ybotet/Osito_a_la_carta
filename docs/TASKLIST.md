@@ -15,7 +15,7 @@
   - Criterio: `npm run dev` en client levanta la app en `:5173`.
 - [x] **T-004**: Configurar proxy de Vite `/api` → `http://localhost:3000`
   - Criterio: una llamada a `/api/health` devuelve `{ status: 'ok' }`.
-- [ ] **T-005**: Configurar Tailwind en `client/`
+- [x] **T-005**: Configurar Tailwind en `client/`
   - Criterio: una clase de Tailwind se aplica visualmente en `App.tsx`.
 - [ ] **T-006**: Configurar ESLint + Prettier en `server/` y `client/`
   - Criterio: `npm run lint` pasa sin errores en ambos.
@@ -283,6 +283,30 @@
 - Impacto en otras tareas: T-007 sustituye el `logger.info` directo por el nivel/config
   definitivos; T-008 mueve el puerto a `env.PORT` validado; T-009 movdrá la ruta de
   `app.ts` a `src/modules/health/health.routes.ts` con un router propio.
+
+### 2026-09-29 — T-005 (setup)
+- Archivos modificados: `client/vite.config.ts` (plugin de Tailwind), `client/src/index.css`
+  (sustituido por completo), `client/src/App.tsx` (clases de Tailwind).
+  Modificado: `client/package.json` (2 devDependencies). Ningún archivo nuevo.
+- Criterio verificado: `npm run build` genera `dist/assets/index-*.css` de 4.82 kB que
+  contiene las cuatro utilities usadas (`.mt-10`, `.text-3xl`, `.font-bold`, `.text-center`).
+  `npx tsc -b --noEmit` pasa. El dev server sirve `index.css` como `text/css` y `App.tsx`
+  con las clases aplicadas. Pendiente la confirmación visual del dueño en el navegador.
+- **Decisión del dueño (desvía del enunciado):** se instala **Tailwind 4.3.3** con el plugin
+  `@tailwindcss/vite`, **no** Tailwind 3. El enunciado pedía `tailwind.config.js`,
+  postcss + autoprefixer y las directivas `@tailwind base/components/utilities`; ese es el
+  modelo de Tailwind v3, que ya no es el vigente. SPEC.md §4 solo dice "Tailwind CSS" sin
+  fijar versión, así que no hubo que modificarlo.
+- Consecuencia del desvío: **no existe `client/tailwind.config.js`**, no se instalaron
+  `postcss` ni `autoprefixer`, y `index.css` usa `@import 'tailwindcss'` en lugar de las
+  directivas `@tailwind`. La configuración de tema se hace en CSS con `@theme` dentro de
+  `index.css`. T-035 (shadcn/ui) requerirá revisar los tokens del tema.
+- Gotcha registrado: SPEC.md §5 documenta `client/tailwind.config.js` como parte del árbol
+  esperado. Con Tailwind 4 ese archivo ya no existe. Actualizar SPEC §5 requiere
+  autorización del dueño; queda anotado aquí y en MEMORY.md.
+- Impacto en otras tareas: T-035 (shadcn/ui) debe usar el esquema de tema CSS-first de
+  Tailwind 4; T-090 (PWA) no se ve afectado; T-091 (responsive) aprovecha las utilities
+  de Tailwind ya disponibles.
 
 ---
 
