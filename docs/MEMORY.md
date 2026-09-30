@@ -53,8 +53,8 @@
 T-003 (client con Vite + React + TS), T-004 (proxy /api + endpoint de health),
 T-005 (Tailwind CSS 4 en el cliente), T-006 (ESLint 10 + Prettier 3),
 T-007 (logger pino con pino-pretty en desarrollo),
-T-008 (validación de env con Zod), y el ajuste de `engines.node`
-a `^20.19.0 || ^22.13.0 || >=24`.
+T-008 (validación de env con Zod), T-009 (módulo de health), y el ajuste de
+`engines.node` a `^20.19.0 || ^22.13.0 || >=24`.
 
 **Estado del árbol:**
 
@@ -64,11 +64,14 @@ osito_a_la_carta/
 │   ├── package.json          # type: module, scripts dev/build/start/typecheck
 │   ├── tsconfig.json         # strict + NodeNext
 │   └── src/
-│       ├── app.ts            # instancia Express + GET /api/health + listen
+│       ├── app.ts            # instancia Express + routers bajo /api + listen
 │       ├── logger.ts         # pino: pretty en dev, JSON en prod, nivel de env
-│       └── config/
-│           ├── index.ts      # barrel: reexporta env
-│           └── env.ts        # validación Zod; process.exit(1) si falta algo
+│       ├── config/
+│       │   ├── index.ts      # barrel: reexporta env
+│       │   └── env.ts        # validación Zod; process.exit(1) si falta algo
+│       └── modules/
+│           └── health/
+│               └── health.routes.ts   # GET /health (montado en /api)
 ├── client/
 │   ├── package.json          # dev/build/preview/typecheck, React 19
 │   ├── tsconfig.json         # project references → app + node
@@ -142,6 +145,11 @@ hace `process.exit(1)` con un mensaje en español si algo falta. Usa
 - **En producción se rechazan los valores de ejemplo de `.env.example`**
   (marcadores: `tudominio`, `cambia-esto`, `changeme`, `change-me`, `placeholder`).
   En desarrollo se permiten a propósito, para poder arrancar recién clonado el repo.
+
+Routers:** se montan con `app.use('/api', xRouter)` y **definen la ruta sin el
+prefijo** (`healthRouter.get('/health', ...)`), de modo que `/api` vive en un solo
+sitio y los routers futuros no lo repiten. El primero es `health`; devuelve
+`{ status, timestamp, uptime, version }`.
 
 **Logging:** `server/src/logger.ts` exporta una instancia de pino ya configurada.
 - `env.isProduction` → transporte `pino-pretty` con `colorize`, hora `HH:MM:ss`.
@@ -269,6 +277,47 @@ PostCSS por completo y es el camino que shadcn/ui prueba de forma nativa.
 - La detección automática de clases escanea el proyecto, pero **las cadenas
   construidas dinámicamente** (`` `text-${color}-500` ``) no se detectan. Usar
   siempre clases completas.
+
+### 2026-09-30 — `createRequire` para leer `package.json` (no `import` de JSON)
+**Contexto:** T-009 pide devolver la `version` del servidor leída de `package.json`.
+El `tsconfig` tiene `resolveJsonModule: true`, `module: NodeNext` y
+`rootDir: "./src"`, pero `server/package.json` está **fuera** de `rootDir`.
+**Decisión:** leer el JSON con **`createRequire(import.meta.url)`** desde
+`modules/health/health.routes.ts`, no con `import ... with { type: 'json' }`.
+**Alternativas consideradas:** (a) `import` de JSON con import attribute — probada y
+descartada, ver abajo; (b) `createRequire` — elegida; (c) leer el JSON a mano con
+`fs.readFileSync` + `JSON.parse` — funciona, pero `createRequire` es más directo y
+respeta la caché de módulos.
+**Por qué:** el import de JSON **pasa `tsc --noEmit` y `npm run build` sin errores**
+pero **falla en runtime** en los dos entornos: tsc emite el `.js` en
+`dist/modules/health/` y **no copia el `package.json` a `dist/`** (está fuera de
+`rootDir`), dando `ERR_MODULE_NOT_FOUND`. Con tsx sobre `src/` también falló.
+`createRequire` resuelve la ruta real del filesystem en runtime y funciona igual.
+**Consecuencias:**
+- **Verificar siempre en los dos modos de ejecución.** `tsc --noEmit` y `npm run build`
+  en verde **no** garantizan que un import funky funcione al ejecutar. El error solo
+  aparece con `npm start` sobre `dist/`.
+- La ruta `../../../package.json` se resolvió comprobando que funciona tanto desde
+  `src/modules/health/` como desde `dist/modules/health/` (misma profundidad).
+- El resultado de `require` se castea a `{ version: string }`; no hay `any`.
+
+### 2026-09-30 — Patrón de routers: prefijo en `app.ts`, ruta sin prefijo en el router
+**Contexto:** AGENT.md §2.2 pide un `<feature>.routes.ts` por módulo, pero la tarea
+de T-004 ya había dejado `GET /api/health` **inline en `app.ts`**.
+**Decisión:** cada router se monta con `app.use('/api', xRouter)` y define sus rutas
+**sin el prefijo** (`healthRouter.get('/health', ...)`). `app.ts` solo compone
+`app.use(...)`, sin ninguna definición de ruta.
+**Alternativas consideradas:** (a) `app.use('/api/dishes', dishesRouter)` por módulo;
+(b) mantener `/api` en cada ruta del router; (c) prefijo único `/api` — elegida.
+**Motivo:** con (a) cada router tendría que conocer su propio prefijo completo, y
+cambiar `/api` obligaría a editar todos. Con (b) el prefijo se repite en cada archivo.
+Con (c) `/api` vive en un único sitio y los routers futuros no lo mencionan.
+**Consecuencias:**
+- T-020, T-051, T-080 y demás siguen este patrón: `app.use('/api', xRouter)`.
+- Un router es testeable de forma aislada (T-093 puede montarlo en un `express()` de
+  prueba sin tocar `app.ts`).
+- `healthRouter` no lleva el sufijo `/routes` en el import: se importa como
+  `healthRouter` desde `./modules/health/health.routes.js`.
 
 ### 2026-09-30 — Rechazo de placeholders de `.env.example` solo en producción
 **Contexto:** tras T-008 se detectó que los valores de ejemplo de `.env.example`
@@ -478,12 +527,59 @@ no son intercambiables.
 - **`tsx watch` no reinicia al cambiar `.env`.** Solo vigila los archivos fuente de
   `src/`. Tras editar el `.env` hay que reiniciar el proceso a mano, o el server
   sigue usando los valores antiguos.
+- **`import pkg from './x.json' with { type: 'json' }` rompe en producción sin avisar.**
+  Pasa `tsc --noEmit` **y** `npm run build` en verde, pero al ejecutar desde `dist/`
+  lanza `ERR_MODULE_NOT_FOUND`: tsc no copia el JSON si está fuera de `rootDir`.
+  Usar `createRequire` en el backend. Ver "createRequire para leer package.json".
+- **Un `tsc --noEmit` en verde no prueba que el código funcione.** Durante T-009 el
+  import de JSON pasó typecheck, lint, format y build, y falló en runtime. Verificar
+  siempre con `npm start` sobre `dist/` cuando toque resolución de rutas o módulos.
 
 ---
 
 ## Historial de entradas
 
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
+### 2026-09-30 — T-009 Módulo de health
+**Estado:** completada
+
+**Qué se hizo:**
+- `server/src/modules/health/health.routes.ts` con `GET /health`.
+- `app.ts` monta el router con `app.use('/api', healthRouter)` y deja de definir rutas.
+- Respuesta: `{ status, timestamp, uptime, version }`.
+
+**Cómo se hizo:**
+- Creado: `server/src/modules/health/health.routes.ts`.
+- Modificado: `server/src/app.ts`.
+- Sin dependencias nuevas.
+- Decisiones: "createRequire para leer package.json" y "Patrón de routers: prefijo en
+  app.ts, ruta sin prefijo en el router".
+
+**Por qué se hizo así:**
+- El enunciado pedía explícitamente la estructura `modules/health/health.routes.ts` y
+  registrar el router en `app.ts`. La ruta inline que dejó T-004 se movió al router;
+  la tarea anterior ya lo había anotado como deuda temporal.
+- El router define `/health` y el prefijo `/api` vive en el `app.use`. Así `/api` está
+  en un solo sitio y los routers futuros no lo repiten.
+- `version` se lee con `createRequire` en vez de importar el JSON: ver más abajo, la
+  alternativa fallaba en runtime.
+
+**Impacto en otras tareas:**
+- T-020, T-051, T-080, T-070 y demás siguen el patrón `app.use('/api', xRouter)`.
+- T-093 puede montar `healthRouter` en una instancia de Express de prueba sin abrir
+  un puerto, y afirmar sobre `version` comparando con el `package.json` real.
+- T-094 (PM2) no necesita cambios: sigue usando el script `start` existente.
+
+**Pendientes / deuda técnica:**
+- `health.routes.ts` no tiene `health.service.ts` ni `health.schema.ts`. AGENT.md §2.2
+  describe esa estructura para módulos con lógica; health es un caso trivial de
+  lectura sin acceso a datos, así que un solo archivo es proporcional a la tarea.
+  Si se le añade comprobación de BD (health profundo), ahí sí tendría sentido el service.
+- `uptime` se reinicia en cada reinicio del proceso, como es lógico. Si Nginx o un
+  balanceadorneedue una sonda que sobreviva reinicios, habría que persistir el arranque.
+
+---
 
 ### 2026-09-30 — Guard de placeholders en `.env` (endurecimiento de T-008)
 **Estado:** completada

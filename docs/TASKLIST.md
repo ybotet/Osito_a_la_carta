@@ -23,7 +23,7 @@
   - Criterio: el logger imprime JSON estructurado al arrancar.
 - [x] **T-008**: Configurar validación de variables de entorno con Zod
   - Criterio: si falta una variable requerida, el server no arranca y explica cuál.
-- [ ] **T-009**: Crear endpoint `GET /api/health`
+- [x] **T-009**: Crear endpoint `GET /api/health`
   - Criterio: responde `{ status: 'ok', timestamp }`.
 
 ---
@@ -447,6 +447,41 @@
 - Impacto en otras tareas: T-093 (tests) debe correr con `NODE_ENV=test` para que el
   guard no mate vitest; T-094 (PM2) arranca con `NODE_ENV=production`, que es
   exactamente la protección buscada.
+
+### 2026-09-30 — T-009 (setup)
+- Archivos creados: `server/src/modules/health/health.routes.ts`.
+  Modificado: `server/src/app.ts` (la ruta inline se movió al router y se montó con
+  `app.use('/api', healthRouter)`).
+- Criterio verificado en **los dos modos de ejecución**:
+  - Desarrollo (`npm run dev`, tsx sobre `src/`):
+    `{"status":"ok","timestamp":"2026-09-30T15:18:03.033Z","uptime":22,"version":"0.1.0"}`
+  - Producción compilada (`npm run build` + `npm start`, node sobre `dist/`):
+    `{"status":"ok","timestamp":"2026-09-30T15:19:54.859Z","uptime":26,"version":"0.1.0"}`
+  - `uptime` sale como **entero** (verificado con regex `"uptime":\d+,`).
+  - `GET /api/no-existe` devuelve **404**, confirmando que el router está montado bajo
+    `/api` y no captura todo indiscriminadamente.
+  - `npx tsc --noEmit`, `npm run build`, `npm run lint` y `npm run format:check` pasan.
+- **Decisión técnica: `version` se lee con `createRequire`, no con `import` de JSON.**
+  Verifiqué que `import pkg from '../../package.json' with { type: 'json' }` **pasa**
+  `tsc --noEmit` y `npm run build`, pero **falla en runtime** en los dos entornos:
+  en `dist/` da `ERR_MODULE_NOT_FOUND` porque tsc emite el `.js` en
+  `dist/modules/health/` pero **no copia el `package.json` a `dist/`** (está fuera de
+  `rootDir: ./src`). En `src/` con tsx también falló. `createRequire` resuelve la ruta
+  del filesystem en tiempo de ejecución y funciona en ambos casos.
+- Decisión tomada: `uptime` se calcula con `Date.now() - STARTED_AT`, donde
+  `STARTED_AT` se fija **a nivel de módulo** al importarse. Es el arranque del proceso
+  de Node, que es lo que interesa para health checks. Alternativa descartada:
+  `process.uptime()`, que mide desde el arranque del proceso de Node y sería casi
+  igual; se eligió una constante de módulo para que el valor sea explícito y testeable.
+- Decisión tomada: el router define la ruta como `/health` (no `/api/health`) porque
+  se monta con `app.use('/api', healthRouter)`. Así el prefijo vive en un solo sitio
+  y los routers futuros no repiten `/api`.
+- Gotcha registrado: **`tsc --noEmit` y `npm run build` NO detectan el fallo del import
+  JSON.** Ambos pasan en verde y el error solo aparece al ejecutar. Por eso la
+  verificación de esta tarea se hizo en ambos modos, no solo en desarrollo.
+- Impacto en otras tareas: T-020, T-051, T-080 y demás siguen el mismo patrón
+  (`app.use('/api', xRouter)`). T-093 puede importar `healthRouter` y probarlo sin
+  abrir un puerto. T-094 (PM2) seguirá usando el script `start` ya existente.
 
 ---
 
