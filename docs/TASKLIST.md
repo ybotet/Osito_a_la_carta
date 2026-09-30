@@ -17,7 +17,7 @@
   - Criterio: una llamada a `/api/health` devuelve `{ status: 'ok' }`.
 - [x] **T-005**: Configurar Tailwind en `client/`
   - Criterio: una clase de Tailwind se aplica visualmente en `App.tsx`.
-- [ ] **T-006**: Configurar ESLint + Prettier en `server/` y `client/`
+- [x] **T-006**: Configurar ESLint + Prettier en `server/` y `client/`
   - Criterio: `npm run lint` pasa sin errores en ambos.
 - [ ] **T-007**: Configurar `pino` como logger en `server/`
   - Criterio: el logger imprime JSON estructurado al arrancar.
@@ -307,6 +307,50 @@
 - Impacto en otras tareas: T-035 (shadcn/ui) debe usar el esquema de tema CSS-first de
   Tailwind 4; T-090 (PWA) no se ve afectado; T-091 (responsive) aprovecha las utilities
   de Tailwind ya disponibles.
+
+### 2026-09-30 — T-006 (setup)
+- Archivos creados: `.prettierrc.json`, `.prettierignore`, `server/eslint.config.js`,
+  `client/eslint.config.js`. Modificados: `package.json` (raíz, 7 devDeps + 9 scripts),
+  `server/package.json` y `client/package.json` (scripts `lint` y `format`).
+- Criterio verificado: `npm run lint` desde la raíz pasa **sin errores y con exit 0** en
+  ambos workspaces. `npm run typecheck` también pasa (exit 0). `npm run format:check`
+  reporta "All matched files use Prettier code style".
+- Dependencias agregadas (con autorización del dueño), todas en el **package.json raíz**
+  para no duplicarlas: `eslint@^10.11.0`, `@eslint/js@^10.0.1`,
+  `typescript-eslint@^8.71.0`, `globals@^17.12.0`, `eslint-plugin-react-hooks@^7.1.1`,
+  `eslint-plugin-react-refresh@^0.5.7`, `prettier@^3.9.9`. Verifiqué las peer deps
+  antes de instalar: typescript-eslint 8.71 acepta ESLint ^10 y TS <6.1 (tenemos 5.9.3);
+  react-hooks 7.1.1 acepta ESLint ^10; react-refresh 0.5.7 pide ^9 || ^10.
+- Decisión tomada: **flat config** (`eslint.config.js`) y no el legacy `.eslintrc.json`.
+  ESLint 10 solo soporta flat config; el formato viejo ya no es una opción viable.
+- Decisión tomada: **las herramientas viven en la raíz, las configs en cada workspace.**
+  `eslint.config.js` está duplicado a propósito: el server usa `globals.node` y el
+  client `globals.browser` más los plugins de React. Un único config no serviría.
+  `.prettierrc.json` sí es compartido y único, como pide el enunciado.
+- Decisión tomada: se usó el perfil **`recommended`**, no `strict` ni
+  `recommended-type-checked`, para no pelearse con `exactOptionalPropertyTypes` y con
+  los flags de T-002/T-003. El typecheck estricto ya lo aporta `tsc`.
+- Decisión tomada: `.prettierignore` excluye `docs/` y `README.md`. Prettier intentaba
+  reformatear SPEC.md, TASKLIST.md, MEMORY.md y AGENT.md, lo que generaría diffs
+  enormes en archivos que se editan a mano. SPEC.md además no se puede tocar sin
+  autorización, y un reformateo automático cuenta como modificación.
+- Gotcha registrado: `npm run dev` en la raíz usa `--workspaces --if-present`, que
+  lanza server y client **en paralelo intercalando su salida en la misma terminal**.
+  Para distinguirlos conviene usar `npm run dev:server` y `npm run dev:client` en dos
+  terminales (ambos scripts añadidos en esta tarea).
+- Impacto en otras tareas: AGENT.md §9 exige que `npm run lint` y `npm run typecheck`
+  pasen antes de cerrar cualquier tarea; ambos existen y funcionan desde la raíz desde
+  ahora. T-093 deberá añadir el script `test` al `package.json` raíz, que aún no existe.
+
+### 2026-09-30 — Ajuste de `engines.node` (fuera de T-006)
+- Modificado: `package.json` (raíz), campo `engines.node`: `">=20"` → `"^20.19.0 || ^22.13.0 || >=24"`.
+- Motivo: ESLint 10 exige `^20.19.0 || ^22.13.0 || >=24` y Vite 8 exige
+  `^20.19.0 || >=22.12.0`. Se adoptó la restricción de ESLint por ser la más estricta.
+  Con Node 20.0-20.18 el linting no habría arrancado.
+- Verificado: `npm run lint` y `npm run typecheck` siguen pasando con exit 0 en Node v22.15.0.
+- Impacto en otras tareas: **T-094 (PM2 en VPS) queda condicionada** — el servidor debe
+  correr Node 20.19+, 22.13+ o 24+. Si el VPS está en una versión anterior, hay que
+  actualizar Node **antes** de desplegar, no durante.
 
 ---
 

@@ -1,0 +1,8 @@
+dist
+node_modules
+package-lock.json
+
+# Documentacion: no se reformatea automaticamente.
+# SPEC.md es fuente de verdad y cualquier reformateo ensuciaria el diff.
+docs
+README.md

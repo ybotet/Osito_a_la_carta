@@ -51,7 +51,8 @@
 
 **Completadas:** T-001 (estructura de carpetas), T-002 (server con TS estricto),
 T-003 (client con Vite + React + TS), T-004 (proxy /api + endpoint de health),
-T-005 (Tailwind CSS 4 en el cliente).
+T-005 (Tailwind CSS 4 en el cliente), T-006 (ESLint 10 + Prettier 3),
+y el ajuste de `engines.node` a `^20.19.0 || ^22.13.0 || >=24`.
 
 **Estado del árbol:**
 
@@ -80,12 +81,19 @@ osito_a_la_carta/
 │   ├── types.ts              # vacío
 │   └── schemas.ts            # vacío
 ├── docs/                     # SPEC, AGENT, TASKLIST, PROMPTS, MEMORY
+├── .prettierrc.json          # compartido: 2 espacios, single quotes, semi
+├── .prettierignore           # excluye docs/ y README.md
 ├── node_modules/             # hoisteado por workspaces npm
 ├── package.json              # raíz, workspaces: ["server", "client"]
 ├── package-lock.json
 ├── .env.example
 └── .gitignore
 ```
+
+**Linting y formato:** ESLint 10 con flat config, tools en la raíz y
+`eslint.config.js` separado en cada workspace. Prettier 3 con config único
+compartido. Desde la raíz funcionan: `npm run lint`, `npm run lint:fix`,
+`npm run format`, `npm run format:check`, `npm run typecheck`, `npm run dev`.
 
 **Backend: ya arranca y responde.** `server/src/app.ts` hace `app.listen(PORT)` y expone
 `GET /api/health` → `{ status: 'ok', timestamp }`. Todavía **no** hay validación de env con
@@ -119,9 +127,8 @@ typescript 5.9.3 (**una sola versión para todo el monorepo**) · express 5.2.1 
 pino 9.14.0 · zod 3.25.76 · @types/node 22.20.4
 
 **Pendientes de infraestructura:**
-- El `package.json` raíz **no tiene scripts** (`dev`, `dev:server`, `dev:client`,
-  `lint`, `typecheck`, `test`, `build`). Hay que agregarlos en T-006.
-  Mientras tanto hay que abrir dos terminales (ver arriba).
+- El `package.json` raíz **no tiene script `test`**. T-093 (vitest en server) debe
+  añadirlo, siguiendo el patrón de `lint`/`typecheck`.
 - No hay `.env` real; solo `.env.example` en la raíz. T-008 validará las variables.
 
 ---
@@ -241,6 +248,44 @@ PostCSS por completo y es el camino que shadcn/ui prueba de forma nativa.
   construidas dinámicamente** (`` `text-${color}-500` ``) no se detectan. Usar
   siempre clases completas.
 
+### 2026-09-30 — ESLint 10 flat config con tools en la raíz y configs por workspace
+**Contexto:** T-006 pide ESLint + Prettier en `server/` y `client/` con config de
+Prettier compartida. La versión vigente de ESLint es la **10**, que solo soporta
+**flat config** (`eslint.config.js`); el legacy `.eslintrc.json` ya no es viable.
+**Decisión:**
+- Las **herramientas** (eslint, @eslint/js, typescript-eslint, globals,
+  eslint-plugin-react-hooks, eslint-plugin-react-refresh, prettier) se instalan
+  **una sola vez en el `package.json` raíz**.
+- El **flat config va duplicado**: `server/eslint.config.js` usa `globals.node`;
+  `client/eslint.config.js` usa `globals.browser` más los plugins de React
+  (`react-hooks` en `recommended` y `react-refresh/only-export-components` como warn).
+- **Prettier tiene un único config** en la raíz (`.prettierrc.json`): 2 espacios,
+  single quotes, semi, `printWidth: 80`, `trailingComma: 'all'`, `endOfLine: 'lf'`.
+- Perfil `recommended` (no `strict`, no `recommended-type-checked`).
+- Scripts raíz: `lint`, `lint:fix`, `format`, `format:check`, `typecheck`, `dev`,
+  `dev:server`, `dev:client`, `build`. Los agregadores usan
+  `npm run <script> --workspaces --if-present`.
+**Alternativas consideradas:** (a) instalar las tools por duplicado en cada workspace:
+descartado, duplica versiones y capa de dependencias sin ganancia; (b) un único
+`eslint.config.js` en la raíz con ambos entornos: descartado, los globals de Node y
+de browser no deben mezclarse en un mismo contexto; (c) perfil `recommended-type-checked`:
+descartado por fricción con los flags estrictos de T-002/T-003.
+**Motivo:** con npm workspaces las tools se hoistean a la raíz igualmente; declararlas
+una sola vez evita el desfase de versiones. La duplicación de `eslint.config.js` es
+deliberada y necesaria: cada workspace lintea un entorno distinto.
+**Consecuencias:**
+- **El linting no conoce los flags de `tsconfig`.** Con el perfil `recommended` no se
+  lee `tsconfig.json`, así que `noUncheckedIndexedAccess` y compañía solo los
+  vigila `tsc`. ESLint y TypeScript son complementarios, no intercambiables.
+- **`.prettierignore` excluye `docs/` y `README.md` a propósito.** Sin eso, Prettier
+  reescribe SPEC.md, TASKLIST.md y MEMORY.md enteros, generando diffs enormes y
+  modificando SPEC.md sin autorización. No quitar esa exclusión.
+- `npm run dev` en la raíz intercala la salida de server y client. Para salidas
+  separadas usar `npm run dev:server` y `npm run dev:client` en dos terminales.
+- **La versión de Node declarada en la raíz es `^20.19.0 || ^22.13.0 || >=24`**, fijada
+  por el dueño el 2026-09-30. No relajar a `>=20`: ESLint 10 no arranca en 20.0-20.18.
+  ESLint es la restricción más estricta del toolchain, por encima de Vite 8.
+
 ### 2026-09-29 — Project references en el tsconfig del cliente
 **Contexto:** el template actual de Vite no trae un `tsconfig.json` único sino tres
 archivos: `tsconfig.json` (solo `references`) + `tsconfig.app.json` + `tsconfig.node.json`.
@@ -301,12 +346,102 @@ no son intercambiables.
 - **Las clases de Tailwind construidas por interpolación no se detectan.**
   `` `text-${color}-500` `` no genera CSS. Escribir siempre la clase completa.
   Esto aplica a T-035 (shadcn/ui) y a cualquier badge de color por estado de pedido.
+- **ESLint 10 no usa `.eslintrc.json`.** Solo flat config (`eslint.config.js`).
+  Buscar un `eslint.config.js` en el workspace que se esté tocando: hay uno por
+  paquete, no uno global.
+- **`npm run dev` en la raíz intercala la salida de los dos servidores.** Si se
+  necesita verlos por separado, usar `npm run dev:server` y `npm run dev:client`
+  en terminales distintas.
+- **No quitar `docs/` de `.prettierignore`.** Sin esa exclusión, `npm run format`
+  reescribe SPEC.md, TASKLIST.md y MEMORY.md completos, y SPEC.md no puede
+  modificarse sin autorización explícita del dueño.
+- **El linting no ve los flags de `tsconfig`.** El perfil `recommended` no lee el
+  tsconfig, así que `noUncheckedIndexedAccess` y el resto solo los comprueba `tsc`.
+  Un archivo puede pasar ESLint y fallar `tsc`, o al revés: correr ambos.
 
 ---
 
 ## Historial de entradas
 
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
+### 2026-09-30 — Ajuste de `engines.node` en el package.json raíz
+**Estado:** completada
+
+**Qué se hizo:**
+- `engines.node` pasó de `">=20"` a `"^20.19.0 || ^22.13.0 || >=24"`.
+
+**Cómo se hizo:**
+- Modificado: `package.json` (raíz), un solo campo.
+- Sin archivos nuevos, sin dependencias nuevas, sin cambios de código.
+
+**Por qué se hizo así:**
+- T-006 dejó anotada la discrepancia: el proyecto declaraba `>=20`, pero ESLint 10
+  exige `^20.19.0 || ^22.13.0 || >=24`. Con Node 20.0-20.18 el linting no funcionaría.
+- Se adoptó **la restricción de ESLint**, la más estricta del toolchain, en vez de la
+  de Vite 8 (`^20.19.0 || >=22.12.0`). Declarar el mínimo real del toolchain completo
+  es más útil que declarar el de una sola herramienta: si Vite se actualiza subiendo
+  su mínimo, el `engines` Warn pero no rompe.
+- Alternativa descartada: mantener `>=20` y confiar en que nadie use una versión
+  antigua. Se eligió declarar el requisito real para que `npm install` avise.
+
+**Impacto en otras tareas:**
+- Ninguna tarea del TASKLIST cambia. T-094 (despliegue PM2 en VPS) sí se ve afectada:
+  el VPS debe correr Node 20.19+, 22.13+ o 24+. Si el VPS está en Node 20.11, habrá
+  que actualizar Node **antes** de desplegar, no durante.
+
+**Pendientes / deuda técnica:**
+- Ninguna.
+
+---
+
+### 2026-09-30 — T-006 ESLint + Prettier en server y client
+**Estado:** completada
+
+**Qué se hizo:**
+- ESLint 10 con flat config en ambos workspaces (Node en server, browser + plugins React en client).
+- Prettier 3 con configuración compartida única en la raíz.
+- 9 scripts nuevos en el `package.json` raíz, incluidos `lint` y `format`.
+
+**Cómo se hizo:**
+- Archivos creados: `.prettierrc.json`, `.prettierignore`, `server/eslint.config.js`,
+  `client/eslint.config.js`.
+- Modificados: `package.json` (raíz), `server/package.json`, `client/package.json`
+  (scripts `lint` y `format` en cada workspace).
+- Dependencias (con autorización del dueño), todas en la raíz: `eslint@^10.11.0`,
+  `@eslint/js@^10.0.1`, `typescript-eslint@^8.71.0`, `globals@^17.12.0`,
+  `eslint-plugin-react-hooks@^7.1.1`, `eslint-plugin-react-refresh@^0.5.7`,
+  `prettier@^3.9.9`. Las peer deps se verificaron **antes** de instalar.
+- Decisión: ver "ESLint 10 flat config con tools en la raíz y configs por workspace".
+
+**Por qué se hizo así:**
+- ESLint 10 solo soporta flat config, así que `.eslintrc.json` no era una opción.
+- Las tools van en la raíz porque npm workspaces las hoistea igualmente; declararlas
+  en los dos paquetes solo generaría desfase de versiones.
+- `eslint.config.js` está duplicado porque server y client lintean entornos distintos
+  (`globals.node` vs `globals.browser` + React). El enunciado pedía "el mismo Prettier",
+  no "el mismo ESLint": Prettier sí es único y compartido.
+- Se eligió `recommended` sobre `recommended-type-checked` para no duplicar el trabajo
+  de `tsc` ni pelearse con los flags estrictos ya fijados en T-002 y T-003.
+
+**Impacto en otras tareas:**
+- AGENT.md §9 exige `npm run lint` y `npm run typecheck` antes de cerrar cada tarea:
+  ambos existen y funcionan desde la raíz a partir de ahora.
+- T-035 (shadcn/ui) genera componentes en archivos nuevos; el lint ya los revisará
+  cuando se creen, sin configuración adicional.
+- T-093 debe añadir el script `test` al `package.json` raíz, siguiendo el patrón
+  `--workspaces --if-present` de `lint` y `typecheck`.
+- T-090 (PWA) y T-091 (responsive) no requieren cambios de configuración de lint.
+
+**Pendientes / deuda técnica:**
+- ~~`engines.node` decía `>=20`~~ → **RESUELTO el 2026-09-30**: ahora es
+  `^20.19.0 || ^22.13.0 || >=24`. Ver la entrada de ese ajuste más abajo.
+- No hay regla de lint que prohíba `console.log` en el backend, que AGENT.md §4
+  prohíbe explícitamente. T-007 podría añadir `no-console` cuando se cierre el logger.
+- No hay `eslint-plugin-import` ni reglas de orden de imports, aunque AGENT.md §2.1
+  pide "imports ordenados: externos → internos → relativos". Se aplica a mano.
+
+---
 
 ### 2026-09-29 — T-005 Tailwind CSS 4 en el cliente
 **Estado:** completada (confirmación visual del dueño pendiente)
