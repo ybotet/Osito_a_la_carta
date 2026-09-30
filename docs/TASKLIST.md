@@ -21,7 +21,7 @@
   - Criterio: `npm run lint` pasa sin errores en ambos.
 - [x] **T-007**: Configurar `pino` como logger en `server/`
   - Criterio: el logger imprime JSON estructurado al arrancar.
-- [ ] **T-008**: Configurar validación de variables de entorno con Zod
+- [x] **T-008**: Configurar validación de variables de entorno con Zod
   - Criterio: si falta una variable requerida, el server no arranca y explica cuál.
 - [ ] **T-009**: Crear endpoint `GET /api/health`
   - Criterio: responde `{ status: 'ok', timestamp }`.
@@ -384,6 +384,69 @@
 - Impacto en otras tareas: T-093 (tests) debe tener en cuenta el worker thread de pino-pretty;
   T-094 (PM2) debe fijar `NODE_ENV=production`; T-008 sustituirá la lectura directa de
   `process.env` por `env.LOG_LEVEL` validado con Zod, manteniendo la lista de niveles.
+
+### 2026-09-30 — T-008 (setup)
+- Archivos creados: `server/src/config/env.ts`. Modificados: `server/src/config/index.ts`
+  (ahora es un barrel real, ya no `export {}`), `server/src/app.ts` y `server/src/logger.ts`
+  (pasan a consumir `env`).
+- Criterio verificado ejecutando el server de verdad:
+  - **Sin `.env`**: sale con código 1 y lista las 9 variables faltantes en español,
+    terminando con "Copia .env.example a .env y completa los valores."
+  - **Con `.env` completo**: arranca, loguea `Server starting on port 3000` con formato
+    pretty y `/api/health` responde `{"status":"ok",...}`. `PORT` llega como `number` 3000.
+  - El `.env` de prueba se **eliminó** al terminar; `git check-ignore` confirma que
+    `.gitignore:5` lo cubre.
+- Dependencias: **ninguna nueva**. Se usa `process.loadEnvFile()` de Node 22 en lugar de
+  `dotenv`, que no está instalado. Node ya lo trae y evita una dependencia.
+- **Decisión del dueño:** `MAILGUN_FROM` acepta **dos formatos**, email simple y
+  `Nombre <email>`, en vez de `z.string().email()` estricto. Motivo: el `.env.example`
+  de T-001 usa el formato con nombre y Zod lo rechazaba (verificado). Se exportan
+  `MAILGUN_FROM.raw` (el string completo, que es lo que usa Mailgun) y
+  `MAILGUN_FROM_EMAIL` (solo el email, extraído y validado).
+- Decisión tomada: **los mensajes de error de Zod están en español** vía
+  `required_error` y `message` personalizados. Por defecto Zod devuelve "Required" en
+  inglés, lo que mezclaba idiomas en la salida de arranque.
+- Decisión tomada: **`env.ts` se carga al importarse** y llama a `process.exit(1)` si
+  falla la validación. La ruta del `.env` se resuelve con `import.meta.url` subiendo
+  tres niveles (`config/` → `src/` → `server/` → raíz), por lo que funciona igual
+  desde `src/` en desarrollo y desde `dist/` compilado.
+- Gotcha registrado: `process.loadEnvFile` **lanza si el archivo no existe**, por eso se
+  comprueba con `existsSync` antes. También ignora líneas vacías y comentarios.
+- Gotcha registrado: `process.loadEnvFile` **no sobreescribe** variables ya presentes en
+  `process.env`, así que las variables reales del sistema tienen prioridad sobre el
+  `.env`. Es el comportamiento deseado en despliegue.
+- Impacto en otras tareas: T-041/T-042 (JWT) usan `env.JWT_SECRET` y
+  `env.JWT_REFRESH_SECRET`; T-060 (Mailgun) usa `env.MAILGUN_FROM.raw` y
+  `env.MAILGUN_FROM_EMAIL`; T-061 (Telegram) usa `env.TELEGRAM_*`. T-093 (tests) deberá
+  definir un `.env` o setear `process.env` antes de importar nada que dependa de `env`,
+  porque el módulo hace `process.exit(1)` si falta algo.
+
+### 2026-09-30 — Guard de placeholders en `.env` (endurecimiento de T-008)
+- Modificado: `server/src/config/env.ts` únicamente. Sin dependencias ni archivos nuevos.
+- Contexto: los placeholders de `.env.example` tienen más de 32 caracteres, así que
+  pasaban la validación de longitud de `JWT_SECRET` y el servidor arrancaba en
+  producción con secretos públicos. El dueño pidió cerrarlo.
+- Criterio verificado en los 4 escenarios, arrancando el server de verdad:
+  - Producción + placeholders → **exit 1**, lista las 8 variables rechazadas.
+  - Producción + secretos reales → arranca, log JSON, `/api/health` responde ok.
+  - Desarrollo + placeholders → arranca, log pretty, `/api/health` responde ok.
+  - `DATABASE_URL` queda sin guard (no es secreto).
+- Decisión tomada: el guard **solo se activa con `NODE_ENV === 'production'`**. En
+  desarrollo se permiten a propósito, para poder arrancar recién clonado el repo sin
+  tener que inventar secretos.
+- **Bug encontrado y corregido durante la implementación:** la primera versión estaba
+  invertida. `rejectPlaceholder` devolvía `true` al detectar el placeholder y se usaba
+  como predicado de `.refine()`, pero en Zod `.refine(p)` acepta cuando `p` es `true`.
+  El guard **aceptaba lo que debía rechazar**, sin error de tipos ni de sintaxis: solo
+  se detectó al ejecutar el caso negativo. Se corrigió separando `hasPlaceholder()`
+  (detecta) de `rejectPlaceholder()` (invierte para el predicado).
+- Gotcha registrado: `tsx watch` **no reinicia al cambiar `.env`**, porque solo vigila
+  los archivos de `src/`. Hay que reiniciar el proceso a mano tras editar el `.env`.
+- Gotcha registrado: en Zod `.refine(p)` el predicado debe devolver `true` para que
+  el valor sea **válido**. Nombrar mal el predicado invierte el guard en silencio.
+- Impacto en otras tareas: T-093 (tests) debe correr con `NODE_ENV=test` para que el
+  guard no mate vitest; T-094 (PM2) arranca con `NODE_ENV=production`, que es
+  exactamente la protección buscada.
 
 ---
 

@@ -52,7 +52,8 @@
 **Completadas:** T-001 (estructura de carpetas), T-002 (server con TS estricto),
 T-003 (client con Vite + React + TS), T-004 (proxy /api + endpoint de health),
 T-005 (Tailwind CSS 4 en el cliente), T-006 (ESLint 10 + Prettier 3),
-T-007 (logger pino con pino-pretty en desarrollo), y el ajuste de `engines.node`
+T-007 (logger pino con pino-pretty en desarrollo),
+T-008 (validación de env con Zod), y el ajuste de `engines.node`
 a `^20.19.0 || ^22.13.0 || >=24`.
 
 **Estado del árbol:**
@@ -64,8 +65,10 @@ osito_a_la_carta/
 │   ├── tsconfig.json         # strict + NodeNext
 │   └── src/
 │       ├── app.ts            # instancia Express + GET /api/health + listen
-│       ├── logger.ts         # pino: pretty en dev, JSON en prod, nivel por env
-│       └── config/index.ts   # placeholder; env.ts llega en T-008
+│       ├── logger.ts         # pino: pretty en dev, JSON en prod, nivel de env
+│       └── config/
+│           ├── index.ts      # barrel: reexporta env
+│           └── env.ts        # validación Zod; process.exit(1) si falta algo
 ├── client/
 │   ├── package.json          # dev/build/preview/typecheck, React 19
 │   ├── tsconfig.json         # project references → app + node
@@ -127,11 +130,23 @@ react 19.3.0 · react-dom 19.3.0 · vite 8.3.1 · @vitejs/plugin-react 6.1.1 ·
 typescript 5.9.3 (**una sola versión para todo el monorepo**) · express 5.2.1 ·
 pino 9.14.0 · zod 3.25.76 · @types/node 22.20.4
 
+**Variables de entorno:** `server/src/config/env.ts` valida con Zod **al importarse** y
+hace `process.exit(1)` con un mensaje en español si algo falta. Usa
+`process.loadEnvFile()` de Node 22, **no `dotenv`** (no está instalado).
+- El `.env` vive en la **raíz** del proyecto, no en `server/`.
+- Exporta `env` con `NODE_ENV`, `PORT` (ya `number`), `LOG_LEVEL`, `DATABASE_URL`,
+  `JWT_SECRET`, `JWT_REFRESH_SECRET`, `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`,
+  `MAILGUN_FROM` (objeto `{ raw, email }`), `CHEF_EMAIL`, `TELEGRAM_BOT_TOKEN`,
+  `TELEGRAM_CHAT_ID`, más los derivados `MAILGUN_FROM_EMAIL` e `isProduction`.
+- `app.ts` y `logger.ts` ya leen de `env`; ninguno toca `process.env` directamente.
+- **En producción se rechazan los valores de ejemplo de `.env.example`**
+  (marcadores: `tudominio`, `cambia-esto`, `changeme`, `change-me`, `placeholder`).
+  En desarrollo se permiten a propósito, para poder arrancar recién clonado el repo.
+
 **Logging:** `server/src/logger.ts` exporta una instancia de pino ya configurada.
-- `NODE_ENV !== 'production'` → transporte `pino-pretty` con `colorize`, hora `HH:MM:ss`.
-- `NODE_ENV === 'production'` → **JSON puro**, sin transporte (pino-pretty no se carga).
-- `LOG_LEVEL` se valida contra `trace|debug|info|warn|error|fatal|silent`; valor
-  desconocido o ausente → `info`.
+- `env.isProduction` → transporte `pino-pretty` con `colorize`, hora `HH:MM:ss`.
+- producción → **JSON puro**, sin transporte (pino-pretty no se carga).
+- nivel leído de `env.LOG_LEVEL` (validado por Zod, default `info`).
 
 **Pendientes de infraestructura:**
 - El `package.json` raíz **no tiene script `test`**. T-093 (vitest en server) debe
@@ -255,6 +270,72 @@ PostCSS por completo y es el camino que shadcn/ui prueba de forma nativa.
   construidas dinámicamente** (`` `text-${color}-500` ``) no se detectan. Usar
   siempre clases completas.
 
+### 2026-09-30 — Rechazo de placeholders de `.env.example` solo en producción
+**Contexto:** tras T-008 se detectó que los valores de ejemplo de `.env.example`
+("cambia-esto-por-un-secreto-...") tienen más de 32 caracteres, así que pasaban
+la validación de longitud y el servidor arrancaba en producción con secretos
+públicos y conocidos. El dueño pidió añadir el rechazo.
+**Decisión:** un `.refine()` por variable sensible comprueba si el valor contiene
+alguno de los marcadores de `PLACEHOLDER_MARKERS` (`tudominio`, `cambia-esto`,
+`changeme`, `change-me`, `placeholder`, `no-reply@tudominio.com`), comparando en
+minúsculas. **Solo se activa cuando `NODE_ENV === 'production'`.**
+**Alternativas consideradas:** (a) rechazar placeholders siempre — descartada, rompe
+el arranque local recién clonado el repo, que es la forma más común de empezar;
+(b) un `.superRefine()` único sobre todo el objeto en vez de un `.refine()` por
+variable — se descartó por legibilidad: el error por variable es más accionable.
+**Motivo:** el riesgo real es desplegar con secretos de ejemplo, no developing en
+local. Bloquear el desarrollo para proteger la producción sería un mal intercambio.
+**Consecuencias:**
+- Los `.refine()` se evalúan en **el orden del schema**, así que el mensaje de
+  longitud mínima puede no aparecer si el placeholder salta primero. Aceptable.
+- **`DATABASE_URL` no tiene este refine.** No es un secreto y su valor de ejemplo
+  (`./osito.db`) es inofensivo.
+- `MAILGUN_FROM` se comprueba sobre `value.raw` (el string original con el nombre),
+  no sobre el email extraído, porque el placeholder está en el dominio.
+- Si se añade una variable sensible nueva, hay que acordarse del `.refine()`.
+  La lista de marcadores está centralizada para hacerlo fácil.
+
+### 2026-09-30 — `process.loadEnvFile()` en vez de `dotenv`
+**Contexto:** T-008 pide validar variables de entorno con Zod. Falta decidir quién
+lee el `.env`. La convención habitual es `dotenv`, que no está instalado.
+**Decisión:** usar **`process.loadEnvFile()`**, una API nativa de Node (estable desde
+Node 20.12), en lugar de agregar `dotenv` como dependencia.
+**Alternativas consideradas:** (a) instalar `dotenv` — descartada, agrega una
+dependencia externa para algo que Node ya resuelve; (b) `--env-file` de la CLI —
+descartada, obliga a recordar el flag en cada script y no funciona con `node dist/`;
+(c) `process.loadEnvFile()` — elegida.
+**Motivo:** cero dependencias nuevas, que es una regla explícita del proyecto.
+**Consecuencias:**
+- **El `.env` está en la raíz del proyecto**, no en `server/`. La ruta se resuelve con
+  `import.meta.url` subiendo tres niveles, de modo que funciona igual desde `src/` en
+  desarrollo y desde `dist/` compilado.
+- **Hay que comprobar `existsSync` antes de llamar**, porque `process.loadEnvFile`
+  lanza una excepción si el archivo no existe.
+- **No sobreescribe variables ya definidas en `process.env`.** Las variables reales del
+  sistema tienen prioridad sobre el `.env`, que es justo lo que se quiere en despliegue.
+- En los tests (T-093) hay que preparar el entorno **antes** de importar nada que
+  dependa de `env`, porque el módulo hace `process.exit(1)` si falta una variable.
+
+### 2026-09-30 — `MAILGUN_FROM` acepta email simple y `Nombre <email>`
+**Contexto:** el enunciado de T-008 dice `MAILGUN_FROM (string, email)`, pero el
+`.env.example` de T-001 tiene `MAILGUN_FROM=Osito a la carta <no-reply@tudominio.com>`.
+Verificado: `z.string().email()` **rechaza** ese valor ("Invalid email").
+**Decisión:** el schema acepta **ambos formatos** mediante un `refine` + `transform`.
+Exporta `MAILGUN_FROM` como objeto `{ raw, email }`, más el derivado
+`MAILGUN_FROM_EMAIL`. **Autorizado explícitamente por el dueño.**
+**Alternativas consideradas:** (a) `z.string().email()` estricto y corregir
+`.env.example` a `no-reply@tudominio.com`; (b) aceptar ambos formatos con solo
+`MAILGUN_FROM`; (c) aceptar ambos y exportar el email derivado — elegida.
+**Motivo:** Mailgun acepta el formato con nombre, y es lo que hace que el correo al
+chef aparezca como "Osito a la carta" en lugar de una dirección cruda. Descartar el
+formato con nombre perdería la marca en la notificación más importante del producto.
+**Consecuencias:**
+- **T-060 (Mailgun) debe enviar `env.MAILGUN_FROM.raw`**, no `.email`: Mailgun espera
+  el string completo `"Nombre <email>"`.
+- `env.MAILGUN_FROM_EMAIL` está disponible para cuando haga falta solo la dirección.
+- El schema **no** acepta un `Nombre <email>` mal formado: el `refine` extrae lo que hay
+  entre `<` y `>` y lo valida como email de verdad.
+
 ### 2026-09-30 — ESLint 10 flat config con tools en la raíz y configs por workspace
 **Contexto:** T-006 pide ESLint + Prettier en `server/` y `client/` con config de
 Prettier compartida. La versión vigente de ESLint es la **10**, que solo soporta
@@ -375,12 +456,125 @@ no son intercambiables.
 - **`LOG_LEVEL` con un valor inválido hace morir a pino.** Por eso `logger.ts` valida
   contra una lista explícita y cae a `info`. No quitar esa validación al migrar a
   `env.LOG_LEVEL` en T-008.
+- ~~Esa validación fue movida a Zod en T-008~~ → **RESUELTO**: `env.LOG_LEVEL` es un
+  `z.enum` de los 7 niveles reales, y `logger.ts` ya no lee `process.env`. Un valor
+  inválido ahora es un error de arranque, no un fallback silencioso a `info`.
+- **`process.loadEnvFile` lanza si el archivo no existe.** Por eso `config/env.ts`
+  comprueba con `existsSync` primero. No borrar ese `if`.
+- **`config/env.ts` hace `process.exit(1)` al importarse.** Cualquier test que importe
+  algo que dependa de `env` puede matar el proceso de vitest entero si falta una
+  variable. Preparar el entorno **antes** de los imports.
+- **El `.env` está en la raíz, no en `server/`.** Buscarlo en `server/.env` es futile.
+- **Zod devuelve "Required" en inglés por defecto.** Los mensajes de arranque están
+  en español gracias a `required_error`/`message` personalizados en `config/env.ts`.
+  Añadir una variable nueva sin esos campos reintroduce el mensaje en inglés.
+- **`.refine(p)` en Zod pasa cuando `p` devuelve `true`.** El predicado debe devolver
+  `true` para que el valor sea **válido**, no para rechazarlo. Por eso en
+  `config/env.ts` existen las dos funciones: `hasPlaceholder()` detecta el valor malo
+  y `rejectPlaceholder()` lo invierte para usarla como predicado. Confundir las dos
+  invierte el guard en silencio: el schema acepta exactamente lo que debería rechazar,
+  **sin error de tipos y sin fallo de test** si no se prueba el caso negativo.
+  **Siempre probar el caso que debe fallar, no solo el que debe pasar.**
+- **`tsx watch` no reinicia al cambiar `.env`.** Solo vigila los archivos fuente de
+  `src/`. Tras editar el `.env` hay que reiniciar el proceso a mano, o el server
+  sigue usando los valores antiguos.
 
 ---
 
 ## Historial de entradas
 
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
+### 2026-09-30 — Guard de placeholders en `.env` (endurecimiento de T-008)
+**Estado:** completada
+
+**Qué se hizo:**
+- Rechazo de los valores de ejemplo de `.env.example` al arrancar en producción.
+- Sin dependencias nuevas, sin archivos nuevos: todo dentro de `config/env.ts`.
+
+**Cómo se hizo:**
+- Modificado: `server/src/config/env.ts` (constantes `PLACEHOLDER_MARKERS`,
+  `isProductionEnv`, `hasPlaceholder`, `rejectPlaceholder` y un `.refine()` por
+  variable sensible).
+- Decisión: "Rechazo de placeholders de `.env.example` solo en producción".
+
+**Por qué se hizo así:**
+- Los placeholders de `.env.example` tienen >32 caracteres, así que pasaban la
+  validación de longitud de `JWT_SECRET`. El servidor arrancaba en producción con
+  secretos públicos.
+- **La primera implementación estaba invertida y no hacía nada.** Escribí
+  `rejectPlaceholder` devolviendo `true` cuando detectaba el placeholder, y lo usé
+  como predicado de `.refine()`. En Zod, `.refine(p)` acepta cuando `p` es `true`,
+  así que el guard **aceptaba exactamente lo que debía rechazar**. Pasaba el typecheck
+  y no daba error de sintaxis: solo se detectaba probando el caso negativo.
+  Se corrigió separando `hasPlaceholder()` (detecta) de `rejectPlaceholder()`
+  (invierte para el predicado).
+- El guard se limita a producción a propósito: en desarrollo los valores de ejemplo
+  son necesarios para arrancar recién clonado el repo, y no son un riesgo real.
+
+**Impacto en otras tareas:**
+- T-093 (tests) hereda el `process.exit(1)`: si los tests corren con `NODE_ENV=production`
+  y hay placeholders, el proceso muere. Usar `NODE_ENV=test` en el entorno de test.
+- T-094 (PM2) arranca con `NODE_ENV=production`, así que el guard estará activo en el
+  VPS: es exactamente la protección buscada.
+- T-093/T-094: al añadir variables sensibles nuevas, acordarse del `.refine()`.
+
+**Pendientes / deuda técnica:**
+- `DATABASE_URL` no tiene guard de placeholder (no es secreto, y su valor de ejemplo
+  es inofensivo). Si algún día la ruta apunta a algo sensible, revisarlo.
+- La lista `PLACEHOLDER_MARKERS` es una lista negra. Un placeholder con otra
+  redacción pasaría el filtro. Es aceptable para este alcance; una lista blanca
+  (rechazar cualquier valor que no tenga forma de secreto) sería más robusta.
+
+---
+
+### 2026-09-30 — T-008 Validación de variables de entorno con Zod
+**Estado:** completada
+
+**Qué se hizo:**
+- `server/src/config/env.ts` con schema Zod de 12 variables, carga del `.env` y
+  salida con mensaje claro si falta algo.
+- `app.ts` y `logger.ts` dejan de leer `process.env` y consumen `env`.
+- `config/index.ts` deja de ser un placeholder y pasa a ser un barrel.
+
+**Cómo se hizo:**
+- Creado: `server/src/config/env.ts`.
+- Modificados: `server/src/config/index.ts`, `server/src/app.ts`, `server/src/logger.ts`.
+- **Sin dependencias nuevas**: `process.loadEnvFile()` de Node 22 en lugar de `dotenv`.
+- Decisiones: "process.loadEnvFile() en vez de dotenv" y "MAILGUN_FROM acepta email
+  simple y `Nombre <email>`".
+
+**Por qué se hizo así:**
+- `dotenv` habría sido la dependencia obvia, pero el proyecto prioriza no agregar
+  dependencias sin necesidad y Node ya resuelve esto.
+- La ruta del `.env` se resuelve con `import.meta.url` subiendo tres niveles, para que
+  funcione igual en `src/` (tsx) y en `dist/` (node compilado), sin depender del cwd.
+- Los mensajes de Zod se personalizan al español porque la salida de arranque es lo
+  primero que ve quien despliega, y "Required" en inglés encajaba mal.
+- `PORT` usa `z.coerce.number()`, así que llega como `number` y no como string. Todos
+  los consumidores lo tratan como número.
+
+**Impacto en otras tareas:**
+- T-041/T-042 (JWT) usarán `env.JWT_SECRET` y `env.JWT_REFRESH_SECRET` (min 32 chars
+  ya garantizado por el schema).
+- T-060 (Mailgun) debe enviar **`env.MAILGUN_FROM.raw`**, no `.email`.
+- T-061 (Telegram) usará `env.TELEGRAM_BOT_TOKEN` y `env.TELEGRAM_CHAT_ID`.
+- T-010 (Drizzle) usará `env.DATABASE_URL` como ruta del archivo SQLite.
+- T-093 (tests) **debe preparar el entorno antes de importar nada** que dependa de
+  `env`, o el `process.exit(1)` matará vitest.
+- T-094 (PM2) deberá pasar las variables por el `env` de PM2 o por un `.env` real en
+  la raíz; como `loadEnvFile` no sobreescribe `process.env`, las variables de PM2 ganan.
+
+**Pendientes / deuda técnica:**
+- No hay `.env` en el repositorio (correcto: está en `.gitignore`). Hay que crearlo
+  con `cp .env.example .env` antes de arrancar, y con secretos reales.
+- Los secretos del `.env.example` son marcadores de posición: el backend no valida que
+  no sean los de ejemplo, solo que tengan 32 caracteres. Podría añadirse un `.refine`
+  que rechace valores conocidos de ejemplo; no se hizo por no inventar alcance.
+- No hay validación cruzada (p. ej. que `MAILGUN_FROM` y `CHEF_EMAIL` no sean el mismo
+  dominio en producción). Se considera sobreusado para esta fase.
+
+---
 
 ### 2026-09-30 — T-007 Logger con pino
 **Estado:** completada
