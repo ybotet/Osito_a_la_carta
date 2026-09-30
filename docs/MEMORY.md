@@ -52,7 +52,8 @@
 **Completadas:** T-001 (estructura de carpetas), T-002 (server con TS estricto),
 T-003 (client con Vite + React + TS), T-004 (proxy /api + endpoint de health),
 T-005 (Tailwind CSS 4 en el cliente), T-006 (ESLint 10 + Prettier 3),
-y el ajuste de `engines.node` a `^20.19.0 || ^22.13.0 || >=24`.
+T-007 (logger pino con pino-pretty en desarrollo), y el ajuste de `engines.node`
+a `^20.19.0 || ^22.13.0 || >=24`.
 
 **Estado del árbol:**
 
@@ -63,7 +64,7 @@ osito_a_la_carta/
 │   ├── tsconfig.json         # strict + NodeNext
 │   └── src/
 │       ├── app.ts            # instancia Express + GET /api/health + listen
-│       ├── logger.ts         # pino() base, sin configurar
+│       ├── logger.ts         # pino: pretty en dev, JSON en prod, nivel por env
 │       └── config/index.ts   # placeholder; env.ts llega en T-008
 ├── client/
 │   ├── package.json          # dev/build/preview/typecheck, React 19
@@ -125,6 +126,12 @@ cd client && npm run dev   # terminal 2 → :5173
 react 19.3.0 · react-dom 19.3.0 · vite 8.3.1 · @vitejs/plugin-react 6.1.1 ·
 typescript 5.9.3 (**una sola versión para todo el monorepo**) · express 5.2.1 ·
 pino 9.14.0 · zod 3.25.76 · @types/node 22.20.4
+
+**Logging:** `server/src/logger.ts` exporta una instancia de pino ya configurada.
+- `NODE_ENV !== 'production'` → transporte `pino-pretty` con `colorize`, hora `HH:MM:ss`.
+- `NODE_ENV === 'production'` → **JSON puro**, sin transporte (pino-pretty no se carga).
+- `LOG_LEVEL` se valida contra `trace|debug|info|warn|error|fatal|silent`; valor
+  desconocido o ausente → `info`.
 
 **Pendientes de infraestructura:**
 - El `package.json` raíz **no tiene script `test`**. T-093 (vitest en server) debe
@@ -358,12 +365,74 @@ no son intercambiables.
 - **El linting no ve los flags de `tsconfig`.** El perfil `recommended` no lee el
   tsconfig, así que `noUncheckedIndexedAccess` y el resto solo los comprueba `tsc`.
   Un archivo puede pasar ESLint y fallar `tsc`, o al revés: correr ambos.
+- **`pino-pretty` es devDependency y se activa por `NODE_ENV`.** Si producción corre
+  sin `NODE_ENV=production`, el logger intenta cargar un paquete que no está
+  instalado y el server muere al arrancar. T-094 debe fijar `NODE_ENV=production`
+  en el ecosystem de PM2.
+- **El `transport` de pino escribe por un worker thread.** En tests, el output puede
+  aparecer después del assertion y contaminar la salida de vitest. Para tests,
+  forzar `NODE_ENV=production` o inyectar un `destination` en memoria.
+- **`LOG_LEVEL` con un valor inválido hace morir a pino.** Por eso `logger.ts` valida
+  contra una lista explícita y cae a `info`. No quitar esa validación al migrar a
+  `env.LOG_LEVEL` en T-008.
 
 ---
 
 ## Historial de entradas
 
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
+### 2026-09-30 — T-007 Logger con pino
+**Estado:** completada
+
+**Qué se hizo:**
+- `server/src/logger.ts` configurado: pino-pretty con colores en desarrollo,
+  JSON puro en producción, nivel leído de `LOG_LEVEL` con default `info`.
+- Validación de `LOG_LEVEL` contra la lista de niveles reales de pino.
+
+**Cómo se hizo:**
+- Modificado: `server/src/logger.ts`. **`server/src/app.ts` no se tocó**: ya llamaba
+  a `logger.info('Server starting on port <PORT>')` desde T-004.
+- Sin archivos nuevos y sin dependencias nuevas: `pino` y `pino-pretty` ya estaban
+  instaladas en T-002 (esta tarea termina de pagar esa decisión).
+- Decisiones:
+  - Transporte `pino-pretty` solo si `NODE_ENV !== 'production'`, con spread
+    condicional del objeto de opciones. En producción no se carga.
+  - `pino-pretty` se referencia **por string** en `transport.target`, no se importa.
+    Es lo que exige el API de pino: el worker lo resuelve en runtime.
+  - `LOG_LEVEL` se valida con un type guard contra
+    `trace|debug|info|warn|error|fatal|silent`; si no coincide, se usa `info`.
+
+**Por qué se hizo así:**
+- `app.ts` ya tenía la llamada al logger desde T-004 porque ese criterio exigía
+  "loggear al arrancar". Configurar `logger.ts` fue suficiente; no hizo falta tocar
+  el servidor.
+- El fallback a `info` evita que un typo en `LOG_LEVEL` (p. ej. `LOG_LEVEL=debugg`)
+  tumbe el proceso al arrancar con un error de pino poco descriptivo. Un log con
+  nivel equivocado es molesto; un server que no arranca, no.
+- Se usa el nivel por defecto `info` en vez de `debug` porque `debug` en producción
+  puede filtrar datos de pedidos.
+
+**Impacto en otras tareas:**
+- T-008 debe leer `env.LOG_LEVEL` de Zod en lugar de `process.env.LOG_LEVEL`, pero
+  **conservar la validación contra la lista de niveles**. `config/env.ts` puede
+  reutilizar el type guard o declarar su propio enum de Zod; lo que no debe hacer
+  es aceptar cualquier string.
+- T-093 (tests) debe tener en cuenta que `transport` de pino usa un worker thread:
+  el output puede llegar fuera de orden y contaminar la salida de vitest.
+- T-094 (PM2) **debe** fijar `NODE_ENV=production` en el ecosystem, porque
+  `pino-pretty` es devDependency y fallaría al cargarse en un despliegue real.
+- T-092 (manejo de errores) usará este logger para el middleware de errores.
+
+**Pendientes / deuda técnica:**
+- No hay request id ni correlación entre logs. En Fase 8 (panel del chef) podría
+  ser útil para rastrear un pedido concreto en los logs.
+- `logger.ts` lee `process.env` directamente en lugar de pasar por `config/env.ts`,
+  que es deuda temporal hasta T-008.
+- Sigue sin existir un middleware que loggee cada request (AGENT.md no lo pide, así
+  que no se añadió por no inventar alcance).
+
+---
 
 ### 2026-09-30 — Ajuste de `engines.node` en el package.json raíz
 **Estado:** completada

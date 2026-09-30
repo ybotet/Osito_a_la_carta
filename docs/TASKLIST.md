@@ -19,7 +19,7 @@
   - Criterio: una clase de Tailwind se aplica visualmente en `App.tsx`.
 - [x] **T-006**: Configurar ESLint + Prettier en `server/` y `client/`
   - Criterio: `npm run lint` pasa sin errores en ambos.
-- [ ] **T-007**: Configurar `pino` como logger en `server/`
+- [x] **T-007**: Configurar `pino` como logger en `server/`
   - Criterio: el logger imprime JSON estructurado al arrancar.
 - [ ] **T-008**: Configurar validación de variables de entorno con Zod
   - Criterio: si falta una variable requerida, el server no arranca y explica cuál.
@@ -351,6 +351,39 @@
 - Impacto en otras tareas: **T-094 (PM2 en VPS) queda condicionada** — el servidor debe
   correr Node 20.19+, 22.13+ o 24+. Si el VPS está en una versión anterior, hay que
   actualizar Node **antes** de desplegar, no durante.
+
+### 2026-09-30 — T-007 (setup)
+- Archivos modificados: `server/src/logger.ts`. `server/src/app.ts` **no necesitó cambios**:
+  ya llamaba a `logger.info('Server starting on port <PORT>')` desde T-004, con el logger
+  aún sin configurar. Configurar `logger.ts` bastó para cumplir el requisito.
+- Criterio verificado con el server arrancando de verdad:
+  - Desarrollo (`NODE_ENV` sin definir): `[15:04:10] INFO: Server starting on port 3000`,
+    con colores y hora legible.
+  - Producción (`NODE_ENV=production`): `{"level":30,"time":1790769910322,"pid":12544,
+    "hostname":"Botet","msg":"Server starting on port 3000"}` — JSON puro.
+  - `LOG_LEVEL=debug` muestra debug + info + error.
+  - `LOG_LEVEL=error` oculta debug e info, solo deja error.
+  - `LOG_LEVEL=basura` (inválido) cae a `info` sin romper.
+  - `npx tsc --noEmit` y `npm run lint` pasan.
+- Decisión tomada: **niveles validados contra una lista explícita** (`trace|debug|info|
+  warn|error|fatal|silent`) y fallback a `info` si `LOG_LEVEL` no coincide. Sin esa
+  validación, un `LOG_LEVEL` mal escrito hace que pino lance al arrancar y el server
+  muera con un error poco claro. Preferible caer a `info` y seguir arrancando.
+- Decisión tomada: el transporte `pino-pretty` se activa solo cuando `NODE_ENV !== 'production'`,
+  mediante spread condicional del objeto de opciones. Así en producción **no se carga**
+  pino-pretty (es devDependency) y no hay coste de arranque.
+- Decisión tomada: `pino-pretty` no se importa, se referencia por **string** en
+  `transport.target`. Es lo que exige el API de pino: el worker lo resuelve en runtime.
+- Gotcha registrado: `pino-pretty` es **devDependency**. Si alguien despliega en producción
+  con `NODE_ENV` sin definir, el transporte se intenta cargar y falla. T-094 debe
+  garantizar `NODE_ENV=production` en el ecosystem de PM2; ya está previsto en el
+  prompt de T-094 (`env: NODE_ENV=production`).
+- Gotcha registrado: con `transport`, pino escribe por un **worker thread**. En tests
+  (T-093) el output puede llegar después del assertion y ensuciar la salida. Para
+  tests conviene forzar `NODE_ENV=production` o inyectar un destination de memoria.
+- Impacto en otras tareas: T-093 (tests) debe tener en cuenta el worker thread de pino-pretty;
+  T-094 (PM2) debe fijar `NODE_ENV=production`; T-008 sustituirá la lectura directa de
+  `process.env` por `env.LOG_LEVEL` validado con Zod, manteniendo la lista de niveles.
 
 ---
 
