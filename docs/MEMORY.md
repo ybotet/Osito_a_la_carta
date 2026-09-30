@@ -577,7 +577,8 @@ no son intercambiables.
   lectura sin acceso a datos, así que un solo archivo es proporcional a la tarea.
   Si se le añade comprobación de BD (health profundo), ahí sí tendría sentido el service.
 - `uptime` se reinicia en cada reinicio del proceso, como es lógico. Si Nginx o un
-  balanceadorneedue una sonda que sobreviva reinicios, habría que persistir el arranque.
+  balanceador necesita una sonda que sobreviva reinicios, habría que persistir el
+  arranque.
 
 ---
 
