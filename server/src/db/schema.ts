@@ -16,8 +16,20 @@ export const users = sqliteTable('users', {
     .default(sql`(unixepoch())`),
 });
 
+export const categories = sqliteTable('categories', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  slug: text('slug').notNull().unique(),
+  nameEs: text('name_es').notNull(),
+  nameRu: text('name_ru').notNull(),
+  nameEn: text('name_en').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+});
+
 export const dishes = sqliteTable('dishes', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  categoryId: integer('category_id')
+    .notNull()
+    .references(() => categories.id),
   imageUrl: text('image_url').notNull(),
   price: real('price').notNull(),
 
@@ -93,6 +105,8 @@ export const notificationLogs = sqliteTable('notification_logs', {
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+export type Category = typeof categories.$inferSelect;
+export type NewCategory = typeof categories.$inferInsert;
 export type Dish = typeof dishes.$inferSelect;
 export type NewDish = typeof dishes.$inferInsert;
 export type Order = typeof orders.$inferSelect;

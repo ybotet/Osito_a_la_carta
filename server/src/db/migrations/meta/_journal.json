@@ -8,6 +8,13 @@
       "when": 1790842187467,
       "tag": "0000_worthless_scarlet_spider",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790853841561,
+      "tag": "0001_broad_the_stranger",
+      "breakpoints": true
     }
   ]
 }

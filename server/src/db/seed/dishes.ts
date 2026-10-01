@@ -1,12 +1,53 @@
 import { logger } from '../../logger.js';
 import { db, sqlite } from '../client.js';
-import { dishes } from '../schema.js';
-import type { NewDish } from '../schema.js';
+import { categories, dishes } from '../schema.js';
+import type { NewCategory, NewDish } from '../schema.js';
 
 const IMAGE_BASE_URL = 'https://placehold.co/600x400';
 
-const SEED_DISHES: NewDish[] = [
+const SEED_CATEGORIES: NewCategory[] = [
   {
+    slug: 'sopas',
+    nameEs: 'Sopas y caldos',
+    nameRu: 'Супы и бульоны',
+    nameEn: 'Soups and broths',
+    sortOrder: 1,
+  },
+  {
+    slug: 'pastas',
+    nameEs: 'Pastas y arroces',
+    nameRu: 'Паста и рис',
+    nameEn: 'Pasta and rice',
+    sortOrder: 2,
+  },
+  {
+    slug: 'ensaladas',
+    nameEs: 'Ensaladas',
+    nameRu: 'Салаты',
+    nameEn: 'Salads',
+    sortOrder: 3,
+  },
+  {
+    slug: 'postres',
+    nameEs: 'Postres',
+    nameRu: 'Десерты',
+    nameEn: 'Desserts',
+    sortOrder: 4,
+  },
+  {
+    slug: 'bebidas',
+    nameEs: 'Bebidas',
+    nameRu: 'Напитки',
+    nameEn: 'Drinks',
+    sortOrder: 5,
+  },
+];
+
+type SeedDish = Omit<NewDish, 'categoryId'> & { categorySlug: string };
+
+const SEED_DISHES: SeedDish[] = [
+  {
+    categorySlug: 'sopas',
     imageUrl: `${IMAGE_BASE_URL}/F5E6C8/5B4632?text=Soup`,
     price: 6.5,
     nameEs: 'Sopa de verduras',
@@ -24,6 +65,7 @@ const SEED_DISHES: NewDish[] = [
     isAvailable: 1,
   },
   {
+    categorySlug: 'pastas',
     imageUrl: `${IMAGE_BASE_URL}/FADBD8/922B21?text=Pasta`,
     price: 11.9,
     nameEs: 'Pasta al tomate',
@@ -38,6 +80,7 @@ const SEED_DISHES: NewDish[] = [
     isAvailable: 1,
   },
   {
+    categorySlug: 'ensaladas',
     imageUrl: `${IMAGE_BASE_URL}/D5F5E3/196F3D?text=Salad`,
     price: 8.75,
     nameEs: 'Ensalada rusa',
@@ -56,6 +99,7 @@ const SEED_DISHES: NewDish[] = [
     isAvailable: 1,
   },
   {
+    categorySlug: 'postres',
     imageUrl: `${IMAGE_BASE_URL}/FDEBD0/784212?text=Pie`,
     price: 14.2,
     nameEs: 'Tarta de manzana',
@@ -72,6 +116,7 @@ const SEED_DISHES: NewDish[] = [
     isAvailable: 1,
   },
   {
+    categorySlug: 'bebidas',
     imageUrl: `${IMAGE_BASE_URL}/D6EAF8/1A5276?text=Compote`,
     price: 5.25,
     nameEs: 'Compota de fruta',
@@ -91,7 +136,29 @@ const SEED_DISHES: NewDish[] = [
 const seedDishes = (): void => {
   db.transaction((tx) => {
     tx.delete(dishes).run();
-    tx.insert(dishes).values(SEED_DISHES).run();
+    tx.delete(categories).run();
+
+    tx.insert(categories).values(SEED_CATEGORIES).run();
+
+    const categoryIds = new Map(
+      tx
+        .select()
+        .from(categories)
+        .all()
+        .map((row) => [row.slug, row.id]),
+    );
+
+    const rows = SEED_DISHES.map(({ categorySlug, ...dish }) => {
+      const categoryId = categoryIds.get(categorySlug);
+
+      if (categoryId === undefined) {
+        throw new Error(`Categoria desconocida en el seed: ${categorySlug}`);
+      }
+
+      return { ...dish, categoryId };
+    });
+
+    tx.insert(dishes).values(rows).run();
   });
 
   const inserted = db.select().from(dishes).all();

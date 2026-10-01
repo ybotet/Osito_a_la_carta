@@ -37,8 +37,12 @@
   - Criterio: archivo `osito.db` creado con todas las tablas.
 - [x] **T-012**: Script de seed con 5 platos de ejemplo en 3 idiomas
   - Criterio: `SELECT` devuelve 5 filas con datos en es / ru / en.
-- [ ] **T-013**: Script de seed con 1 usuario admin
+- [x] **T-013**: Script de seed con 1 usuario admin
   - Criterio: existe un usuario `admin@osito.local` con contraseña hasheada.
+- [x] **A-001** (añadida 2026-10-01): Categorías de platos
+  - Petición del dueño: organizar el menú por categoría (sopas, ensaladas, caldos...).
+  - Criterio: `categories` con nombre en es/ru/en y `dishes.category_id`; `SELECT`
+    devuelve los 5 platos agrupados por categoría.
 
 ---
 
@@ -52,6 +56,23 @@
   - Criterio: rechaza con 401 sin token, con 403 si no es admin.
 - [ ] **T-023**: `PUT /api/dishes/:id` (solo admin)
 - [ ] **T-024**: `DELETE /api/dishes/:id` (solo admin) — borrado lógico (`isAvailable = 0`)
+- [ ] **T-025**: `GET /api/categories` (público)
+  - Criterio: devuelve las categorías en es/ru/en según `Accept-Language`, ordenadas por
+    `sortOrder`, con `slug` e `id`.
+- [ ] **T-026**: `POST /api/categories` (solo admin)
+  - Criterio: rechaza con 401 sin token, con 403 si no es admin; 409 si el `slug` ya existe.
+  - Nota: **debe implementarse antes que T-022**, porque `POST /api/dishes` exige
+    `categoryId`.
+- [ ] **T-027**: `PUT /api/categories/:id` (solo admin)
+  - Criterio: permite renombrar los tres idiomas y cambiar `sortOrder`.
+- [ ] **T-028**: `DELETE /api/categories/:id` (solo admin)
+  - Criterio: rechaza con 409 si la categoría tiene platos asociados. Se descarta el
+    borrado en cascada para no perder dishes por un error de un clic; quien quiera
+    vaciarla antes, borra o reasigna los platos.
+- [ ] **T-029**: Índice en `dishes.category_id`
+  - Criterio: migración aplicada y `EXPLAIN QUERY PLAN` usa el índice al filtrar por
+    categoría. Pendiente de A-001: agrupar y filtrar el menú por categoría ya es un caso
+    de uso real y la columna no está indexada.
 
 ---
 
@@ -174,6 +195,95 @@
 - ¿Cuántos reintentos de notificación y con qué backoff? → **T-065**.
 - ¿Dónde alojar las imágenes de los platos? (VPS local vs. servicio externo) → decidir antes de **T-022**.
 - ¿Rate limiting en endpoints públicos? → evaluar en **T-092**.
+- ~~¿Cómo crear categorías al dar de alta un plato?~~ → **Resuelto 2026-10-01**: el
+  dueño decidió un CRUD completo (`T-026`/`T-027`/`T-028`) en vez de un id fijo. Ver
+  "Decisiones resueltas" más abajo.
+
+### 2026-10-01 — T-013 (setup)
+- Archivos creados: `server/src/db/seed/admin.ts`.
+  Modificados: `server/package.json` (script `db:seed:admin`, dependencia `bcryptjs`,
+  dependencia de desarrollo `@types/bcryptjs`), `package-lock.json`.
+- Dependencias instaladas **con autorización explícita del dueño**, que es lo que pedía
+  la tarea: `bcryptjs@^3.0.3` (runtime) y `@types/bcryptjs@^2.4.6` (solo desarrollo).
+  Se eligió `bcryptjs` y no `bcrypt` porque es JavaScript puro: no necesita compilación
+  nativa ni herramientas de build en el VPS, que importa para el despliegue con PM2.
+- Criterio verificado con un `SELECT` directo a la base, no solo con el log del script:
+  1 fila en `users`, `email = admin@osito.local`, `role = 'admin'`,
+  `preferred_lang = 'es'`, 1 usuario con `role='admin'`.
+- La contraseña queda hasheada de verdad, comprobado sobre el valor almacenado:
+  hash de 60 caracteres con prefijo `$2b$`, **10 rounds** (`bcrypt.getRounds`),
+  `bcrypt.compare` con la contraseña correcta devuelve `true` y con una incorrecta
+  `false`, y el hash no contiene la contraseña en claro.
+- **Decisión técnica: el seed hace `upsert`, no `insert` a secas.** Si el admin ya
+  existe, actualiza `passwordHash`, `role` y `preferredLang` en vez de fallar con el
+  `UNIQUE constraint failed: users.email`. Verificado ejecutándolo **tres veces
+  seguidas**: `users` sigue teniendo 1 fila y el login continúa funcionando. Sin esto,
+  el seed solo servía la primera vez y cualquier reejecución en desarrollo rompía.
+- Decisión tomada: `db:seed:admin` es un **script aparte** que coexiste con
+  `db:seed` (que sigue siendo solo el de platos). Esto cierra la ambigüedad que
+  MEMORY dejó abierta en T-012. Consecuencia asumida: preparar un entorno nuevo
+  requiere correr `db:migrate`, `db:seed` y `db:seed:admin`; no hay un seed único
+  que lo haga todo.
+- Decisión tomada: el hash se genera **dentro** de la transacción y el script loguea
+  `passwordMatches: true` y `hashPrefix`, nunca el hash ni la contraseña. El `throw` si
+  el usuario no aparece tras insertar evita que un seed "termine bien" sin haber escrito
+  nada.
+- Gotcha registrado: **`bcryptjs` v3 expone una API distinta a la v2** (`hashSync`,
+  `compareSync`, `getRounds`, `truncates`, `setRandomFallback`). No trae
+  `import bcrypt from 'bcryptjs'` con los mismos helpers de siempre, así que conviene
+  mirar los exports antes de escribir código. Ver detalle en `docs/MEMORY.md`.
+- Verificación adicional: el script corre correctamente **desde `dist/`** tras
+  `npm run build` (`node dist/db/seed/admin.js`), igual que el seed de platos.
+- `npm run typecheck`, `npm run lint` y el formato pasan. Sin `console.log` ni `TODO`.
+- **Aviso de seguridad:** la contraseña `OsitoAdmin123!` está **en claro dentro de
+  `server/src/db/seed/admin.ts`**, que sí se versiona. Es inherente al criterio de la
+  tarea, pero conviene tenerlo presente: quien clone el repo conoce la contraseña del
+  admin. Para producción habría que leerla de una variable de entorno y generar el
+  hash en el primer arranque, no dejarla en el código. **No se ha cambiado** porque
+  la tarea pedía explícitamente esa contraseña; queda anotado aquí como decisión
+  consciente, no como descuido.
+- Impacto en otras tareas:
+  - T-040–T-043 (auth) ya tienen un admin real contra el que probar `requireAdmin` y
+    el 403 de los endpoints de escritura.
+  - T-022/T-023 y `T-026`–`T-028` (escrituras de platos y categorías) dependen del
+    403 de admin para sus criterios.
+  - **T-041/T-042 (JWT) necesitarán un `bcrypt.compare` al validar el login.** La
+    dependencia ya está instalada, así que no hará falta pedirla otra vez. Confirmar que
+    usan `bcryptjs` y no `bcrypt`, para no tener dos librerías de hashing en el bundle.
+  - T-094 (PM2) deberá ejecutar los seeds durante el despliegue; como `db:seed` y
+    `db:seed:admin` son scripts distintos, el pipeline de despliegue necesita los dos.
+
+---
+
+## Decisiones resueltas
+
+> Decisiones ya tomadas que no hay que volver a abrir. Se anotan para que un agente
+> que llegue tarde no vuelva a plantear la pregunta.
+
+### 2026-10-01 — Las categorías tienen CRUD propio, no un id fijo
+**Origen:** pendiente abierto por **A-001**, al añadir la tabla `categories`.
+**Decisión del dueño:** crear el endpoint de categorías con CRUD completo
+(`T-025`–`T-028`) en lugar de que `POST /api/dishes` usara un id de categoría fijo.
+
+**Por qué:** con la tabla `categories` ya existente, la alternativa era hacer que el
+alta de platos escribiera directamente en `categories` desde `T-022`. Se descartó
+porque mezcla dos responsabilidades en un endpoint y porque no da forma de renombrar
+una categoría ni reordenar el menú una vez creado el producto. Un CRUD propio deja
+`dishes` centrado en platos y además habilita la reorderedación (`sortOrder`) desde
+la interfaz, que era el objetivo original de A-001.
+
+**Consecuencias a tener en cuenta al implementar:**
+- **Orden de ejecución: `T-026` antes que `T-022`.** `POST /api/dishes` validará
+  `categoryId`, así que sin forma de crear categorías el alta de platos queda
+  bloqueada. Es la única dependencia dura entre estas tareas.
+- `T-025` es público y **localizado por `Accept-Language`**, igual que `GET /api/dishes`:
+  los nombres de categoría son texto visible al usuario y AGENTE.md §2.5 exige los tres
+  idiomas. La UI los necesita para pintar el menú agrupado (T-031/T-032).
+- `POST`/`PUT` validan `slug` con Zod y devuelven 409 si ya existe, para que un
+  duplicado no produzca un error de FK opaco.
+- `DELETE` **no** hace cascada sobre `dishes`: devuelve 409 si hay platos asociados.
+  Es más seguro que perder dishes por una confirmación mal leída.
+- Todas las rutas de escritura pasan por `requireAdmin` (`T-043`).
 
 ---
 
@@ -635,6 +745,64 @@
   lo necesita. Conviene decidir entonces si `db:seed` pasa a ser un runner que invoque
   `seed/dishes.ts` y `seed/users.ts`, o si se deja como script aparte, porque ahora
   `db:seed` apunta solo a los platos.
+
+---
+
+### 2026-10-01 — A-001 Categorías de platos
+- Archivos modificados: `server/src/db/schema.ts` (tabla `categories` +
+  `dishes.categoryId`), `server/src/db/seed/dishes.ts`, `docs/SPEC.md` (§6).
+  Creado: `server/src/db/migrations/0001_broad_the_stranger.sql`.
+- Petición del dueño del proyecto: organizar los platos por categoría. **Se modificó
+  `docs/SPEC.md` con autorización explícita suya**, porque la categoría no figuraba en
+  el modelo `Dish` de §6 y mis reglas prohíben tocar SPEC.md sin permiso. Queda
+  anotado en SPEC que la tabla se añadió el 2026-10-01.
+- Decisión de modelado (la aprobaron el dueño y las reglas del proyecto): **tabla
+  `categories` separada** en vez de un enum en `dishes`. Motivo: el proyecto es
+  multi-idioma desde el día 1 (SPEC §4 y AGENTE.md §2.5), y un enum en código impediría
+  traducir el nombre de la categoría. Con tabla: `slug` estable para URLs y filtros,
+  `nameEs/Ru/En` traducibles y `sortOrder` para reordenar el menú sin migrar.
+- **Problema real encontrado: la migración generada por drizzle-kit no era aplicable.**
+  `ALTER TABLE dishes ADD category_id integer NOT NULL REFERENCES categories(id)` falla
+  sobre cualquier base que ya tenga platos. Verificado con los dos mensajes exactos:
+  - sin default: `Cannot add a NOT NULL column with default value NULL`
+  - con default no nulo: `Cannot add a REFERENCES column with non-NULL default value`
+  Se probaron las dos variantes antes de concluir que SQLite no admite ninguna.
+- Solución adoptada: **reescribir la migración `0001` a mano con el procedimiento
+  oficial de SQLite para modificar una tabla** (crear tabla nueva con el esquema
+  definitivo, copiar datos, borrar la vieja, renombrar), dentro de una transacción y con
+  `PRAGMA foreign_keys = OFF` alrededor, porque mientras `dishes` está borrada las FKs
+  de `order_items` y `page_views` quedarían colgando. `PRAGMA foreign_keys` es un no-op
+  dentro de una transacción, así que se emite como sentencia propia antes y después;
+  está explicado en el propio archivo SQL.
+- La migración asigna los platos preexistentes a una categoría de reserva
+  `sin-categoria` ("Sin categoría" / "Без категории" / "Uncategorized", `sort_order` 999),
+  porque no hay forma de saber a qué categoría pertenecía cada uno. `npm run db:seed`
+  los recrea con su categoría correcta. La categoría de reserva **no** está en el seed,
+  así que desaparece al reejecutarlo.
+- AGENTE.md §2.4 ("nunca modificar migraciones ya aplicadas") se respetó: la `0000` no
+  se tocó y la `0001` se editó **antes de aplicarse nunca** (el journal de la base solo
+  tenía la `0000`). Si hubiera estado aplicada, habría hecho falta una `0002`.
+- Verificado en los dos escenarios, no solo en el fácil:
+  - Base con datos (5 platos): la migración aplica, seed y resultados correctos.
+  - Base vacía desde cero: `db:migrate` + `db:seed` dan 5 categorías y 5 platos.
+- Comprobaciones sobre la base resultante: 5 categorías en orden (1–5), 5 platos con
+  categoría asignada, 0 platos sin categoría, 0 slugs duplicados,
+  `PRAGMA foreign_key_check` sin fallos, y `dishes.category_id` **rechaza** un id de
+  categoría inexistente. Las FKs de `order_items` y `page_views` siguen apuntando a
+  `dishes` después del rebuild, verificado con `PRAGMA foreign_key_list` antes y después.
+- `db:seed` sigue siendo idempotente con las categorías: reejecutarlo deja 5 y 5, no 10.
+- `npm run db:generate` responde `No schema changes, nothing to migrate`: el esquema y
+  las migraciones siguen en sincronía. `typecheck`, `lint` y formato en verde.
+- Impacto en otras tareas:
+  - **T-020 (`GET /api/dishes`) necesita un JOIN a `categories`** para devolver el
+    nombre de la categoría ya localizado; si se agrupa por `sortOrder`, el `ORDER BY`
+    debe usar `categories.sort_order` y no el id.
+  - T-031/T-032 (menú) tienen ya las 5 categorías con nombre en los tres idiomas.
+  - T-022/T-023 (alta y edición de platos) deberán exigir `categoryId`. **Resuelto el
+    2026-10-01**: el dueño decidió crear un CRUD de categorías (`T-025`–`T-028`) en vez
+    de un id fijo, y **`T-026` debe implementarse antes que `T-022`**. Ver
+    "Decisiones resueltas".
+  - T-013 (seed de admin) sigue pendiente y necesita `bcrypt`, que aún no está instalado.
 
 ---
 

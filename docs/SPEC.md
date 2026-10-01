@@ -1,7 +1,7 @@
 # SPEC.md — Osito a la carta
 
 > Fuente de verdad del proyecto. Ningún agente debe modificar este archivo sin autorización explícita del dueño del proyecto.
-> Última actualización: 2026-09-29
+> Última actualización: 2026-10-01
 
 ---
 
@@ -128,10 +128,23 @@ osito-a-la-carta/
 | preferredLang | text        | 'es' \| 'ru' \| 'en'  |
 | createdAt     | integer     | timestamp             |
 
+### Category
+| Campo                    | Tipo       | Notas                  |
+| ------------------------ | ---------- | ---------------------- |
+| id                       | integer PK |                        |
+| slug                     | text unique | clave estable, p. ej. `sopas` |
+| nameEs / nameRu / nameEn | text       | nombre visible al usuario |
+| sortOrder                | integer    | orden en el menú       |
+
+Se añadió el 2026-10-01 con autorización explícita del dueño del proyecto, para poder
+organizar los platos en el menú. Los nombres van en columnas multi-idioma como el
+resto del contenido (SPEC §4), y `sortOrder` permite reordenar el menú sin migrar.
+
 ### Dish
 | Campo                                         | Tipo       | Notas |
 | --------------------------------------------- | ---------- | ----- |
 | id                                            | integer PK |       |
+| categoryId                                    | integer FK | → `Category` |
 | imageUrl                                      | text       |       |
 | price                                         | real       |       |
 | nameEs / nameRu / nameEn                      | text       |       |
