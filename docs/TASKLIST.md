@@ -50,7 +50,7 @@
 
 - [x] **T-020**: `GET /api/dishes` con localización por `Accept-Language`
   - Criterio: con `Accept-Language: ru` devuelve nombres en ruso.
-- [ ] **T-021**: `GET /api/dishes/:id`
+- [x] **T-021**: `GET /api/dishes/:id`
   - Criterio: devuelve 404 si no existe.
 - [ ] **T-022**: `POST /api/dishes` (solo admin)
   - Criterio: rechaza con 401 sin token, con 403 si no es admin.
@@ -312,6 +312,59 @@
     comprobar que el plato desaparece de la lista.
   - T-093 (tests) puede montar `dishesRouter` en un `express()` de prueba sin abrir
     puerto, como ya se hacía con `healthRouter`.
+
+### 2026-10-01 — T-021 `GET /api/dishes/:id` + infraestructura de errores
+- Archivos creados: `server/src/shared/errors.ts`, `server/src/shared/error.middleware.ts`.
+  Modificados: `dishes.repository.ts`, `dishes.service.ts`, `dishes.routes.ts`,
+  `server/src/app.ts`, `server/eslint.config.js`.
+- Criterio verificado con peticiones reales: `GET /api/dishes/1` devuelve **200** con el
+  plato, en ruso con `Accept-Language: ru` y en español sin header; `GET /api/dishes/9999`
+  devuelve **404** con `{ error: 'Dish not found', code: 'DISH_NOT_FOUND' }` exactamente
+  como lo pedía la tarea.
+- **Decisión de alcance (la pidió el dueño): se creó la capa de errores**, en vez de
+  responder el 404 a mano en el router. T-021 es el primer endpoint que devuelve un error
+  y AGENTE.md §2.2 pide lanzar errores como clases propias, así que responder `404` desde
+  la ruta habría dejado esa convención incumplida justo en la primera vez que aplica.
+- Lo que trae la capa, ya en `server/src/shared/`:
+  - `errors.ts`: `AppError` (base, con `statusCode` y `code`) y las subclases
+    `NotFoundError` (404), `BadRequestError` (400), `UnauthorizedError` (401),
+    `ForbiddenError` (403) y `ConflictError` (409).
+  - `error.middleware.ts`: traduce cualquier `AppError` a `{ error, code }` conforme a
+    SPEC §8, convierte un `ZodError` en `400 VALIDATION_ERROR` con los issues, y deja
+    los errores desconocidos en `500 INTERNAL_ERROR` **sin filtrar detalles internos**.
+  - `notFoundHandler` para rutas inexistentes, que devuelve `{ error: 'Not found',
+    code: 'NOT_FOUND' }` en JSON en vez del HTML por defecto de Express.
+- **El servicio lanza `NotFoundError`; el router no sabe nada de errores.** Es la
+  separación que pide AGENTE.md §2.2 y hace que el servicio sea testeable sin Express.
+- **El `:id` se valida con Zod** (`z.coerce.number().int().positive()`). Comprobado:
+  `abc`, `0`, `-3` y `1.5` devuelven `400 VALIDATION_ERROR`, no un 500 ni una consulta
+  con basura. `999999999` sí llega a la BD y devuelve 404, que es lo correcto.
+- **Decisión técnica: `is_available = 0` devuelve el mismo 404 que "no existe"**, no un
+  403. Probado ocultando un plato real: el detalle responde 404 y además desaparece de
+  la lista. Motivo: para un cliente público, un plato retirado no se distingue de uno que
+  nunca existió, y evita filtrar qué platos hubo.
+- **El JOIN `inner` sigue pagando bien:** se probó con una fila corrupta
+  (`category_id` inexistente) y el `innerJoin` la descarta, así que un dato roto produce
+  un 404 limpio en lugar de un 500 con detalles de SQLite. Se comprobó además que el
+  cuerpo del error no contiene ni la ruta de la BD ni SQL ni nombres de tabla.
+- Se respetó la indicación de MEMORY de **no duplicar la lógica de idioma**: se extrajo
+  `toResponse(row, language)` y ahora tanto la lista como el detalle usan el mismo
+  `localize`. `localize` no se tocó.
+- Gotcha registrado: **Express identifica un middleware de error por tener 4 parámetros,
+  aunque el cuarto no se use**, así que ESLint se quejaba de `_next`. Se configuró
+  `argsIgnorePattern: '^_'` en `server/eslint.config.js`, que además documenta la
+  convención del prefijo `_` que el proyecto ya usaba en `health.routes.ts`.
+- `typecheck`, `lint` y formato en verde; verificado en los dos modos (`tsx` y
+  `node dist/app.js`), con resultados idénticos.
+- Impacto en otras tareas:
+  - **T-022/T-023/T-026/T-027/T-028 ya pueden lanzar `NotFoundError`, `ConflictError` y
+    `ForbiddenError`** y solo deben elegir el código. El 409 para slug duplicado y el 409
+    al borrar una categoría con platos ya estaba decidido; la clase existe.
+  - **T-040/T-043**: `UnauthorizedError` y `ForbiddenError` cubren los 401 y 403 de sus
+    criterios.
+  - T-093 (tests) puede montar el router sin middleware global si quiere, pero para
+    probar errores necesita `errorHandler` montado, igual que en producción.
+  - `resolveLanguage` sigue en el servicio de dishes: T-025 debe seguir reutilizándolo.
 
 ---
 

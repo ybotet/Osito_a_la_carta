@@ -3,11 +3,15 @@ import express from 'express';
 import { logger } from './logger.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { dishesRouter } from './modules/dishes/dishes.routes.js';
+import { errorHandler, notFoundHandler } from './shared/error.middleware.js';
 
 const app = express();
 
 app.use('/api', healthRouter);
 app.use('/api', dishesRouter);
+
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 app.listen(env.PORT, () => {
   logger.info(`Server starting on port ${env.PORT}`);

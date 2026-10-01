@@ -1,16 +1,24 @@
 import { Router } from 'express';
-import { listDishes } from './dishes.service.js';
+import { z } from 'zod';
+import { getDish, listDishes } from './dishes.service.js';
+
+const dishParamsSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
+const readAcceptLanguage = (header: string | string[] | undefined) =>
+  Array.isArray(header) ? header[0] : header;
 
 const dishesRouter = Router();
 
 dishesRouter.get('/dishes', (req, res) => {
-  const acceptLanguage = req.headers['accept-language'];
+  res.json(listDishes(readAcceptLanguage(req.headers['accept-language'])));
+});
 
-  res.json(
-    listDishes(
-      Array.isArray(acceptLanguage) ? acceptLanguage[0] : acceptLanguage,
-    ),
-  );
+dishesRouter.get('/dishes/:id', (req, res) => {
+  const { id } = dishParamsSchema.parse(req.params);
+
+  res.json(getDish(id, readAcceptLanguage(req.headers['accept-language'])));
 });
 
 export { dishesRouter };

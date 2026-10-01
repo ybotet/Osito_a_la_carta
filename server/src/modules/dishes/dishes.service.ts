@@ -1,11 +1,16 @@
 import {
+  findAvailableDishById,
+  findAvailableDishes,
+} from './dishes.repository.js';
+import type { DishRow } from './dishes.repository.js';
+import { NotFoundError } from '../../shared/errors.js';
+import {
   DEFAULT_LANGUAGE,
   LANGUAGES,
+  dishSchema,
   dishesResponseSchema,
 } from './dishes.schema.js';
 import type { Language } from './dishes.schema.js';
-import { findAvailableDishes } from './dishes.repository.js';
-import type { DishRow } from './dishes.repository.js';
 
 const isSupportedLanguage = (value: string): value is Language =>
   (LANGUAGES as readonly string[]).includes(value);
@@ -71,30 +76,44 @@ const localize = (row: DishRow, language: Language) => {
   }
 };
 
+const toResponse = (row: DishRow, language: Language) => {
+  const localized = localize(row, language);
+
+  return {
+    id: row.id,
+    imageUrl: row.imageUrl,
+    price: row.price,
+    name: localized.name,
+    description: localized.description,
+    ingredients: localized.ingredients,
+    category: {
+      id: row.categoryId,
+      slug: row.categorySlug,
+      name: localized.categoryName,
+    },
+  };
+};
+
 const listDishes = (acceptLanguage: string | undefined) => {
   const language = resolveLanguage(acceptLanguage);
 
-  const payload = findAvailableDishes().map((row) => {
-    const localized = localize(row, language);
-
-    return {
-      id: row.id,
-      imageUrl: row.imageUrl,
-      price: row.price,
-      name: localized.name,
-      description: localized.description,
-      ingredients: localized.ingredients,
-      category: {
-        id: row.categoryId,
-        slug: row.categorySlug,
-        name: localized.categoryName,
-      },
-    };
-  });
+  const payload = findAvailableDishes().map((row) => toResponse(row, language));
 
   return { language, dishes: dishesResponseSchema.parse(payload) };
 };
 
-export { listDishes, resolveLanguage };
+const getDish = (id: number, acceptLanguage: string | undefined) => {
+  const language = resolveLanguage(acceptLanguage);
+  const row = findAvailableDishById(id);
 
+  if (row === undefined) {
+    throw new NotFoundError('Dish not found', 'DISH_NOT_FOUND', { id });
+  }
+
+  return { language, dish: dishSchema.parse(toResponse(row, language)) };
+};
+
+export { getDish, listDishes, resolveLanguage };
+
+export type GetDishResult = ReturnType<typeof getDish>;
 export type ListDishesResult = ReturnType<typeof listDishes>;

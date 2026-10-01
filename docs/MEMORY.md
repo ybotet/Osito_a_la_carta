@@ -214,6 +214,26 @@ resolución de idioma (`resolveLanguage`) es genérica y debe **reutilizarse**, 
 duplicarse; cuando exista la segunda implementación conviene moverla a un módulo
 compartido en vez de dejarla en el servicio de dishes.
 
+### 2026-10-01 — Los errores de la API se lanzan como clases, no se responden en la ruta
+**Contexto:** T-021 tenía que devolver su primer 404 y no existía infraestructura de
+errores, mientras AGENTE.md §2.2 pedía lanzar `AppError` / `NotFoundError`.
+**Decisión:** `server/src/shared/errors.ts` define `AppError` y subclases por status, y
+`error.middleware.ts` las traduce a `{ error, code }` (SPEC §8). Los servicios lanzan; los
+routers no conocen errores.
+**Alternativas consideradas:** (a) responder `res.status(404)` dentro del router de dishes.
+**Motivo:** (a) incumple la convención de AGENTE.md §2.2 y además obliga a que cada router
+reinvente el formato y el log. Con la capa compartida, cada endpoint nuevo elige una clase
+y hereda el formato, el log y el no-filtrado de detalles internos gratis. Era además el
+momento oportuno: T-021 era el primer endpoint que devuelve un error, así que la
+convención queda fijada antes de que haya diez endpoints que la ignoren.
+**Consecuencias:** `notFoundHandler` y `errorHandler` deben registrarse en `app.ts`
+**después** de todos los routers, y en ese orden. `is_available = 0` se responde como 404
+y no como 403, para no revelar qué platos existieron. El middleware de error necesita
+sus 4 parámetros aunque `next` no se use, por lo que el `eslint.config.js` del server
+acepta el prefijo `_` en parámetros no usados. El texto de los errores está en inglés y
+**sin i18n**: si el frontend muestra el campo `error`, habrá que localizarlo o mapear el
+`code`.
+
 ### 2026-09-29 — npm workspaces en la raíz
 **Contexto:** T-001 pide un `package.json` raíz "con workspaces si aplica".
 **Decisión:** `workspaces: ["server", "client"]` con npm. `shared/` queda **fuera**
@@ -675,6 +695,18 @@ no son intercambiables.
 - **Un `.mjs` en Windows no puede hacer `import` de una ruta `C:/...` absoluta.**
   Falla con `ERR_UNSUPPORTED_ESM_URL_SCHEME`. En scripts de verificación usar
   `createRequire(import.meta.url)` y `require()` para el módulo nativo.
+- **Express identifica un middleware de error por su aridad, no por el tipo.** Un handler
+  de error debe tener los **4 parámetros** (`err`, `req`, `res`, `next`) para que Express
+  lo trate como tal; si le quitas el cuarto, deja de ser middleware de error y el `throw`
+  se convierte en un 500 genérico. Por eso ESLint se queja de un parámetro que no se
+  usa: el proyecto configuró `argsIgnorePattern: '^_'` en el `eslint.config.js` del
+  server para marcar esos parámetros.
+- **El orden de los middlewares en Express es significativo.** `notFoundHandler` debe
+  ir **después** de todos los routers y `errorHandler` después de `notFoundHandler`. Si
+  el de errores se registra antes, las rutas nunca llegan a él.
+- **Un `throw` en un handler `sync` de Express 5 sí llega al middleware de errores.** En
+  versiones anteriores hay que envolverlo a mano con `next()`; no es el caso aquí, y no
+  hace falta `try/catch` alrededor de los handlers síncronos.
 
 ---
 
@@ -729,6 +761,58 @@ no son intercambiables.
 - `dishes.category_id` no tiene índice. Como el CRUD de categorías ya está decidido
   (T-025–T-028) y agrupar o filtrar el menú por categoría es un caso de uso real, se
   dejó planificado como la tarea **T-029** en TASKLIST.md.
+
+### 2026-10-01 — T-021 `GET /api/dishes/:id` e infraestructura de errores
+**Estado:** completada
+
+**Qué se hizo:**
+- `GET /api/dishes/:id` con la misma localización que T-020 y 404
+  `{ error: 'Dish not found', code: 'DISH_NOT_FOUND' }`.
+- **Capa de errores compartida** en `server/src/shared/`:
+  - `errors.ts`: `AppError` base con `statusCode` y `code`, más `NotFoundError` (404),
+    `BadRequestError` (400), `UnauthorizedError` (401), `ForbiddenError` (403) y
+    `ConflictError` (409).
+  - `error.middleware.ts`: traduce `AppError` a `{ error, code }` (SPEC §8), `ZodError`
+    a `400 VALIDATION_ERROR` con los issues, y lo desconocido a `500 INTERNAL_ERROR`
+    sin filtrar detalles internos. Incluye `notFoundHandler` para rutas inexistentes.
+- `app.ts` monta `notFoundHandler` y luego `errorHandler`, después de los routers.
+- `:id` validado con Zod (`z.coerce.number().int().positive()`).
+
+**Por qué se hizo así:**
+- El dueño decidió crear la capa de errores en esta tarea en vez de responder el 404
+  desde el router. T-021 era el primer endpoint que devuelve un error y AGENTE.md §2.2
+  pide lanzar errores como clases propias: hacerlo a mano en la ruta habría dejado esa
+  convención incumplida justo la primera vez que aplicaba.
+- **El servicio lanza `NotFoundError` y el router no sabe nada de errores**, que es la
+  separación que pide AGENTE.md §2.2 y hace el servicio testeable sin Express.
+- **`is_available = 0` devuelve el mismo 404 que "no existe", no un 403.** Para un
+  cliente público un plato retirado no se distingue de uno que nunca existió, y además
+  evita filtrar qué platos hubo.
+- Se respetó la indicación de T-020 de **no duplicar la lógica de idioma**: se extrajo
+  `toResponse(row, language)`, y lista y detalle comparten `localize` sin tocarlo.
+
+**Comprobado:**
+- `200` con el plato correcto en `ru` y en `es`; `404` con el cuerpo exacto del criterio.
+- `abc`, `0`, `-3` y `1.5` devuelven `400 VALIDATION_ERROR`; `999999999` devuelve 404.
+- Con un plato puesto en `is_available = 0`, el detalle da 404 y la lista lo omite;
+  restaurado, vuelve a 200. Base sin dejar cambios.
+- Con una fila corrupta (`category_id` inexistente) el `innerJoin` la descarta y se
+  devuelve un 404 limpio: el cuerpo no contiene ruta de BD, SQL ni nombres de tabla.
+- Verificado en los dos modos (`tsx` y `node dist/app.js`), con resultados idénticos.
+
+**Impacto en otras tareas:**
+- T-022/T-023 y T-026/T-027/T-028 ya pueden lanzar `NotFoundError` y `ConflictError`:
+  solo deben elegir el código. Los 409 de slug duplicado y de borrado con platos ya
+  estaban decididos y la clase existe.
+- T-040/T-043 tienen `UnauthorizedError` y `ForbiddenError` para sus 401 y 403.
+- T-093 necesita montar `errorHandler` para probar errores, igual que en producción.
+
+**Pendientes / deuda técnica:**
+- No hay `VALIDATION_ERROR` en i18n: el mensaje es fijo en inglés (`Invalid request`,
+  `Dish not found`). Si el frontend muestra el `error` crudo habrá que localizarlo o
+  mapear el `code` a los tres idiomas. Es una decisión pendiente, no un descuido.
+- No hay tests automatizados todavía; la verificación de esta tarea fue con peticiones
+  reales. Corresponde a T-093.
 
 ### 2026-10-01 — T-020 `GET /api/dishes` con localización por `Accept-Language`
 **Estado:** completada
