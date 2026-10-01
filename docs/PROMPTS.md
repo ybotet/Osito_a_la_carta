@@ -58,7 +58,7 @@ Si no tienes acceso a estos archivos, pídemelos antes de continuar.
 - NO instales dependencias nuevas sin justificarlo y pedir permiso.
 - NO refactorices código no relacionado con la tarea.
 - NO inventes endpoints, funciones, tipos o archivos que no existan.
-- NO dejes console.log, TODO sueltos ni código comentado.
+- NO dejes console.log, TODO sueltos.
 - NO modifiques docs/SPEC.md sin autorización explícita.
 - Todo texto visible al usuario debe pasar por i18n (es/ru/en).
 

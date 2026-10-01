@@ -534,12 +534,136 @@ no son intercambiables.
 - **Un `tsc --noEmit` en verde no prueba que el código funcione.** Durante T-009 el
   import de JSON pasó typecheck, lint, format y build, y falló en runtime. Verificar
   siempre con `npm start` sobre `dist/` cuando toque resolución de rutas o módulos.
+- **El driver `better-sqlite3` de Drizzle es síncrono y no encadena nada.** Hace falta
+  un método terminal explícito (`.get()`, `.all()`, `.run()`). Sin él la sentencia
+  **no se ejecuta y no falla**. Además `db.insert(t).values(v).returning()` devuelve el
+  builder, no un array: hace falta `.returning().get()` o `.returning().all()`, y
+  destructurar el builder lanza `TypeError: object is not iterable`.
+- **`db.query.*` no hidrata relaciones en `drizzle-orm@0.45.3`.** Ver la entrada de
+  T-010. Usar joins explícitos en `db.select()` hasta que se verifique lo contrario.
+- **`drizzle-kit` arrastra vulnerabilidades moderadas de `esbuild <=0.24.2`.**
+  Es tooling de desarrollo y no entra en el bundle de runtime. No ejecutar
+  `npm audit fix --force`: propone `drizzle-kit@0.18.1`, un downgrade incompatible.
+- **`drizzle-kit` y `client.ts` resuelven la ruta de la base por caminos distintos.**
+  `db:migrate` usa `drizzle.config.ts` (`dbCredentials.url`) y `client.ts` usa
+  `env.DATABASE_URL`. Hoy ambos valen `./osito.db`, pero son dos fuentes de verdad: si
+  se cambia solo una, las migraciones y la aplicación apuntan a bases distintas **sin
+  ningún error**. Si divergen, los síntomas aparecen como "tabla inexistente" o datos
+  que no aparecen tras migrar.
+- **Las rutas de `drizzle.config.ts` son relativas al directorio de trabajo.**
+  Ejecutar `drizzle-kit` desde la raíz del monorepo en lugar de `server/` no falla de
+  forma evidente: apunta a otras rutas y a otra base. Los scripts `db:*` están en
+  `server/package.json` justamente para que se ejecuten con `server/` como cwd.
+- **`drizzle-kit generate` es el guard de sincronía esquema/migraciones.** Si responde
+  `No schema changes, nothing to migrate`, el esquema y las migraciones están
+  alineados; si genera un archivo nuevo, había un cambio de schema sin migrar.
+- **`server/src/db/migrations/meta/` está en `.prettierignore` a propósito.** Son
+  archivos que escribe drizzle-kit; si se reformatean, el próximo `db:generate` los
+  reescribe en su formato original y `format:check` vuelve a fallar. Es el mismo
+  criterio que `package-lock.json`: lo generado no se formatea a mano.
 
 ---
 
 ## Historial de entradas
 
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
+### 2026-10-01 — T-011 Migración inicial aplicada + scripts de base de datos
+**Estado:** completada
+
+**Qué se hizo:**
+- Añadidos `db:generate`, `db:migrate` y `db:studio` a `server/package.json`, que
+  delegan en `drizzle-kit`.
+- `npm run db:migrate` crea `server/osito.db` con las 6 tablas y
+  `__drizzle_migrations` con 1 entrada. No hizo falta ningún archivo nuevo: el
+  esquema y la migración ya venían de T-010.
+- Añadido `server/src/db/migrations/meta` a `.prettierignore` y reformateados
+  `schema.ts`, `client.ts` y `drizzle.config.ts`, para cerrar una regresión de
+  `format:check` que venía de T-010.
+
+**Por qué se hizo así:**
+- Los scripts van en `server/package.json` y no en la raíz del monorepo. Motivo doble:
+  la tarea los pedía en el server, y `drizzle.config.ts` usa rutas relativas
+  (`./src/db/schema.ts`, `./src/db/migrations`, `./osito.db`) que solo resuelven bien
+  con `server/` como directorio de trabajo. Delegarlos desde la raíz exigiría además
+  fijar el cwd, que es justo lo que los scripts del workspace evitan.
+- No se creó `db:seed`: pertenece a T-012 y T-013, y `docs/AGENTE.md` §4 prohíbe
+  dejar archivos que pertenecen a otra tarea.
+
+**Comprobado:**
+- `db:migrate` es idempotente (reejecutarlo no falla ni duplica).
+- `db:generate` responde `No schema changes, nothing to migrate`: esquema y
+  migraciones están en sincronía y no se genera una segunda migración.
+- El server arranca contra la base creada, confirmando que `client.ts` y
+  `db:migrate` apuntan al mismo archivo.
+- `npm run typecheck` y `npm run lint` pasan en `server/`.
+
+**Impacto en otras tareas:**
+- T-012 y T-013 pueden correr los seeds sobre esta base. Recordar el detalle del
+  driver síncrono registrado en T-010: cada `insert` necesita `.run()`.
+- Los delegadores `db:*` desde la raíz del monorepo que menciona `docs/AGENTE.md` §7
+  **siguen sin crearse**; quedan para la tarea que cierre los scripts del monorepo.
+
+**Pendientes / deuda técnica:**
+- `drizzle.config.ts` y `client.ts` resuelven la ruta de la base por fuentes
+  distintas (`dbCredentials.url` vs `env.DATABASE_URL`). Hoy coinciden, pero es una
+  divergencia silenciosa pendiente de unificar. Ver gotcha en la sección superior.
+- `server/osito.db` está en `.gitignore` (`*.db`, `*.db-wal`, `*.db-shm`), así que
+  cada entorno debe ejecutar `npm run db:migrate` antes de arrancar. Conviene
+  dejarlo explícito en el README de despliegue cuando exista.
+
+### 2026-10-01 — T-010 Schema Drizzle (SQLite)
+**Estado:** completada
+
+**Qué se hizo:**
+- `server/src/db/schema.ts` con las 6 entidades de SPEC: `users`, `dishes`, `orders`,
+  `order_items`, `page_views`, `notification_logs`, más los tipos `*` y `New*`
+  derivados con `$inferSelect`/`$inferInsert`.
+- `server/src/db/client.ts`: instancia Drizzle sobre `better-sqlite3`, leyendo
+  `env.DATABASE_URL`, con los pragmas `journal_mode=WAL` y `foreign_keys=ON`.
+  Exporta `db` y `sqlite`.
+- `server/drizzle.config.ts` (dialecto SQLite, schema `./src/db/schema.ts`,
+  salida `./src/db/migrations`) y la migración
+  `0000_worthless_scarlet_spider.sql`, generada y aplicada.
+- Dependencias en `server/`: `drizzle-orm@^0.45.3`, `better-sqlite3@^13.0.3`,
+  `drizzle-kit@^0.31.11`, `@types/better-sqlite3@^9.6.0`.
+- `engines.node` de la raíz subida a `^22.13.0 || >=24` porque
+  `better-sqlite3@13` requiere Node 22.
+
+**Convenciones de schema (SPEC §4):**
+- Tablas en plural y `snake_case`; propiedades TS en `camelCase`.
+- Timestamps: `integer` con `default(sql\`(unixepoch())\`)`.
+- Precios y totales: `real`.
+- Enums: `text({ enum: [...] })` — `role`, `preferred_lang`, `status`, `channel`.
+- `dishes` guarda los tres idiomas en columnas separadas (`name_es/ru/en`,
+  `desc_es/ru/en`, `ingredients_es/ru/en`), no en JSON.
+
+**Por qué se hizo así:**
+- El schema **no exporta `relations()`**, a propósito. La API relacional
+  `db.query.*` no hidrata filas en `0.45.3`: se probaron tres formas de declarar las
+  relaciones (`relations()` por callback, objeto plano con claves `xRelations`, objeto
+  plano anidado bajo `relations`) y las tres devuelven `undefined` o el propio builder.
+  El diagnóstico aísla el fallo: `extractTablesRelationalConfig` **sí** extrae las
+  relaciones (`a→[bs]`, `b→[a]`), luego el problema está en el consumo de `with`.
+  Se prefirió joins explícitos en `db.select()`, que funcionan, antes que dejar código
+  que compila y devuelve datos incorrectos.
+- Se exportan `sqlite` y `db` desde `client.ts` porque los tests necesitarán cerrar la
+  conexión (`sqlite.close()`) y porque los pragmas son parte del contrato de la app.
+
+**Impacto en otras tareas:**
+- T-011 puede cerrarse sin trabajo adicional: la migración inicial ya está generada y
+  aplicada. Basta con `npx drizzle-kit migrate` sobre una base nueva.
+- T-012 (seed) debe popular los 9 campos de texto por idioma de `dishes` y terminar
+  cada `insert` con `.run()`, porque el driver no encadena.
+- T-020 y T-051 usarán `db.select()` con joins, no `db.query`.
+
+**Pendientes / deuda técnica:**
+- Las columnas de clave ajena no tienen índice; SQLite no los crea solo. Aceptable
+  para el volumen del MVP, pero conviene indexar `orders.user_id`,
+  `order_items.order_id`, `order_items.dish_id`, `page_views.user_id/dish_id` y
+  `notification_logs.order_id` si las consultas de pedidos crecen.
+- 4 vulnerabilidades moderadas de `esbuild` vía `drizzle-kit` (solo dev). No hay
+  actualización compatible propuesta por `npm audit` sin forzar un downgrade.
 
 ### 2026-09-30 — T-009 Módulo de health
 **Estado:** completada

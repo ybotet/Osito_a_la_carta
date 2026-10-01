@@ -6,3 +6,7 @@ package-lock.json
 # SPEC.md es fuente de verdad y cualquier reformateo ensuciaria el diff.
 docs
 README.md
+
+# Metadatos generados por drizzle-kit: se reescriben en cada `db:generate`,
+# asi que reformatearlos haria fallar `format:check` de nuevo sin valor.
+server/src/db/migrations/meta

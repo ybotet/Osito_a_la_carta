@@ -30,10 +30,10 @@
 
 ## Fase 1 — Base de datos
 
-- [ ] **T-010**: Definir schema Drizzle en `server/src/db/schema.ts`
+- [x] **T-010**: Definir schema Drizzle en `server/src/db/schema.ts`
   - Entidades: `User`, `Dish`, `Order`, `OrderItem`, `PageView`, `NotificationLog`.
   - Criterio: `drizzle-kit generate` produce una migración válida.
-- [ ] **T-011**: Aplicar migración inicial
+- [x] **T-011**: Aplicar migración inicial
   - Criterio: archivo `osito.db` creado con todas las tablas.
 - [ ] **T-012**: Script de seed con 5 platos de ejemplo en 3 idiomas
   - Criterio: `SELECT` devuelve 5 filas con datos en es / ru / en.
@@ -482,6 +482,109 @@
 - Impacto en otras tareas: T-020, T-051, T-080 y demás siguen el mismo patrón
   (`app.use('/api', xRouter)`). T-093 puede importar `healthRouter` y probarlo sin
   abrir un puerto. T-094 (PM2) seguirá usando el script `start` ya existente.
+
+---
+
+### 2026-10-01 — T-010 (setup)
+- Archivos creados: `server/src/db/schema.ts`, `server/src/db/client.ts`,
+  `server/drizzle.config.ts`, `server/src/db/migrations/0000_worthless_scarlet_spider.sql`.
+  Modificados: `package.json` (raíz, `engines.node`), `server/package.json`.
+- Criterio verificado: `npx drizzle-kit generate` produjo una migración válida con las
+  6 entidades y `npx drizzle-kit migrate` la aplicó sobre una base limpia, creando
+  `users`, `dishes`, `orders`, `order_items`, `page_views` y `notification_logs`.
+  `PRAGMA foreign_key_list` confirma las FKs esperadas: `orders`→`users` (1),
+  `order_items`→`orders`+`dishes` (2), `page_views`→`users`+`dishes` (2),
+  `notification_logs`→`orders` (1); `users` sin FKs y con índice único en `email`.
+- Comportamiento comprobado en runtime, no solo en tipos:
+  - Defaults aplicados: `role='customer'`, `preferred_lang='es'`, `status='pending'`,
+    `is_available=1`.
+  - `UNIQUE users.email` rechaza el duplicado: `UNIQUE constraint failed: users.email`.
+  - `orders.user_id` rechaza un usuario inexistente: `FOREIGN KEY constraint failed`.
+  - `INSERT` + `SELECT` con join de 4 tablas (`order_items`→`dishes`→`orders`→`users`)
+    devuelve la fila esperada.
+  - `npx tsc --noEmit`, `npm run lint` pasan.
+- **Decisión técnica: el schema NO exporta `relations()`.** La API relacional
+  `db.query.*` no hidrata filas en `drizzle-orm@0.45.3`. Se probaron tres variantes
+  (`relations()` por callback, objeto plano con claves `xRelations`, objeto plano
+  anidado bajo `relations`); las tres devuelven `undefined` o el propio builder.
+  Diagnóstico: `extractTablesRelationalConfig` **sí** extrae las relaciones
+  correctamente (`a→[bs]`, `b→[a]`), así que el fallo está en el consumo de `with`,
+  no en la definición. Se optó por joins explícitos en `db.select()`, que sí
+  funcionan. No reintroducir `relations()` sin verificar la hidratación en runtime.
+- Gotcha registrado: **el driver `better-sqlite3` es síncrono y no encadena nada.**
+  `db.insert(t).values(v).returning()` devuelve el builder (lanza
+  `TypeError: object is not iterable` al hacer destructuring) y
+  `db.insert(t).values(v)` sin método terminal **no ejecuta nada**, en silencio.
+  Hace falta `.get()`, `.all()` o `.run()` explícito. `db.select().from(t)` sin
+  `.all()`/`.get()` también devuelve sin ejecutar.
+- Gotcha registrado: `tsc --noEmit` y `npm run lint` pasan aunque `relations()`
+  esté mal, porque la API relacional no se comprueba en tiempo de compilación.
+  Cualquier verificación de datos debe ejecutarse, no solo tiparse.
+- Pendiente conocido: las columnas de clave ajena (`orders.user_id`,
+  `order_items.order_id`, `order_items.dish_id`, `page_views.*`,
+  `notification_logs.order_id`) **no tienen índice**; SQLite no los crea
+  automáticamente. Para el volumen del MVP no es un problema, pero si las consultas
+  de pedidos crecen conviene añadir índices explícitos y regenerar la migración.
+- Nota de seguridad: `npm audit` reporta 4 vulnerabilidades moderadas de
+  `esbuild <=0.24.2`, arrastradas por `drizzle-kit` (tooling de desarrollo, no
+  entra en el bundle de runtime). **No** ejecutar `npm audit fix --force`: propone
+  `drizzle-kit@0.18.1`, un downgrade incompatible con la API actual.
+- Impacto en otras tareas: T-011 puede marcarse como completada sin trabajo
+  adicional, porque la migración inicial ya está aplicada y verificada. T-012
+  (seed) debe insertar en `dishes` con los 9 campos de texto por idioma y usar
+  `.run()` en cada `insert`. T-020/T-051 usarán `db.select()` con joins; conviene
+  leer `server/src/db/client.ts`, que ya exporta `db` y `sqlite` con los pragmas
+  `journal_mode=WAL` y `foreign_keys=ON` activos.
+- Archivos temporales de verificación (`probe-db.ts`, `probe-db2.ts`,
+  `probe-db3.ts`, `inspect-db.ts`) y la base `server/osito.db` se eliminaron al
+  terminar. `.env` y `*.db` ya estaban en `.gitignore`.
+
+---
+
+### 2026-10-01 — T-011 (setup)
+- Modificado: `server/package.json` (scripts `db:generate`, `db:migrate`, `db:studio`).
+  Sin archivos nuevos: la migración y el esquema ya venían de T-010.
+- Criterio verificado:
+  - `npm run db:migrate` desde `server/` crea `server/osito.db` (45 KB), **en la raíz
+    del server**, no en la raíz del monorepo. La ruta viene de
+    `dbCredentials.url: './osito.db'` en `server/drizzle.config.ts`, que es relativa al
+    directorio de trabajo, por eso el script debe correr dentro de `server/`.
+  - Las 6 tablas existen: `users` (6 col, 1 índice), `dishes` (14 col), `orders`
+    (6 col, 1 FK), `order_items` (5 col, 2 FK), `page_views` (5 col, 2 FK),
+    `notification_logs` (6 col, 1 FK). `__drizzle_migrations` registra 1 entrada.
+  - Las FKs se confirman con `PRAGMA foreign_key_list`, no solo mirando los nombres.
+- Comprobaciones adicionales:
+  - `npm run db:generate` sobre el esquema ya aplicado responde
+    `No schema changes, nothing to migrate` y **no crea una segunda migración**.
+    Es el guard de que el esquema y las migraciones están en sincronía.
+  - `npm run db:migrate` es idempotente: reejecutarlo no falla ni duplica.
+  - El server arranca contra la base creada (`Server starting on port 3000`), así que
+    `client.ts` y la ruta que usa `db:migrate` apuntan al mismo archivo.
+  - `npm run typecheck` y `npm run lint` pasan en `server/`.
+- **Decisión técnica: los scripts viven en `server/package.json`, no en la raíz.** La
+  tarea los pedía ahí, y además `dbCredentials.url` y `schema`/`out` de
+  `drizzle.config.ts` son rutas relativas a `server/`. Delegarlos desde la raíz
+  obligaría a fijar además el directorio de trabajo. Nota: `docs/AGENTE.md` §7 lista
+  `npm run db:generate` / `db:migrate` / `db:seed` como comandos de la raíz del
+  proyecto; esos delegadores de raíz siguen **sin crearse** y quedan pendientes de
+  la tarea que cierre los scripts del monorepo.
+- Gotcha registrado: **`db:migrate` no lee `env.DATABASE_URL`.** `drizzle-kit` corre en
+  su propio proceso y usa `drizzle.config.ts`, mientras que `client.ts` sí lee
+  `env.DATABASE_URL`. Hoy ambos coinciden (`./osito.db`), pero si alguien cambia solo
+  `.env` la migración y la aplicación apuntarán a bases distintas en silencio.
+  Ver gotcha equivalente en `docs/MEMORY.md`.
+- Deuda de T-010 detectada y cerrada aquí: `npm run format:check` fallaba por
+  `server/src/db/migrations/meta/_journal.json` y `0000_snapshot.json`. Se **
+  reformatearon** `schema.ts`, `client.ts` y `drizzle.config.ts` (único cambio real:
+  `isAvailable` en una línea, sin cambio semántico) y se añadió
+  `server/src/db/migrations/meta` a `.prettierignore`. No se reformatearon los JSON
+  generados: `db:generate` los reescribe y la falla volvería. Verificado ejecutando
+  `db:generate` después y volviendo a pasar `format:check`.
+- Estado de `server/osito.db`: existe y está en `.gitignore` (`*.db`), junto con
+  `*.db-wal` y `*.db-shm`. No se commitea.
+- Impacto en otras tareas: T-012 y T-013 (seeds) ya pueden correr sobre esta base con
+  `npm run db:generate`/`db:migrate` disponibles. T-020+ consumirán `db` desde
+  `client.ts` con joins explícitos (ver gotcha de `db.query.*` de T-010).
 
 ---
 
