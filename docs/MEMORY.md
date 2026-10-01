@@ -199,6 +199,21 @@ añadido `sortOrder`. (b) obliga a migrar para cambiar el menú y no da control 
 perder dishes por una confirmación mal leída; y `slug` duplicado devuelve 409 en lugar
 de dejar que reviente una FK.
 
+### 2026-10-01 — Los endpoints de listado devuelven `{ language, data }`
+**Contexto:** T-020 tenía que localizar por `Accept-Language` y el criterio no decía si
+el array iba pelado o envuelto.
+**Decisión:** las respuestas de listado localizado incluyen el idioma resuelto
+(`{ language, dishes }`), no un array pelado.
+**Alternativas consideradas:** (a) array directo; (b) envoltorio con el idioma resuelto.
+**Motivo:** el frontend necesita saber con qué idioma se resolvió la petición para no
+reparsear el header por su cuenta, y sirve de diagnóstico en logs y tests. El array
+pelado obligaba a adivinar el idioma por los propios datos.
+**Consecuencias:** quien consuma el endpoint debe leer `body.dishes`. T-021, T-025 y
+T-051 deberían seguir el mismo patrón para no tener dos convenciones en la API. La
+resolución de idioma (`resolveLanguage`) es genérica y debe **reutilizarse**, no
+duplicarse; cuando exista la segunda implementación conviene moverla a un módulo
+compartido en vez de dejarla en el servicio de dishes.
+
 ### 2026-09-29 — npm workspaces en la raíz
 **Contexto:** T-001 pide un `package.json` raíz "con workspaces si aplica".
 **Decisión:** `workspaces: ["server", "client"]` con npm. `shared/` queda **fuera**
@@ -647,6 +662,19 @@ no son intercambiables.
   el prefijo (`$2b$`) para confirmar que se hasheó, nunca el hash completo ni la
   contraseña. Nota: la contraseña del admin de seed está en claro en
   `server/src/db/seed/admin.ts` por decisión del dueño; es consciente, no un descuido.
+- **`Accept-Language` no es un idioma, es una lista ponderada.** Los navegadores mandan
+  algo tipo `es-ES,es;q=0.9,en;q=0.8`. Comparar el header con una igualdad (`=== 'ru'`)
+  falla con casi cualquier cliente real. Lo que funciona: partir por comas, quedarse con
+  la parte antes del `;`, leer el peso de `q=`, descartar los `q=0`, ordenar por peso
+  descendente y quedarse con el primer idioma **soportado** por el subtag antes del
+  guion (`ru-RU` → `ru`). Si ninguno coincide, al idioma por defecto.
+- **`noUncheckedIndexedAccess` rompe el encadenado de `split()`.** `part.split(';')[0]`
+  y `tag.split('-')[0]` devuelven `string | undefined` y `noUncheckedIndexedAccess` está
+  activo en este `tsconfig`. Hay que usar desestructuración con valor por defecto
+  (`const [rawTag = ''] = ...`), que además hace el código explícito.
+- **Un `.mjs` en Windows no puede hacer `import` de una ruta `C:/...` absoluta.**
+  Falla con `ERR_UNSUPPORTED_ESM_URL_SCHEME`. En scripts de verificación usar
+  `createRequire(import.meta.url)` y `require()` para el módulo nativo.
 
 ---
 
@@ -701,6 +729,65 @@ no son intercambiables.
 - `dishes.category_id` no tiene índice. Como el CRUD de categorías ya está decidido
   (T-025–T-028) y agrupar o filtrar el menú por categoría es un caso de uso real, se
   dejó planificado como la tarea **T-029** en TASKLIST.md.
+
+### 2026-10-01 — T-020 `GET /api/dishes` con localización por `Accept-Language`
+**Estado:** completada
+
+**Qué se hizo:**
+- Módulo `server/src/modules/dishes/` con los cuatro archivos que marca AGENTE.md §2.2:
+  `dishes.routes.ts`, `dishes.service.ts`, `dishes.repository.ts` y
+  `dishes.schema.ts` (Zod para la respuesta).
+- `app.ts` monta `app.use('/api', dishesRouter)`, siguiendo el patrón de `healthRouter`.
+- Filtra `is_available = 1`, hace JOIN a `categories` y devuelve el contenido en es/ru/en
+  con default `es`.
+
+**Por qué se hizo así:**
+- **Respuesta `{ language, dishes }` en vez de un array pelado.** El frontend necesita
+  saber con qué idioma se resolvió la petición sin volver a parsear el header, y sirve de
+  diagnóstico. Si el cliente espera un array, se quita el envoltorio.
+- **Se incluye `category: { id, slug, name }` ya localizada**, aunque no estaba en el
+  criterio. MEMORY ya exigía el JOIN para este endpoint y T-031/T-032 necesitan la
+  categoría para el menú agrupado. Todos los campos pedidos están presentes; la categoría
+  es un añadido.
+- **JOIN `inner`, no `left`**: como `category_id` es `NOT NULL` el resultado es idéntico y
+  el `leftJoin` solo ocultaría datos corruptos.
+- **Orden por `categories.sortOrder` y luego `dishes.id`**, para que el menú salga en el
+  orden que defina el admin, que es el motivo de existir `sortOrder`.
+- **Resolución completa del header `Accept-Language`**: lista ponderada, se descarta
+  `q=0`, se ordena por peso y se elige el primer idioma soportado por su subtag antes del
+  guion. Un `=== 'ru'` habría fallado con casi cualquier cliente real.
+- El schema Zod **valida en runtime** (`dishesResponseSchema.parse`), no solo en
+  compilación: una fila mal formada revienta en la capa correcta en vez de colarse al
+  cliente.
+
+**Comprobado:**
+- `curl` real: `ru` devuelve los 5 en ruso, sin header en español, `en` en inglés.
+- 12 casos límite del header, incluidos `ru-RU`, `en;q=0.8,ru;q=0.9` (gana el de mayor
+  peso), `de;q=0.9,en-US;q=0.7` (salta el no soportado), `ru;q=0`, `*`, mayúsculas,
+  header vacío y `q` no numérico.
+- Filtro de disponibilidad probado ocultando un plato real: 4 resultados y el nombre
+  desaparece; restaurado, 5. Base sin dejar cambios.
+- `GET /api/health` sigue en 200 y las rutas inexistentes en 404.
+- Verificado en los **dos modos**: `tsx src/app.ts` y `node dist/app.js` tras
+  `npm run build`, con resultados idénticos.
+
+**Impacto en otras tareas:**
+- T-031 puede consumir el endpoint tal cual y agrupar por `category`.
+- **T-025 debe reutilizar la resolución de idioma.** `resolveLanguage` está exportado
+  desde `dishes.service.ts`; cuando exista la segunda implementación conviene moverlo a
+  un módulo compartido en vez de duplicarlo.
+- T-021 (`GET /api/dishes/:id`) reutilizará el `localize` y el mismo JOIN: no duplicar
+  el `switch` de idioma.
+- T-024 (borrado lógico) tiene su caso de prueba con `is_available = 0`.
+- T-093 puede montar `dishesRouter` en un `express()` de prueba sin abrir puerto.
+
+**Pendientes / deuda técnica:**
+- `resolveLanguage` vive en el servicio de dishes aunque es lógica genérica. Se moverá
+  cuando T-025 lo necesite; hasta entonces está exportado para evitar la copia.
+- La respuesta **no** incluye `createdAt` ni el slug del plato (no existe). Si el
+  frontend acaba ordenando por fecha, habrá que añadir `createdAt` a la selección.
+- Las columnas de `dishes` y `categories` siguen sin índice más allá de los
+  `UNIQUE`. Con 5 filas da igual; `T-029` ya cubre `category_id`.
 
 ### 2026-10-01 — T-013 Seed del usuario admin
 **Estado:** completada

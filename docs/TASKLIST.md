@@ -48,7 +48,7 @@
 
 ## Fase 2 — API de platos
 
-- [ ] **T-020**: `GET /api/dishes` con localización por `Accept-Language`
+- [x] **T-020**: `GET /api/dishes` con localización por `Accept-Language`
   - Criterio: con `Accept-Language: ru` devuelve nombres en ruso.
 - [ ] **T-021**: `GET /api/dishes/:id`
   - Criterio: devuelve 404 si no existe.
@@ -252,6 +252,66 @@
     usan `bcryptjs` y no `bcrypt`, para no tener dos librerías de hashing en el bundle.
   - T-094 (PM2) deberá ejecutar los seeds durante el despliegue; como `db:seed` y
     `db:seed:admin` son scripts distintos, el pipeline de despliegue necesita los dos.
+
+### 2026-10-01 — T-020 `GET /api/dishes` con localización por `Accept-Language`
+- Archivos creados: `server/src/modules/dishes/dishes.routes.ts`, `dishes.service.ts`,
+  `dishes.repository.ts`, `dishes.schema.ts`. Modificado: `server/src/app.ts`
+  (monta `app.use('/api', dishesRouter)`).
+- Estructura de cuatro archivos según `docs/AGENTE.md` §2.2. La ruta solo orquesta,
+  el servicio resuelve el idioma y localiza, el repositorio hace el JOIN y el filtro, y
+  `dishes.schema.ts` valida la respuesta con Zod.
+- Criterio verificado con `curl` real contra el servidor en marcha:
+  - `Accept-Language: ru` devuelve los 5 nombres en ruso
+    (`Овощной суп`, `Паста с томатами`, `Оливье`, `Яблочный пирог`, `Фруктовый компот`).
+  - Sin header devuelve en español (`Sopa de verduras`, ...), con `language: "es"`.
+  - `Accept-Language: en` devuelve los 5 en inglés.
+- **Decisión técnica: la respuesta es `{ language, dishes }`, no un array pelado.**
+  Se añade `language` para que el frontend sepa con qué idioma se resolvió la petición y
+  no tenga que volver a parsear el header; también sirve de diagnóstico. Si el cliente
+  espera un array, hay que quitar el envoltorio.
+- **La respuesta incluye `category: { id, slug, name }` ya localizado**, aunque el
+  criterio de la tarea solo enumeraba `id, imageUrl, price, name, description,
+  ingredients`. Motivo: MEMORY ya exigía el JOIN a `categories` para este endpoint, y
+  T-031/T-032 necesitan la categoría para pintar el menú agrupado. Los campos pedidos
+  están todos presentes, la categoría es un añadido. Si se prefiere la respuesta mínima,
+  se quita `category` del servicio y del schema.
+- **Decisión técnica: el JOIN es `inner`, no `left`.** Como `dishes.category_id` es
+  `NOT NULL`, un `leftJoin` daría idéntico resultado y solo ocultaría datos corruptos.
+- **Decisión técnica: se ordena por `categories.sortOrder` y luego `dishes.id`,** no solo
+  por `dishes.id`. Así el menú sale en el orden que el admin defina, que es justamente
+  para lo que sirve `sortOrder` (decisión de A-001).
+- La resolución del header `Accept-Language` es deliberadamente más completa que un
+  `=== 'ru'`, porque los navegadores reales envían varios idiomas con pesos. Casos
+  probados de verdad, todos correctos:
+  - `ru-RU` → ru (se queda con el idioma base, no la región)
+  - `ru-RU,ru;q=0.9,en;q=0.8` → ru
+  - `en;q=0.8,ru;q=0.9` → **ru** (gana el de mayor `q`, no el primero de la lista)
+  - `fr-FR,fr;q=0.9` → es (idioma no soportado, cae al default)
+  - `de;q=0.9,en-US;q=0.7` → en (salta el no soportado y coge el siguiente)
+  - `ru;q=0` → es (un `q=0` significa "no lo quiero", se descarta)
+  - `*` → es, header vacío → es, `RU` en mayúsculas → ru
+  - `xx;q=abc,ru` → ru (`q` no numérico se trata como calidad 0, no rompe nada)
+- El filtro de disponibilidad se probó **ocultando un plato de verdad**: puesto
+  `is_available = 0` el dishes responde 4 y el nombre desaparece; restaurado, vuelve a
+  5. La base quedó como estaba.
+- El schema Zod valida la respuesta en runtime (`dishesResponseSchema.parse`), no solo
+  en compilación: si una fila viene con un campo unexpectedly mal formado, revienta en
+  la capa correcta en vez de colarse al cliente.
+- `GET /api/health` sigue respondiendo 200 y una ruta inexistente sigue dando 404: el
+  router nuevo se montó sin romper el existente.
+- Verificado en los **dos modos**: con `tsx src/app.ts` y con `node dist/app.js` tras
+  `npm run build`, con resultados idénticos. `typecheck`, `lint` y formato en verde.
+- Impacto en otras tareas:
+  - **T-031** puede consumir este endpoint tal cual y agrupar por `category`.
+  - **T-025** (`GET /api/categories`) debe reutilizar el mismo criterio de resolución de
+    idioma. `resolveLanguage` está exportado desde `dishes.service.ts`; lo correcto es
+    moverlo a un módulo compartido cuando exista la segunda implementación.
+  - T-021 (`GET /api/dishes/:id`) reutilizará `localize` y el mismo JOIN; conviene no
+    duplicar el `switch` de idioma.
+  - T-024 (borrado lógico) tiene su caso de prueba: poner `is_available = 0` y
+    comprobar que el plato desaparece de la lista.
+  - T-093 (tests) puede montar `dishesRouter` en un `express()` de prueba sin abrir
+    puerto, como ya se hacía con `healthRouter`.
 
 ---
 
