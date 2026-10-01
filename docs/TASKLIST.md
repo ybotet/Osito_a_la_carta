@@ -35,7 +35,7 @@
   - Criterio: `drizzle-kit generate` produce una migración válida.
 - [x] **T-011**: Aplicar migración inicial
   - Criterio: archivo `osito.db` creado con todas las tablas.
-- [ ] **T-012**: Script de seed con 5 platos de ejemplo en 3 idiomas
+- [x] **T-012**: Script de seed con 5 platos de ejemplo en 3 idiomas
   - Criterio: `SELECT` devuelve 5 filas con datos en es / ru / en.
 - [ ] **T-013**: Script de seed con 1 usuario admin
   - Criterio: existe un usuario `admin@osito.local` con contraseña hasheada.
@@ -585,6 +585,56 @@
 - Impacto en otras tareas: T-012 y T-013 (seeds) ya pueden correr sobre esta base con
   `npm run db:generate`/`db:migrate` disponibles. T-020+ consumirán `db` desde
   `client.ts` con joins explícitos (ver gotcha de `db.query.*` de T-010).
+
+---
+
+### 2026-10-01 — T-012 (setup)
+- Archivos creados: `server/src/db/seed/dishes.ts`.
+  Modificado: `server/package.json` (script `db:seed`).
+- Criterio verificado: tras `npm run db:migrate` sobre base limpia y luego
+  `npm run db:seed`, un `SELECT` devuelve **5 filas** con nombre, descripción e
+  ingredientes en **es / ru / en** reales (sin `TODO` ni placeholders). Verificado con
+  una consulta directa a la base, no solo con el log del script.
+- Los 5 platos son de comida casera y cubren los tipos pedidos:
+  sopa (6.5), pasta (11.9), ensalada/olivier (8.75), postre (14.2) y bebida (5.25).
+  Todos los precios dentro del rango 5–25 pedido.
+- Comprobado con un validador que recorre las 5 filas y falla si algún campo está
+  vacío, si algún texto contiene `TODO`/`placeholder`, si `is_available != 1`, si el
+  precio sale de 5–25 o si la `imageUrl` no es `https://placehold.co/600x400`.
+  Resultado: `sin campos vacios ni TODO`.
+- **`imageUrl` usa placehold.co con color por plato** (`/600x400/<bg>/<fg>?text=<Label>`),
+  no la URL desnuda, para que los 5 platos se distinguen en `/menu` mientras siga
+  siendo un placeholder. Verificado con `curl`: la URL responde **HTTP 200**. El
+  `text=` es una etiqueta corta en inglés (Soup, Pasta, Salad, Pie, Compote) porque el
+  servicio no renderiza bien caracteres no ASCII en ese parámetro.
+- **Decisión técnica: el seed es idempotente.** Borra `dishes` y reinserta dentro de una
+  transacción (`db.transaction`). Así `npm run db:seed` se puede reejecutar sin
+  duplicar filas: verificado ejecutándolo dos veces seguidas, el conteo sigue en 5.
+  Sin esto, cada reejecución añadiría 5 filas más y el criterio "5 filas" solo se
+  cumpliría la primera vez.
+- Decisión tomada: el script **termina con `sqlite.close()`**. Sin cerrar el proceso se
+  queda colgado por WAL, y deja la base con `-wal`/`-shm` sueltos. El cierre va al
+  final del módulo, fuera de la transacción.
+- Decisión tomada: log con `logger.info` de pino, no `console.log`, según
+  `docs/AGENTE.md` §4.
+- Gotcha registrado: **`db.transaction()` sí funciona con el driver síncrono**, al
+  contrario que el encadenado de sentencias. El callback recibe un `tx` y hay que
+  terminar cada sentencia con `.run()`. Es la forma de hacer el seed atómico.
+- Verificación adicional: el seed se ejecuta correctamente en **los dos modos**, con
+  `tsx src/db/seed/dishes.ts` (desarrollo) y con `node dist/db/seed/dishes.js` tras
+  `npm run build` (producción). `dist/db/seed/dishes.js` se genera solo, porque `tsc`
+  compila todo `src/`.
+- `npm run typecheck` y `npm run lint` pasan en `server/`, y el archivo pasa
+  `prettier --check`.
+- Nota: `npm run format:check` de la **raíz** sigue en rojo, pero por 20 archivos de
+  `.kilo/worktrees/romantic-organization/`, que es un worktree de Agent Manager ajeno a
+  esta tarea y no está trackeado por git. No se tocó. Los archivos de esta tarea pasan
+  el formato.
+- Impacto en otras tareas: **T-013 (seed de admin) va a necesitar `bcrypt`, que aún no
+  está instalado.** Habrá que pedirlo explícitamente; no se instaló aquí porque T-012 no
+  lo necesita. Conviene decidir entonces si `db:seed` pasa a ser un runner que invoque
+  `seed/dishes.ts` y `seed/users.ts`, o si se deja como script aparte, porque ahora
+  `db:seed` apunta solo a los platos.
 
 ---
 

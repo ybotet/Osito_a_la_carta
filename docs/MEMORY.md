@@ -561,12 +561,80 @@ no son intercambiables.
   archivos que escribe drizzle-kit; si se reformatean, el próximo `db:generate` los
   reescribe en su formato original y `format:check` vuelve a fallar. Es el mismo
   criterio que `package-lock.json`: lo generado no se formatea a mano.
+- **`db.transaction()` sí funciona con el driver síncrono de better-sqlite3.** El
+  callback recibe un `tx` y hay que terminar cada sentencia con `.run()`. Es la vía
+  para hacer atómico un seed. Contrasta con el resto del API de Drizzle, que no encadena
+  nada en este driver: lo que funciona es `db.transaction`, no el encadenado.
+- **Un script de seed debe cerrar la conexión (`sqlite.close()`) o el proceso no
+  termina.** Con `journal_mode = WAL` la conexión abierta mantiene vivo el proceso y
+  deja `osito.db-wal` y `osito.db-shm` sin limpiar. Ejecutado con `tsx` el síntoma es un
+  comando que "termina" sin imprimir nada de salida final.
+- **`npm run format:check` de la raíz incluye `.kilo/worktrees/`**, que contiene
+  worktrees de Agent Manager ajenos a la tarea en curso y no trackeados por git. Puede
+  salir en rojo por culpa de ellos sin que sea culpa del trabajo actual. Confirmar con
+  `git status` antes de subir arreglar archivos ajenos.
 
 ---
 
 ## Historial de entradas
 
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
+### 2026-10-01 — T-012 Seed de 5 platos en 3 idiomas
+**Estado:** completada
+
+**Qué se hizo:**
+- `server/src/db/seed/dishes.ts`: inserta 5 platos de comida casera (sopa, pasta,
+  ensalada rusa/olivier, tarta de manzana y compota) con nombre, descripción e
+  ingredientes traducidos de verdad a es/ru/en, precio entre 5 y 25, `isAvailable = 1`
+  e `imageUrl` de placeholder.
+- Script `db:seed` en `server/package.json`.
+
+**Por qué se hizo así:**
+- El seed **borra `dishes` y reinserta dentro de una transacción**, en vez de solo
+  insertar. Así `npm run db:seed` es idempotente y se puede reejecutar sin duplicar
+  filas; verificado ejecutándolo dos veces, el conteo sigue en 5. Con un `insert`
+  simple, el criterio "5 filas" solo se cumpliría en la primera ejecución.
+- `imageUrl` incluye color por plato (`/600x400/<bg>/<fg>?text=<Label>`) para que los
+  cinco se distingan en `/menu` sin salir del placeholder. La etiqueta va en inglés y
+  corta porque placehold.co no renderiza bien caracteres no ASCII en `text=`.
+- El script cierra `sqlite.close()` al final. Sin eso, WAL mantiene vivo el proceso.
+- Log con `logger.info` de pino, nunca `console.log`.
+
+**Patrón de seeds (sirve para T-013):**
+- Cada seed es un módulo que hace su trabajo al importarse y **termina cerrando la
+  conexión**, no solo exportando funciones.
+- En este driver hay que terminar cada sentencia con `.run()`; para agrupar varias
+  en una unidad atómica, `db.transaction((tx) => { ... })`, que sí funciona.
+- Cada seed se ejecuta tanto con `tsx src/db/seed/<x>.ts` como compilado en
+  `dist/db/seed/<x>.js`, porque `tsc` compila todo `src/`. Verificado en ambos modos.
+
+**Comprobado:**
+- 5 filas con los 9 campos de texto por idioma poblados, leídos directamente de la
+  base y no del log del script. Un validador recorre las filas y falla ante campo
+  vacío, `TODO`/`placeholder`, precio fuera de rango o `isAvailable != 1`.
+- Las URLs de placeholder responden HTTP 200.
+- Idempotencia, ejecución desde `src/` y desde `dist/`, `typecheck` y `lint` en verde.
+
+**Impacto en otras tareas:**
+- T-020 (`GET /api/dishes`) ya tiene datos contra los que probar la localización por
+  `Accept-Language`: los 5 platos tienen los tres idiomas poblados.
+- T-024 (borrado lógico, `isAvailable = 0`) tiene un caso claro: poner uno de los 5 a 0
+  y comprobar que `/menu` lo oculta.
+- T-031 y T-032 (frontend) podrán usar estas imágenes de placeholder sin esperar a
+  fotografía real.
+- **T-013 (seed de admin) necesita `bcrypt`, que no está instalado.** Queda pendiente de
+  autorización explícita. Además, cuando exista, habrá que decidir si `db:seed` pasa a
+  ser un runner que invoque los dos seeds o si se registra un script aparte: ahora
+  `db:seed` apunta solo a `seed/dishes.ts`.
+
+**Pendientes / deuda técnica:**
+- Los datos del seed están en la base de desarrollo y son de ejemplo; `osito.db` está
+  en `.gitignore`, así que cada entorno debe correr `db:migrate` + `db:seed` para
+  reproducirlo.
+- `npm run format:check` de la raíz sigue en rojo por `.kilo/worktrees/`, que es ajeno
+  a esta tarea. Conviene ignorar ese directorio en `.prettierignore` cuando se decida,
+  pero no se tocó aquí por no ser parte del alcance.
 
 ### 2026-10-01 — T-011 Migración inicial aplicada + scripts de base de datos
 **Estado:** completada
