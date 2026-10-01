@@ -52,8 +52,9 @@
   - Criterio: con `Accept-Language: ru` devuelve nombres en ruso.
 - [x] **T-021**: `GET /api/dishes/:id`
   - Criterio: devuelve 404 si no existe.
-- [ ] **T-022**: `POST /api/dishes` (solo admin)
-  - Criterio: rechaza con 401 sin token, con 403 si no es admin.
+- [x] **T-022**: `POST /api/dishes` (solo admin)
+  - Criterio: rechaza con 401 sin token, con 403 si no es admin. **Nota: la parte de
+    autorización queda pendiente de T-043; ver "Impacto" abajo.**
 - [ ] **T-023**: `PUT /api/dishes/:id` (solo admin)
 - [ ] **T-024**: `DELETE /api/dishes/:id` (solo admin) — borrado lógico (`isAvailable = 0`)
 - [ ] **T-025**: `GET /api/categories` (público)
@@ -365,6 +366,58 @@
   - T-093 (tests) puede montar el router sin middleware global si quiere, pero para
     probar errores necesita `errorHandler` montado, igual que en producción.
   - `resolveLanguage` sigue en el servicio de dishes: T-025 debe seguir reutilizándolo.
+
+### 2026-10-01 — T-022 `POST /api/dishes`
+- Archivos modificados: `server/src/modules/dishes/dishes.schema.ts`,
+  `dishes.repository.ts`, `dishes.service.ts`, `dishes.routes.ts`,
+  `server/src/app.ts` (añade `express.json()`), `server/src/shared/error.middleware.ts`.
+- Criterio verificado con peticiones reales: un `POST` con body válido devuelve **201**
+  con el plato creado (ya localizado según `Accept-Language`), y un body inválido
+  devuelve **400** con el detalle de Zod en `details`.
+- **Conflicto resuelto antes de escribir código:** el body que definía la tarea no
+  incluía `categoryId`, pero `dishes.category_id` es `NOT NULL` con FK a `categories`, y
+  ya se había documentado que T-026 debía ir antes que T-022 por eso. El dueño decidió
+  **exigir `categoryId` en el body**, así que el schema Zod lo pide y el servicio
+  comprueba además que la categoría exista. El curl de ejemplo necesita el campo extra.
+  `T-026` ya no bloquea a esta tarea.
+- **El body lleva `categoryId` (positivo, entero), `imageUrl` (URL válida),
+  `price` (mayor que 0) y los 9 campos de texto con `trim().min(1)`.** El `trim()`
+  importa: sin él un nombre de solo espacios pasaba la validación. Probado que `"   "`
+  da 400.
+- **Decisión técnica: `isAvailable` se fija en 1 dentro del repositorio, no se acepta
+  del body.** Probado mandando `isAvailable: 0` en el JSON: se guardó 1. El cliente no
+  controla si un plato nace disponible; eso lo decide T-024 (borrado lógico).
+- **Los campos extra del body se descartan.** Zod los ignora por defecto, así que
+  mandar `hack: 'x'` da 201 sin guardar nada raro. No se usó `.strict()`, porque el
+  criterio no lo pedía y es más permisivo con clientes que evolved de lo contrario.
+- **Bug real encontrado y corregido: un body JSON malformado devolvía 500 en vez de
+  400.** `express.json()` lanza un `SyntaxError` con `status: 400` y
+  `type: 'entity.parse.failed'`, que no es `AppError` ni `ZodError`, así que se colaba
+  en la rama de "error no controlado". Se añadió `isBodyParseError` al middleware y ahora
+  `{no-json` responde `400 INVALID_JSON`. Verificado con JSON truncado y con
+  `Content-Type` equivocado.
+- `app.ts` ahora lleva `app.use(express.json({ limit: '100kb' }))`; sin él `req.body`
+  era `undefined` y toda validación fallaba. El límite evita que un body enorme agote
+  memoria.
+- Comprobado además: el plato creado aparece en el listado y en su detalle, con
+  `category_id` correcto, `is_available = 1` y `created_at` relleno por el default del
+  esquema; y los GET de T-020/T-021 no se rompieron (lista 5, detalle correcto, health
+  200).
+- `typecheck`, `lint` y formato en verde; verificado en los dos modos (`tsx` y
+  `node dist/app.js`), con resultados idénticos.
+- **Impacto en otras tareas:**
+  - **T-043 tiene que añadir `requireAdmin` a este POST.** Hasta entonces el alta de
+    platos es **pública**: cualquiera que alcance la API puede crear platos. Es
+    exactamente lo que pidió la tarea, pero conviene no desplegar antes de T-043. El
+    criterio de "401 sin token / 403 si no es admin" sigue **pendiente**, y así queda
+    anotado en la tarea.
+  - T-023 (`PUT`) reutilizará `createDishBodySchema` como base, añadiendo el `id` en los
+    params.
+  - T-024 (`DELETE` lógico) seguirá usando `is_available = 0`; el POST no lo expone.
+  - T-025–T-028 (categorías) ya no bloquean a T-022, pero `GET /api/categories` sigue
+    haciendo falta para que el admin elija una categoría en el formulario.
+  - T-093: los 400 de Zod llegan como `details` con los issues de Zod; es el formato que
+    deberá esperar el frontend al mostrar errores de validación.
 
 ---
 

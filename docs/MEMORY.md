@@ -234,6 +234,24 @@ acepta el prefijo `_` en parámetros no usados. El texto de los errores está en
 **sin i18n**: si el frontend muestra el campo `error`, habrá que localizarlo o mapear el
 `code`.
 
+### 2026-10-01 — El body del POST se valida con Zod y el repositorio fija los defaults
+**Contexto:** T-022 definía un body con nueve campos de texto multi-idioma, sin `categoryId`
+y sin `isAvailable`.
+**Decisión:** el schema Zod valida exactamente lo que el cliente debe poder elegir
+(`categoryId`, `imageUrl`, `price` y los 9 textos), y **el repositorio fija los campos
+que el cliente no controla** (`isAvailable = 1`, `createdAt` por el default del esquema).
+**Alternativas consideradas:** (a) aceptar `isAvailable` en el body; (b) aceptar todo y
+dejar que la BD lo ponga por defecto; (c) separar campos de entrada y de salida, como
+aquí.
+**Motivo:** (a) dejaría que un cliente publicara un plato ya oculto, y T-024 (borrado
+lógico) es la vía prevista para eso. (b) es frágil: depende de que el default de Drizzle
+no cambie nunca. Con (c) la decisión está en el repositorio y es explícita.
+**Consecuencias:** los campos extra del body se descartan en silencio (Zod sin
+`.strict()`), no se rechazan. `categoryId` es obligatorio porque `dishes.category_id` es
+`NOT NULL` con FK; el servicio valida que la categoría exista y devuelve
+`400 CATEGORY_NOT_FOUND` para que la FK no reviente como error de SQLite. T-023 debe
+reutilizar este mismo schema en vez de duplicarlo.
+
 ### 2026-09-29 — npm workspaces en la raíz
 **Contexto:** T-001 pide un `package.json` raíz "con workspaces si aplica".
 **Decisión:** `workspaces: ["server", "client"]` con npm. `shared/` queda **fuera**
@@ -707,6 +725,18 @@ no son intercambiables.
 - **Un `throw` en un handler `sync` de Express 5 sí llega al middleware de errores.** En
   versiones anteriores hay que envolverlo a mano con `next()`; no es el caso aquí, y no
   hace falta `try/catch` alrededor de los handlers síncronos.
+- **`express.json()` lanza su propio error y no es un `AppError`.** Con el body
+  malformado (`{no-json`) lanza un `SyntaxError` con `status: 400` y
+  `type: 'entity.parse.failed'`. Un middleware de errores que solo conozca `AppError` y
+  `ZodError` lo deja pasar y responde **500**, aunque el error traiga 400. Se reconoce
+  con `instanceof SyntaxError && status es number && type === 'entity.parse.failed'`.
+- **Sin `express.json()`, `req.body` es `undefined` y toda validación Zod falla.** El
+  fallo se ve como "todos los campos obligatorios faltan", que apunta al schema cuando
+  el problema es que nadie parseó el body. Registrar el parser **antes** de los routers.
+- **Zod por defecto descarta los campos extra del body en vez de rechazarlos.** Para que
+  un campo inesperado sea un 400 hace falta `.strict()`. En `POST /api/dishes` se dejó
+  sin `.strict()`, pero conviene saber que mandar `isAvailable: 0` no cambia nada: el
+  repositorio lo fija en 1, no confía en el cliente.
 
 ---
 
@@ -761,6 +791,55 @@ no son intercambiables.
 - `dishes.category_id` no tiene índice. Como el CRUD de categorías ya está decidido
   (T-025–T-028) y agrupar o filtrar el menú por categoría es un caso de uso real, se
   dejó planificado como la tarea **T-029** en TASKLIST.md.
+
+### 2026-10-01 — T-022 `POST /api/dishes`
+**Estado:** completada **a medias en cuanto a autorización**: el alta de platos es
+pública hasta que T-043 conecte `requireAdmin`. Es lo que pedía la tarea, y así queda
+anotado.
+
+**Qué se hizo:**
+- `POST /api/dishes` con validación Zod del body, devuelve 201 con el plato creado ya
+  localizado según `Accept-Language`, reutilizando `toResponse` de T-020.
+- `createDishBodySchema` en `dishes.schema.ts`: `categoryId`, `imageUrl` (URL), `price`
+  (> 0) y los 9 campos de texto con `trim().min(1)`.
+- `app.ts` registra `express.json({ limit: '100kb' })` antes de los routers.
+- `error.middleware.ts` reconoce el error de JSON malformado y responde 400.
+
+**Por qué se hizo así:**
+- **`categoryId` es obligatorio en el body.** El cuerpo que definía la tarea no lo
+  incluía, pero `dishes.category_id` es `NOT NULL` con FK, y ya se había documentado que
+  T-026 debía ir antes que T-022. El dueño decidió exigirlo, con lo que **T-026 deja de
+  bloquear a T-022**. El servicio además comprueba que la categoría exista y devuelve
+  `400 CATEGORY_NOT_FOUND`, para no dejar que la FK reviente como error de SQLite.
+- **`isAvailable` lo fija el repositorio en 1, no el body.** Probado mandando
+  `isAvailable: 0`: se guardó 1. El cliente no decide si un plato nace disponible; eso
+  es de T-024.
+- **Los campos extra se descartan, no se rechazan** (Zod sin `.strict()`): no lo pedía el
+  criterio y es más tolerante con clientes.
+
+**Comprobado:**
+- 201 con el plato creado (en `es` y en `ru`), y el plato aparece ya en el listado y en su
+  detalle, con `category_id`, `is_available = 1` y `created_at` correctos.
+- 10 casos de body inválido, todos 400 con detalle de Zod: falta `categoryId`, categoría
+  inexistente, `price` 0 / negativo / no numérico, `imageUrl` no URL, `nameEs` vacío,
+  `nameRu` solo espacios, campo faltante.
+- Los GET de T-020/T-021 no se rompieron y `/api/health` sigue en 200.
+- Verificado en los dos modos (`tsx` y `node dist/app.js`).
+
+**Impacto en otras tareas:**
+- **T-043 debe añadir `requireAdmin` a este POST.** Mientras tanto cualquiera que alcance
+  la API puede crear platos: **no desplegar antes de T-043**. El criterio de 401 y 403
+  sigue pendiente.
+- T-023 (`PUT`) reutilizará `createDishBodySchema` más el `id` de los params.
+- T-093: los 400 de Zod llegan con los issues en `details`; ese es el formato que espera
+  el frontend para mostrar errores de validación.
+
+**Pendientes / deuda técnica:**
+- Falta la autorización (T-043).
+- Falta `GET /api/categories` (T-025) para que el admin pueda elegir categoría en un
+  formulario; hasta entonces el id se escribe a mano.
+- Los mensajes de error (`Invalid request`, `Dish not found`, ...) siguen sin i18n, igual
+  que se dejó constancia en T-021.
 
 ### 2026-10-01 — T-021 `GET /api/dishes/:id` e infraestructura de errores
 **Estado:** completada

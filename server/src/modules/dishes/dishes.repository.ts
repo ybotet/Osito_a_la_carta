@@ -1,6 +1,7 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '../../db/client.js';
 import { categories, dishes } from '../../db/schema.js';
+import type { CreateDishBody } from './dishes.schema.js';
 
 const dishProjection = {
   id: dishes.id,
@@ -39,6 +40,39 @@ const findAvailableDishById = (id: number) =>
     .where(and(eq(dishes.id, id), eq(dishes.isAvailable, 1)))
     .get();
 
-export { findAvailableDishById, findAvailableDishes };
+const categoryExists = (id: number) =>
+  db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(eq(categories.id, id))
+    .get() !== undefined;
+
+const insertDish = (body: CreateDishBody) =>
+  db
+    .insert(dishes)
+    .values({
+      categoryId: body.categoryId,
+      imageUrl: body.imageUrl,
+      price: body.price,
+      nameEs: body.nameEs,
+      nameRu: body.nameRu,
+      nameEn: body.nameEn,
+      descEs: body.descEs,
+      descRu: body.descRu,
+      descEn: body.descEn,
+      ingredientsEs: body.ingredientsEs,
+      ingredientsRu: body.ingredientsRu,
+      ingredientsEn: body.ingredientsEn,
+      isAvailable: 1,
+    })
+    .returning({ id: dishes.id })
+    .get();
+
+export {
+  categoryExists,
+  findAvailableDishById,
+  findAvailableDishes,
+  insertDish,
+};
 
 export type DishRow = ReturnType<typeof findAvailableDishes>[number];

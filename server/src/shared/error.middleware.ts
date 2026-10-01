@@ -9,6 +9,18 @@ type ErrorBody = {
   details?: unknown;
 };
 
+/**
+ * `express.json()` lanza este error cuando el body no es JSON valido. No es un
+ * `AppError`, asi que sin esta rama caeria en el 500 y un cliente que manda un
+ * body roto veria un error del servidor en vez de un 400.
+ */
+const isBodyParseError = (
+  error: unknown,
+): error is Error & { status: number; type: string } =>
+  error instanceof SyntaxError &&
+  typeof (error as { status?: unknown }).status === 'number' &&
+  (error as { type?: unknown }).type === 'entity.parse.failed';
+
 const notFoundHandler: RequestHandler = (_req, res) => {
   const body: ErrorBody = { error: 'Not found', code: 'NOT_FOUND' };
 
@@ -44,6 +56,17 @@ const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
       error: 'Invalid request',
       code: 'VALIDATION_ERROR',
       details: error.issues,
+    } satisfies ErrorBody);
+
+    return;
+  }
+
+  if (isBodyParseError(error)) {
+    logger.warn({ path: req.path }, 'Malformed JSON body');
+
+    res.status(400).json({
+      error: 'Malformed JSON body',
+      code: 'INVALID_JSON',
     } satisfies ErrorBody);
 
     return;

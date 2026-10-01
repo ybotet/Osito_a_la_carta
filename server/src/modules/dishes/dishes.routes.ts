@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { getDish, listDishes } from './dishes.service.js';
+import { createDish, getDish, listDishes } from './dishes.service.js';
+import { createDishBodySchema } from './dishes.schema.js';
 
 const dishParamsSchema = z.object({
   id: z.coerce.number().int().positive(),
@@ -19,6 +20,15 @@ dishesRouter.get('/dishes/:id', (req, res) => {
   const { id } = dishParamsSchema.parse(req.params);
 
   res.json(getDish(id, readAcceptLanguage(req.headers['accept-language'])));
+});
+
+// Falta `requireAdmin`: se conecta en T-043. Hasta entonces el alta es publica.
+dishesRouter.post('/dishes', (req, res) => {
+  const body = createDishBodySchema.parse(req.body);
+
+  res
+    .status(201)
+    .json(createDish(body, readAcceptLanguage(req.headers['accept-language'])));
 });
 
 export { dishesRouter };

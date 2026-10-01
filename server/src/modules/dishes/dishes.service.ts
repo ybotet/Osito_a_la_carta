@@ -1,16 +1,18 @@
 import {
+  categoryExists,
   findAvailableDishById,
   findAvailableDishes,
+  insertDish,
 } from './dishes.repository.js';
 import type { DishRow } from './dishes.repository.js';
-import { NotFoundError } from '../../shared/errors.js';
+import { BadRequestError, NotFoundError } from '../../shared/errors.js';
 import {
   DEFAULT_LANGUAGE,
   LANGUAGES,
   dishSchema,
   dishesResponseSchema,
 } from './dishes.schema.js';
-import type { Language } from './dishes.schema.js';
+import type { CreateDishBody, Language } from './dishes.schema.js';
 
 const isSupportedLanguage = (value: string): value is Language =>
   (LANGUAGES as readonly string[]).includes(value);
@@ -113,7 +115,31 @@ const getDish = (id: number, acceptLanguage: string | undefined) => {
   return { language, dish: dishSchema.parse(toResponse(row, language)) };
 };
 
-export { getDish, listDishes, resolveLanguage };
+const createDish = (
+  body: CreateDishBody,
+  acceptLanguage: string | undefined,
+) => {
+  if (!categoryExists(body.categoryId)) {
+    throw new BadRequestError('Category not found', 'CATEGORY_NOT_FOUND', {
+      categoryId: body.categoryId,
+    });
+  }
 
+  const language = resolveLanguage(acceptLanguage);
+  const created = insertDish(body);
+  const row = findAvailableDishById(created.id);
+
+  if (row === undefined) {
+    throw new NotFoundError('Dish not found', 'DISH_NOT_FOUND', {
+      id: created.id,
+    });
+  }
+
+  return { language, dish: dishSchema.parse(toResponse(row, language)) };
+};
+
+export { createDish, getDish, listDishes, resolveLanguage };
+
+export type CreateDishResult = ReturnType<typeof createDish>;
 export type GetDishResult = ReturnType<typeof getDish>;
 export type ListDishesResult = ReturnType<typeof listDishes>;
