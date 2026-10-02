@@ -543,7 +543,7 @@
   - T-031/T-032 (menú) no necesitan cambios: el listado ya filtraba por `is_available = 1`
     desde T-020, así que el borrado se propaga solo.
 
-### 2026-10-01 — T-030 y T-031 `PATCH .../availability` y `DELETE .../permanent`
+### 2026-10-01 — T-029a y T-029b `PATCH .../availability` y `DELETE .../permanent`
 - Petición del dueño: faltaba poder recuperar un plato deshabilitado, y faltaba poder
   eliminarlo de verdad. Quedan tres endpoints con responsabilidades separadas.
 - Archivos modificados: `server/src/modules/dishes/dishes.schema.ts`, `dishes.repository.ts`,
@@ -653,6 +653,46 @@
   - El `name` que devuelve este endpoint es el mismo que ya viaja dentro de
     `dish.category.name` en `GET /api/dishes`. Si divergieran, la UI pintaría dos nombres
     distintos para el mismo grupo.
+
+### 2026-10-02 — Deuda acumulada hasta T-025 (fuera de tarea)
+- Petición del dueño: revisar los gotchas que son deuda **de lo ya hecho**, dejando que las
+  deudas futuras se resuelvan por el camino. Se revisaron los 74 gotchas registrados.
+- **Mayoría no eran deuda:** son conocimiento ya asimilado (parseo de `Accept-Language`,
+  `NO ACTION` de SQLite, extensión `.js` en imports). No se "arreglan", ya están resueltos
+  por estar escritos. La sección sigue como está.
+- **Tres sí eran deuda real y verificados hoy contra el código:**
+  - `PORT` "no está validado todavía" → falso: `app.ts:20` hace `app.listen(env.PORT)` y
+    `env.ts:78` lo valida con Zod.
+  - `LOG_LEVEL` "cae a `info` con un fallback" → falso: `logger.ts:5` usa `env.LOG_LEVEL`,
+    que es un `z.enum` de los 7 niveles; un valor inválido ahora es error de arranque.
+  - "El backend todavía no sirve nada" (sin tachar, duplicado de otra ya resuelta) →
+    `/api/health` responde 200.
+  Los tres se **tacharon con la evidencia concreta**, sin borrar el texto original. Se pidió
+  "borrar y reescribir", pero el prompt del proyecto prohíbe borrar entradas de MEMORY, así
+  que se usó el formato `~~tachado~~ → SUPERADO` que ya usan otras entradas del archivo.
+- **Numeración corregida:** mis dos tareas de disponibilidad pasaron a **T-029a/T-029b**
+  al renumerar el TASKLIST. Se corrigieron las cabeceras de mis entradas en TASKLIST y
+  MEMORY y se añadió la nota de equivalencia. Las menciones a T-031/T-032 que hablan del
+  frontend se dejaron intactas porque siguen siendo correctas.
+- **Unificada la ruta de la base de datos** (deuda real, ya resuelta): `drizzle.config.ts`
+  tenía `'./osito.db'` hardcodeado mientras `client.ts` leía `env.DATABASE_URL`. Nuevo
+  `server/src/db/database-url.ts` como fuente única, usado por ambos.
+- **Dos restricciones comprobadas antes de elegir el diseño:**
+  1. **drizzle-kit no carga el `.env`**: con un `.env` correcto, `process.env.DATABASE_URL`
+     llegaba a `drizzle.config.ts` como `undefined`. Leer `process.env` ahí habría seguido
+     divergiendo en silencio.
+  2. **Importar `config/env.ts` desde la config no vale**: se probó y funciona, pero
+     `env.ts` hace `process.exit(1)` si falta cualquier variable, y **`db:generate` moría
+     pidiendo `MAILGUN_API_KEY`** para generar una migración. Regresión real, evitada.
+- **Verificado:** `db:generate` y `db:migrate` funcionan; `db:generate` **también funciona
+  sin `MAILGUN_API_KEY` ni `TELEGRAM_BOT_TOKEN`** (exit 0); y cambiando `DATABASE_URL` a
+  `./probe-unified.db`, las tres lecturas (`resolveDatabaseUrl()`, `drizzle.config.ts`,
+  `env.DATABASE_URL`) devolvieron el valor nuevo. `typecheck`, `lint`, `format` y `build`
+  en verde, endpoints de dishes y categories con normalidad, base sin cambios.
+- **Lo que queda para sus tareas correspondientes:** autorización (T-043), i18n de los
+  mensajes de error (frontend), `updatedAt` y auditoría. Nada de eso se ha tocado aquí.
+- Archivos modificados: `server/drizzle.config.ts`, `server/src/db/client.ts`. Creado:
+  `server/src/db/database-url.ts`. Modificados: `docs/TASKLIST.md`, `docs/MEMORY.md`.
 
 ---
 

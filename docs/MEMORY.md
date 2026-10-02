@@ -661,16 +661,20 @@ no son intercambiables.
   Buscar `AGENT.md`. No renombrado por no tener autorización.
 - **SPEC.md §4 no contiene variables de entorno.** Es la tabla de stack técnico.
   La lista canónica de variables está en `docs/PROMPTS.md` T-008.
-- **El backend todavía no sirve nada.** `app.listen()` no existe hasta T-004/T-007.
-  `npm run dev` en `server/` deja el watcher de `tsx` vivo pero sin puerto abierto:
-  no es un bug, es el estado esperado del proyecto.
+- ~~**El backend todavía no sirve nada**~~ → **SUPERADO en T-004** (y duplicado aquí: la
+  entrada vigente es la siguiente, tachada). `app.listen()` sí existe desde T-004 y el
+  watcher de `tsx` sí abre el puerto. Verificado el 2026-10-02: `GET /api/health`
+  responde 200.
 - ~~**El backend todavía no sirve nada**~~ → **RESUELTO en T-004**: ya hace `listen`
   y expone `GET /api/health`. Ver "Estado actual del proyecto".
 - **Los imports del backend necesitan extensión `.js`** (`from './logger.js'`),
   por `moduleResolution: NodeNext`. Sin ella `tsc --noEmit` **pasa** y el runtime
   falla con `ERR_MODULE_NOT_FOUND`. El typecheck no detecta este error.
-- **`PORT` no está validado todavía.** Se lee de `process.env` con default `3000`.
-  T-008 lo sustituye por `env.PORT` (Zod). No confiar en el default para producción.
+- ~~**`PORT` no está validado todavía.**~~ → **SUPERADO en T-008**: `app.ts` ya hace
+  `app.listen(env.PORT)` y `env.ts` lo valida con
+  `z.coerce.number().int().positive().default(3000)`. Verificado el 2026-10-02 en
+  `server/src/app.ts:20` y `server/src/config/env.ts:78`. No queda ningún `process.env.PORT`
+  en el backend.
 - **`strictPort: true` en el server de Vite es intencional.** Sin él Vite cae a
   `5174`, `5175`... si el puerto está ocupado, y el proxy `/api` y cualquier test
   que apunte a `:5173` fallarían de forma confusa y difícil de diagnosticar.
@@ -713,9 +717,13 @@ no son intercambiables.
 - **El `transport` de pino escribe por un worker thread.** En tests, el output puede
   aparecer después del assertion y contaminar la salida de vitest. Para tests,
   forzar `NODE_ENV=production` o inyectar un `destination` en memoria.
-- **`LOG_LEVEL` con un valor inválido hace morir a pino.** Por eso `logger.ts` valida
+- ~~**`LOG_LEVEL` con un valor inválido hace morir a pino. Por eso `logger.ts` valida
   contra una lista explícita y cae a `info`. No quitar esa validación al migrar a
-  `env.LOG_LEVEL` en T-008.
+  `env.LOG_LEVEL` en T-008.**~~ → **SUPERADO en T-008**: la migración ya está hecha.
+  `server/src/logger.ts:5` hace `level: env.LOG_LEVEL` y `env.LOG_LEVEL` es un `z.enum` de
+  los 7 niveles reales, así que un valor inválido es ahora un **error de arranque**, no un
+  fallback silencioso a `info`. Verificado el 2026-10-02: `logger.ts` ya no lee
+  `process.env`. La lección del predictado invertido sigue vigente abajo.
 - ~~Esa validación fue movida a Zod en T-008~~ → **RESUELTO**: `env.LOG_LEVEL` es un
   `z.enum` de los 7 niveles reales, y `logger.ts` ya no lee `process.env`. Un valor
   inválido ahora es un error de arranque, no un fallback silencioso a `info`.
@@ -755,12 +763,18 @@ no son intercambiables.
 - **`drizzle-kit` arrastra vulnerabilidades moderadas de `esbuild <=0.24.2`.**
   Es tooling de desarrollo y no entra en el bundle de runtime. No ejecutar
   `npm audit fix --force`: propone `drizzle-kit@0.18.1`, un downgrade incompatible.
-- **`drizzle-kit` y `client.ts` resuelven la ruta de la base por caminos distintos.**
+- ~~**`drizzle-kit` y `client.ts` resuelven la ruta de la base por caminos distintos.**
   `db:migrate` usa `drizzle.config.ts` (`dbCredentials.url`) y `client.ts` usa
   `env.DATABASE_URL`. Hoy ambos valen `./osito.db`, pero son dos fuentes de verdad: si
   se cambia solo una, las migraciones y la aplicación apuntan a bases distintas **sin
   ningún error**. Si divergen, los síntomas aparecen como "tabla inexistente" o datos
-  que no aparecen tras migrar.
+  que no aparecen tras migrar.**~~ → **RESUELTO el 2026-10-02**: los tres lectores
+  (`resolveDatabaseUrl()`, `drizzle.config.ts` y `env.DATABASE_URL`) salen ahora del mismo
+  `.env`. Verificado cambiando `DATABASE_URL` a `./probe-unified.db` y comprobando que las
+  tres lecturas devolvían ese valor. Antes de arreglarlo hay que saber que
+  **drizzle-kit no carga el `.env` por su cuenta** y que **no se puede importar
+  `config/env.ts` desde la config**; ver los dos gotchas de arriba y
+  `src/db/database-url.ts`.
 - **Las rutas de `drizzle.config.ts` son relativas al directorio de trabajo.**
   Ejecutar `drizzle-kit` desde la raíz del monorepo en lugar de `server/` no falla de
   forma evidente: apunta a otras rutas y a otra base. Los scripts `db:*` están en
@@ -940,6 +954,21 @@ no son intercambiables.
   perpetúa la dependencia que se quería eliminar. Si alguien importa desde el sitio viejo,
   la mudanza no se ha hecho. Quitar el reexport de una vez y que el typecheck marque los
   importadores afectados.
+- **`drizzle-kit` NO carga el `.env`.** Comprobado el 2026-10-02 inyectando un log
+  temporal en `drizzle.config.ts`: con un `.env` correcto, `process.env.DATABASE_URL`
+  llegaba como **`undefined`**. Por eso la config tiene que resolver la ruta por su cuenta
+  (hoy con `resolveDatabaseUrl()`, que carga el `.env` de la raíz) y no puede confiar en
+  leer `process.env` directamente. Es también el motivo de que el import desde
+  `drizzle.config.ts` funcione: drizzle-kit resuelve los imports relativos, pero no ejecuta
+  el cargador de `.env` que usa el resto del backend.
+- **No importar `config/env.ts` desde `drizzle.config.ts`.** Se probó y funciona, pero
+  `env.ts` hace `process.exit(1)` si falta cualquier variable, así que **`db:generate`
+  moría pidiendo `MAILGUN_API_KEY`** para generar una migración que no tiene nada que ver
+  con el correo (verificado: salía "Variables de entorno invalidas o faltantes. -
+  MAILGUN_API_KEY: Requerida" y exit 1). Por eso existe
+  `src/db/database-url.ts`, que resuelve **solo** `DATABASE_URL` y cae al default en vez de
+  morir. Con ese diseño, `db:generate` funciona aunque falten las variables de Mailgun y
+  Telegram (verificado).
 - **Un script de prueba que inserta en una tabla con FK necesita una fila válida en la
   tabla padre.** Insertar un `order_item` con un `order_id` inventado falla por la FK del
   `order_id`, no por la del `dish_id`, y el error apunta al campo equivocado: parece que
@@ -1014,6 +1043,70 @@ no son intercambiables.
   (T-025–T-028) y agrupar o filtrar el menú por categoría es un caso de uso real, se
   dejó planificado como la tarea **T-029** en TASKLIST.md.
 
+### 2026-10-02 — Deuda acumulada hasta T-025: gotchas obsoletos, numeración y ruta de la BD
+**Estado:** completada.
+
+**Qué se hizo:**
+- Tres gotchas que describían código inexistente, marcados como superados (no borrados).
+- Las referencias a mis T-030/T-031 corregidas a **T-029a/T-029b**.
+- Unificada la ruta de la base de datos: nuevo `server/src/db/database-url.ts`, usado por
+  `drizzle.config.ts` y por `src/db/client.ts`.
+
+**Por qué se hizo así:**
+- **Los gotchas obsoletos eran actively dañinos, no solo ruido.** Decían que `PORT` se leía
+  sin validar, que `LOG_LEVEL` caía a `info` con un fallback, y que el backend no abría
+  puerto. Los tres son falsos: `app.ts:20` hace `app.listen(env.PORT)`, `logger.ts:5` usa
+  `env.LOG_LEVEL` (que es un `z.enum`) y `/api/health` responde 200. Un agente que los leyera
+  concluiría que el código está mal. Se **tacharon con la evidencia concreta** en vez de
+  borrarse, para que se vea qué cambió y cuándo.
+- **Se respetó la regla de no borrar entradas**, aunque se nauseó "borrar y reescribir":
+  el propio prompt del proyecto dice que MEMORY solo se agrega. Se usó el formato
+  `~~tachado~~ → RESUELTO/SUPERADO` que ya usan otras entradas del archivo.
+- **La numeración la cambió el dueño al renumerar el TASKLIST**: mis dos tareas de
+  disponibilidad pasaron de T-030/T-031 a **T-029a/T-029b**, y los T-030/T-031 actuales son
+  otras tareas distintas (react-i18next y `/menu`). Solo se corrigieron las cabeceras de mis
+  entradas; las menciones a T-031/T-032 que hablan del frontend se dejaron como estaban
+  porque siguen siendo correctas.
+- **Unificar la ruta de la BD no es "importar `env.ts` en la config", y se comprobó por
+  qué no.** Dos restricciones reales, ambas medidas:
+  1. **drizzle-kit no carga el `.env`**: con un `.env` correcto, `process.env.DATABASE_URL`
+     llegaba a `drizzle.config.ts` como `undefined`. Leer `process.env` ahí habría caído
+     siempre al default y seguido divergiendo en silencio, que es exactamente el bug.
+  2. **Importar `config/env.ts` funciona pero rompe**: `env.ts` hace `process.exit(1)` si
+     falta cualquier variable, y se comprobó que **`db:generate` moría pidiendo
+     `MAILGUN_API_KEY`** para generar una migración. Eso es una regresión real.
+  La solución es un resolvedor mínimo que lee **solo** `DATABASE_URL` y cae al default sin
+  morir. `env.DATABASE_URL` se conserva en `env.ts`: sigue validando el entorno al arrancar
+  la app, que sí necesita todas las variables.
+
+**Comprobado:**
+- `db:generate` y `db:migrate` funcionan con el `.env` completo.
+- **`db:generate` funciona con el `.env` sin `MAILGUN_API_KEY` ni `TELEGRAM_BOT_TOKEN`**
+  (exit 0), que es la regresión que el diseño anterior habría introducido.
+- **Las tres lecturas coinciden:** poniendo `DATABASE_URL=./probe-unified.db`,
+  `resolveDatabaseUrl()`, `drizzle.config.ts` y `env.DATABASE_URL` devolvieron las tres el
+  valor nuevo. Ese es el criterio de aceptación real de esta deuda.
+- `typecheck`, `lint`, `format` y `build` en verde; endpoints de dishes y categories
+  respondiendo con normalidad tras el cambio de `client.ts`; base sin cambios
+  (6 dishes, 5 categorías, 1 usuario) y `foreign_key_check` limpio.
+
+**Impacto en otras tareas:**
+- **T-094 (PM2) y T-096 (backup)** pueden confiar en una sola variable para la ruta de la
+  base. El backup diario seguirá siendo correcto porque la app y las migraciones ya no
+  pueden apuntar a sitios distintos.
+- T-029 (índice de `dishes.category_id`) necesita un `db:generate` que funcione; ahora no
+  depende de tener Mailgun y Telegram configurados, lo que importa en un entorno limpio.
+- **Lo que NO se tocó, a propósito:** la autorización (T-043), los mensajes de error sin
+  i18n y la ausencia de `updatedAt` siguen pendientes. Son deuda real, pero de tareas
+  futuras o de frontend que todavía no existe; se irán resolviendo al llegar.
+
+**Pendientes / deuda técnica:**
+- Sigue sin haber auditoría de quién cambia la disponibilidad de un plato, y `dishes` no
+  tiene `updatedAt`. Sin decidir si hace falta.
+- `env.DATABASE_URL` y `resolveDatabaseUrl()` leen la misma variable pero por caminos
+  distintos a propósito. Si algún día se añade otra forma de apuntar a la base (por
+  ejemplo una URL absoluta en producción), hay que revisar los dos sitios.
+
 ### 2026-10-01 — T-025 `GET /api/categories`
 **Estado:** completada.
 
@@ -1077,7 +1170,11 @@ no son intercambiables.
   misma fila, así que no pueden divergir; si alguien cachea uno y no el otro, la UI
   mostrará nombres viejos.
 
-### 2026-10-01 — T-030 y T-031 `PATCH .../availability` y `DELETE .../permanent`
+### 2026-10-01 — T-029a y T-029b `PATCH .../availability` y `DELETE .../permanent`
+> **Nota de numeración (2026-10-02):** estas dos tareas se crearon como T-030 y T-031 y
+> el dueño las renumeró después a **T-029a** (habilitar/deshabilitar) y **T-029b** (purgar).
+> Los T-030 y T-031 actuales del TASKLIST son otras tareas (react-i18next y la página
+> `/menu`).
 **Estado:** completadas **a medias en cuanto a autorización**: los tres endpoints de
 escritura sobre platos siguen públicos hasta que T-043 conecte `requireAdmin`.
 
