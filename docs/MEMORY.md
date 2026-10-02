@@ -653,6 +653,16 @@ no son intercambiables.
 
 - **SQLite + Drizzle:** las migraciones no se pueden modificar una vez aplicadas.
   Si hay que corregir, crear una nueva.
+- **El conteo que decide si se puede borrar debe contar filas, no solo las visibles.** Al
+  borrar una categoría, contar solo los platos disponibles dejaría pasar categorías con
+  dishes deshabilitados, y como la fila sigue existiendo el `DELETE` fallaría después por la
+  FK. El conteo va sobre la tabla entera. Distinto del borrado de platos, donde el borrado
+  es lógico y por eso `findAvailableDishById` sí filtra. Visto en T-028.
+- **Un `404` de un endpoint anterior no es necesariamente una regresión.** En T-028, tras
+  deshabilitar un dish con `PATCH`, su `DELETE` lógico devolvió 404 y parecía un bug
+  introducido por la tarea: era el comportamiento intencionado de T-024, que usa
+  `findAvailableDishById` y por tanto no ve los ya deshabilitados. Antes de "arreglar" un
+  404 en un módulo vecino, comprobar contra el endpoint que lo produce.
 - **Un chequeo de "unicidad" que se hace sobre la propia fila da falsos positivos.** En un
   PUT, comprobar `slug` con `SELECT ... WHERE slug = ?` hace que la categoría que se está
   editando colisione consigo misma y devuelva 409 aunque no haya conflicto real. La
@@ -2377,6 +2387,56 @@ anotado.
 - El 401/403 de T-027, a resolver en T-043.
 - `POST /api/categories` cambió de forma en esta tarea; si algún test futuro se escribió
   contra la forma de T-026, hay que actualizarlo.
+
+---
+
+### 2026-10-02 — T-028 `DELETE /api/categories/:id`
+**Estado:** parcial (criterio de autorización pendiente de T-043)
+
+**Qué se hizo:**
+- `DELETE /api/categories/:id` que borra la categoría si no tiene platos asociados, y
+  responde 204 sin cuerpo cuando lo consigue.
+- 409 `CATEGORY_HAS_DISHES` con `{ id, totalDishes }` si tiene platos, 404
+  `CATEGORY_NOT_FOUND` si el id no existe.
+
+**Cómo se hizo:**
+- Modificados `categories.routes.ts`, `categories.service.ts` y `categories.repository.ts`.
+  **Ningún archivo nuevo y ningún cambio de schema**, que es la diferencia con un borrado
+  lógico.
+- Sin dependencias nuevas.
+
+**Por qué se hizo así:**
+- **El borrado es físico, no lógico, y esto lo decidió el dueño.** MEMORY había dejado la
+  pregunta abierta en dos sitios ("debe decidir explícitamente si un dish deshabilitado
+  cuenta") y el criterio de T-028 solo fijaba el 409. Se descartó el borrado lógico porque
+  `categories` **no tiene `is_available`**: hacerlo exigiría una migración nueva, y dejaría
+  los platos de esa categoría visibles pero sin grupo al que pertenecer. Al ser físico,
+  el 409 garantiza que nunca quedan referencias colgando.
+- **Un dish deshabilitado cuenta para el 409**, respetando lo que MEMORY ya había decidido.
+  `countCategoryDishes` no filtra por `is_available`, al contrario que `findAvailableDishes`.
+- **El conteo es la condición del borrado, no un dato informativo.** La FK está en
+  `NO ACTION`, así que SQLite abortaría igual, pero comprobar antes convierte la excepción de
+  constraint en un mensaje de API. Mismo patrón que `purgeDish` en T-029b.
+- **El 404 se comprueba antes que el 409**, como en el PUT: con un id inexistente el conteo
+  no significa nada.
+- **El 401/403 no se implementó: `requireAdmin` es T-043 y sigue sin existir.** Se dejó
+  anotado como en las siete escrituras anteriores.
+
+**Impacto en otras tareas:**
+- **Con T-028 queda cerrado el CRUD de categorías (T-025–T-028) y con él `A-001`.**
+- **T-043 tiene que proteger esta ruta: son ya ocho las escrituras sin proteger** (T-022,
+  T-023, T-024, T-026, T-027, T-028, T-029a, T-029b).
+- T-029 (índice en `dishes.category_id`) beneficia a este módulo: `countCategoryDishes` es
+  un `COUNT` por categoría, el segundo consumidor de esa columna aparte de los listados.
+- El admin no tiene forma de consultar cuántos platos tiene una categoría antes de
+  borrarla; solo lo descubre por el 409, que ya incluye `totalDishes`.
+
+**Pendientes / deuda técnica:**
+- El 401/403 de T-028, a resolver en T-043.
+- Sigue sin haber forma de listar los platos de una categoría concreta (`GET
+  /api/dishes?category=`), que es lo que un admin querría antes de un borrado bloqueado.
+- **Se cumple lo que la entrada de T-027 anticipaba:** T-028 usa `findCategoryById` para el
+  404 y cuenta platos por categoría para el 409, sin reutilizar nada del PUT.
 
 ---
 

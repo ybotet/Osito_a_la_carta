@@ -78,10 +78,12 @@
   - Criterio: permite renombrar los tres idiomas y cambiar `sortOrder`.
   - **Nota: la parte de autorización (401/403) queda pendiente de T-043**, igual que en
     T-022, T-023, T-024 y T-026. Ver "Notas de progreso".
-- [ ] **T-028**: `DELETE /api/categories/:id` (solo admin)
+- [x] **T-028**: `DELETE /api/categories/:id` (solo admin)
   - Criterio: rechaza con 409 si la categoría tiene platos asociados. Se descarta el
     borrado en cascada para no perder dishes por un error de un clic; quien quiera
     vaciarla antes, borra o reasigna los platos.
+  - **Nota: la parte de autorización (401/403) queda pendiente de T-043**, igual que en
+    T-022, T-023, T-024, T-026 y T-027. Ver "Notas de progreso".
 - [ ] **T-029**: Índice en `dishes.category_id`
   - Criterio: migración aplicada y `EXPLAIN QUERY PLAN` usa el índice al filtrar por
     categoría. Pendiente de A-001: agrupar y filtrar el menú por categoría ya es un caso
@@ -778,6 +780,64 @@
     sin proteger (T-022, T-023, T-024, T-026, T-027, T-029a, T-029b).
   - El frontend, cuando exista, tendrá que leer `category.name` dentro del sobre en lugar de
     en la raíz; es el mismo contrato que ya consume `dish` en platos.
+
+### 2026-10-02 — T-028 `DELETE /api/categories/:id`
+- Archivos modificados (ninguno nuevo): `categories.routes.ts`, `categories.service.ts` y
+  `categories.repository.ts`. **No hizo falta tocar el schema**, que es la diferencia con
+  un borrado lógico.
+- **La parte de autorización del criterio (401/403) NO se puede cumplir todavía y queda
+  pendiente de T-043**, igual que en T-022, T-023, T-024, T-026 y T-027. La ruta lleva el
+  mismo comentario que las demás escrituras.
+- **El borrado es FÍSICO, no lógico. Decidido por el dueño**, porque era la única decisión
+  que MEMORY había dejado abierta y el criterio no la fijaba. Motivo: `categories` **no
+  tiene `is_available`**, así que un borrado lógico exigiría una migración nueva; y aunque
+  se añadiera, dejaría el problema de los platos huérfanos (una categoría oculta con
+  platos visibles). Al ser físico, el 409 garantiza que nunca quedan referencias colgando
+  y no hay nada que recuperar después.
+- **Un dish deshabilitado CUENTA igual que uno disponible** para el 409, tal como MEMORY
+  ya había decidido en T-029b. No es un descuido: la fila sigue existiendo y sigue
+  apuntando a la categoría. `countCategoryDishes` **no** filtra por `is_available`, al
+  revés que `findAvailableDishes`.
+- **El conteo no es informativo: es la condición que habilita el borrado.** La FK
+  `dishes.category_id` está en `NO ACTION`, así que SQLite abortaría el `DELETE` igual, pero
+  el servicio responde antes con `409 CATEGORY_HAS_DISHES` y `details: { id, totalDishes }`
+  en vez de dejar escapar una excepción de constraint. Es el mismo patrón que `purgeDish`.
+- **El 404 va antes que el 409**, como en el PUT: si el id no existe, el conteo es
+  irrelevante.
+- Responde **204 sin cuerpo ni `content-type`**, con `end()` y no `json()`, igual que el
+  borrado de platos. Por eso esta ruta **no toca `Accept-Language`**.
+- Criterio verificado con peticiones reales:
+  - 409 `CATEGORY_HAS_DISHES` con `totalDishes: 2` sobre `sopas`, que tiene 2 platos.
+  - 204 al borrar una categoría recién creada y vacía, y 404 al repetir ese mismo DELETE.
+  - **Flujo completo del dish deshabilitado:** categoría con un dish → `PATCH` lo
+    deshabilita → `DELETE` de la categoría da **409** con `totalDishes: 1` → se purga el
+    dish → `DELETE` de la categoría da **204**. Es el flujo que MEMORY ya había descrito.
+  - 404 por id inexistente y al repetir el borrado, 400 por id no numérico.
+  - El 204 sale con `content-type` nulo y body de longitud 0.
+- **Un 404 que parecía un bug y no lo era:** tras deshabilitar un dish con `PATCH`, su
+  `DELETE` lógico responde 404, porque `deleteDish` usa `findAvailableDishById`, que solo ve
+  platos disponibles. Se comprobó el caso paralelo con un dish disponible (204 correcto) y
+  un dish ya borrado lógicamente (404 correcto). **Comportamiento intencionado de T-024**,
+  no una regresión.
+- **Regresión comprobada:** `GET /api/categories` y `GET /api/dishes` siguen en 200 con sus
+  5 y 6 filas. Verificado en los **dos modos** (`tsx` y `node dist/app.js`), donde el
+  `dist` devuelve 409 para una categoría con platos y 404 para un id inexistente.
+- `typecheck`, `lint` y formato en verde.
+- **Base de datos restaurada y verificada sin residuos:** 5 categorías con sus valores
+  originales de `slug`, `sort_order` y los tres nombres, 6 platos repartidos 2/1/1/1/1,
+  1 usuario, `foreign_key_check` limpio y `git status` con solo los tres archivos de código.
+- **Impacto en otras tareas:**
+  - **Con T-028 queda cerrado el CRUD de categorías** (T-025 a T-028) y con él `A-001`: ya
+    existen listar, crear, editar y borrar categorías.
+  - **T-043 tiene que proteger esta ruta: son ya ocho las escrituras sin proteger**
+    (T-022, T-023, T-024, T-026, T-027, T-028, T-029a, T-029b). Con esta, el borrado de
+    categorías es la segunda vía más peligrosa después del purgado de platos.
+  - T-029 (índice en `dishes.category_id`) afecta a este módulo: `countCategoryDishes` hace
+    un `COUNT` por categoría, que es el segundo consumidor de esa columna aparte de los
+    listados de platos.
+  - El admin necesita una forma de **saber cuántos platos tiene** una categoría antes de
+    intentar el borrado, para explicar el 409. Hoy el 409 lo dice, pero solo tras el
+    intento; el `totalDishes` del error es el único sitio donde sale.
 
 ### 2026-10-02 — Deuda acumulada hasta T-025 (fuera de tarea)
 - Petición del dueño: revisar los gotchas que son deuda **de lo ya hecho**, dejando que las

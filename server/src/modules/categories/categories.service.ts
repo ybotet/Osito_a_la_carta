@@ -1,8 +1,10 @@
 import {
   categorySlugExists,
+  countCategoryDishes,
   findAllCategories,
   findCategoryById,
   insertCategory,
+  purgeCategory,
   updateCategory,
 } from './categories.repository.js';
 import type { CategoryRow } from './categories.repository.js';
@@ -122,7 +124,39 @@ const updateCategoryById = (
   });
 };
 
-export { createCategory, listCategories, updateCategoryById };
+/**
+ * Borra la categoría, pero solo si no tiene platos asociados. Es un borrado **físico**,
+ * no lógico como el de platos: el criterio descarta el borrado en cascada, así que no
+ * puede haber una categoría "borrada" con dishes colgando, y sin historial propio (los
+ * pedidos apuntan a platos) no hay nada que conservar. La categoría queda liberada de
+ * verdad y no necesita migración para poder recuperarse.
+ *
+ * El 404 va antes que el 409 por el mismo motivo que en el PUT: si el id no existe, el
+ * conteo de platos es irrelevante.
+ *
+ * **Un dish deshabilitado cuenta igual que uno disponible**, porque la fila sigue
+ * apuntando a la categoría. Quien quiera vaciarla tiene que purgar los platos
+ * deshabilitados, no basta con ocultarlos del menú.
+ */
+const deleteCategory = (id: number) => {
+  if (findCategoryById(id) === undefined) {
+    throw new NotFoundError('Category not found', 'CATEGORY_NOT_FOUND', { id });
+  }
+
+  const totalDishes = countCategoryDishes(id);
+
+  if (totalDishes > 0) {
+    throw new ConflictError(
+      'Category cannot be deleted because it has dishes',
+      'CATEGORY_HAS_DISHES',
+      { id, totalDishes },
+    );
+  }
+
+  purgeCategory(id);
+};
+
+export { createCategory, deleteCategory, listCategories, updateCategoryById };
 
 export type CreateCategoryResult = ReturnType<typeof createCategory>;
 export type ListCategoriesResult = ReturnType<typeof listCategories>;

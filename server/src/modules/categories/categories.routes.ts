@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { idParamSchema, readAcceptLanguage } from '../../shared/http.js';
 import {
   createCategory,
+  deleteCategory,
   listCategories,
   updateCategoryById,
 } from './categories.service.js';
@@ -29,6 +30,17 @@ categoriesRouter.put('/categories/:id', (req, res) => {
   const body = updateCategoryBodySchema.parse(req.body);
 
   res.json(updateCategoryById(id, body, readAcceptLanguage(req)));
+});
+
+// Falta `requireAdmin`: se conecta en T-043. Hasta entonces es publico.
+categoriesRouter.delete('/categories/:id', (req, res) => {
+  const { id } = idParamSchema.parse(req.params);
+
+  deleteCategory(id);
+
+  // 204 sin cuerpo: se usa `end()` y no `json()`, que emitiría un body que la
+  // especificación del status prohíbe. Por eso esta ruta no toca `Accept-Language`.
+  res.status(204).end();
 });
 
 export { categoriesRouter };

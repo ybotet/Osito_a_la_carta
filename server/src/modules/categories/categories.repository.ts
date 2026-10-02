@@ -1,6 +1,6 @@
-import { and, asc, eq, ne } from 'drizzle-orm';
+import { and, asc, count, eq, ne } from 'drizzle-orm';
 import { db } from '../../db/client.js';
-import { categories } from '../../db/schema.js';
+import { categories, dishes } from '../../db/schema.js';
 import type { NewCategory } from '../../db/schema.js';
 import type {
   CreateCategoryBody,
@@ -105,11 +105,44 @@ const insertCategory = (body: CreateCategoryBody) =>
     .returning(categoryProjection)
     .get();
 
+/**
+ * Cuántos platos bloquean el borrado.
+ *
+ * **Cuenta también los deshabilitados** (`is_available = 0`), a diferencia de
+ * `findAvailableDishes`. No es un descuido: la fila sigue existiendo y sigue apuntando a
+ * la categoría, así que borrarla dejaría dishes con una FK colgando. Además coincide con lo
+ * que ya decidió MEMORY: un dish deshabilitado sigue contando, y la categoría se libera
+ * cuando el dish se purga de verdad.
+ *
+ * Con el borrado físico que hace este endpoint, el conteo no es solo informativo: es la
+ * condición que decide si el `DELETE` puede ocurrir. La FK está en `NO ACTION`, así que
+ * SQLite abortaría el borrado igual, pero el servicio responde antes con el mensaje de la
+ * API en vez de dejar escapar una excepción de constraint.
+ */
+const countCategoryDishes = (id: number) =>
+  db
+    .select({ total: count() })
+    .from(dishes)
+    .where(eq(dishes.categoryId, id))
+    .get()?.total ?? 0;
+
+/**
+ * Borra la categoría de verdad. Solo es viable si nada la referencia (ver
+ * `countCategoryDishes`): `dishes.category_id` está en `NO ACTION`, así que SQLite aborta
+ * el `DELETE` si queda algún plato. A diferencia de los platos, aquí no hace falta un
+ * borrado lógico porque el 409 impide llegar a esta llamada con referencias, y una
+ * categoría no tiene historial propio: los pedidos apuntan a platos, no a categorías.
+ */
+const purgeCategory = (id: number) =>
+  db.delete(categories).where(eq(categories.id, id)).run();
+
 export {
   categorySlugExists,
+  countCategoryDishes,
   findAllCategories,
   findCategoryById,
   insertCategory,
+  purgeCategory,
   updateCategory,
 };
 
