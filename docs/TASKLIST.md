@@ -110,8 +110,10 @@
 - [x] **T-031**: Página `/menu` que consume `GET /api/dishes`
   - Criterio: muestra todos los platos disponibles. **Verificado: los 5 platos del seed.**
     Ver "Notas de progreso" por el plato basura que había en la base.
-- [ ] **T-032**: Componente `DishCard` (imagen, nombre, descripción, ingredientes, precio)
-  - Criterio: se ve correctamente en móvil y desktop.
+- [x] **T-032**: Componente `DishCard` (imagen, nombre, descripción, ingredientes, precio)
+  - Criterio: se ve correctamente en móvil y desktop. **Verificado: 1 columna en móvil y
+    3 en desktop** (`grid-cols-1 lg:grid-cols-3`). Ver "Notas de progreso" por las dos cosas
+    que el enunciado daba por hechas y no existían.
 - [ ] **T-033**: Selector de idioma en navbar, persistido en `localStorage`
   - Criterio: al recargar, mantiene el idioma elegido.
 - [ ] **T-034**: Página `/menu/:id` con detalle del plato
@@ -1041,6 +1043,80 @@
     `ApiDish` ya lo incluye: agrupar por categoría para T-031/T-032 no necesita tocar la API.
   - Sigue **sin haber forma de filtrar el menú por categoría** (`GET /api/dishes?category=`),
     que es lo que dejó anotado T-028 y ahora tiene el índice de T-029 debajo.
+
+### 2026-10-02 — T-032 Componente `DishCard` (+ Button de shadcn/ui)
+- Archivos nuevos: `client/src/components/DishCard.tsx`,
+  `client/src/components/ui/button.tsx`, `client/src/lib/utils.ts` (el `cn`),
+  `client/src/lib/format.ts` (el `formatPrice`) y `components.json` en la raíz. Modificado:
+  `client/src/pages/Menu.tsx`, que ahora usa el componente en vez de su tarjeta local.
+- **El enunciado daba por hecho dos cosas que no existían. Se resolvió con el dueño:**
+  1. **"tipo `Dish` importado de `shared/types.ts`": ese fichero estaba vacío.** Hay un
+     `shared/types.ts` en la **raíz** del proyecto y otro `shared/schemas.ts`, los dos con
+     **cero líneas**: no existe ningún tipo `Dish`. Decidido usar `ApiDish` de
+     `client/src/api/dishes.types.ts`, que T-031 ya creó y que describe exactamente lo que
+     devuelve `GET /api/dishes`. Crear un `shared/types.ts` en el cliente habría duplicado la
+     definición y las dos podrían divergir sin que nada avise.
+  2. **"usar shadcn/ui Button": shadcn no estaba instalado.** Faltaban `clsx`,
+     `tailwind-merge`, `class-variance-authority`, el helper `cn`, `components.json` y el
+     componente. Decidido montarlo de verdad, no simularlo con un `<button>` de Tailwind.
+- **Dependencias instaladas** con permiso explícito del dueño: `clsx@2.1.1`,
+  `tailwind-merge@3.7.0` y `class-variance-authority@0.7.1`, en `@osito/client`.
+  `npm audit`: 0 vulnerabilidades.
+- **`cn` es lo que hace que shadcn funcione, y se verificó que resuelve conflictos de verdad:**
+  `cn('... px-4 py-2', '...', 'px-2')` devuelve la cadena **sin `px-4`**, con `px-2` al final;
+  `text-sm` + `text-lg` deja solo `text-lg`; y un `lg:grid-cols-3` no pisa un `grid-cols-2`
+  sin prefijo. Sin `tailwind-merge` los conflictos los ganaría el orden del CSS y no el del
+  código, y ninguna librería de componentes sería utilizable.
+- **El botón tiene `type="button"` por defecto.** Un `<button>` sin `type` dentro de un
+  `<form>` es `submit`, así que un "añadir al carrito" acabaría enviando el formulario entero.
+- **`DishCard` no pide nada ni conoce la API**: recibe el plato ya localizado por props
+  (`dish` y `language`), así que se puede reutilizar y se puede comprobar sin red. `language`
+  llega como prop y no se lee `i18n` dentro, por el mismo motivo que en `fetchDishes` de T-031.
+- **`formatPrice` vive en `lib/format.ts`, no en el componente**, porque un fichero que exporta
+  componentes y además funciones rompe el Fast Refresh: al guardar, Vite recarga el módulo
+  entero en vez de refrescar solo el componente. Lo mismo con `buttonVariants`, que **no se
+  exporta** mientras nadie lo use. Con esto, ESLint queda sin un solo aviso de
+  `react-refresh/only-export-components`.
+- **`DishCard` es un `<article>` y la lista es la que aporta el `<li>`.** Así el componente no
+  impone su contexto y se puede usar suelto. `Menu` envuelve cada tarjeta en `<li class="h-full">`.
+- **`line-clamp-2` para la descripción, no un `truncate` con altura fija.** El texto llega ya
+  localizado y su longitud cambia con el idioma; un truncado por anchura daría entre una y
+  tres líneas según el texto y las tarjetas quedarían con alturas distintas.
+- **El skeleton de carga pasó a `aspect-[4/3]`** para ocupar lo mismo que la tarjeta real y que
+  la fila no baile al llegar los datos.
+- Criterio verificado renderizando con React:
+  - El grid es `grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3`: **1 columna en móvil y
+    3 en desktop**, sin 4 columnas. `sm:` a dos es deliberado para tablet.
+  - La tarjeta tiene las seis cosas del enunciado: imagen con `aspect-[4/3]` y `object-cover`,
+    nombre `text-lg font-semibold`, descripción `line-clamp-2 text-sm text-gray-600`,
+    ingredientes `text-xs text-gray-500`, precio `text-xl font-bold` y botón con `cart.add`.
+    Comprobado en el HTML renderizado, no en el código.
+  - El precio sale **distinto según el idioma**: `11,90 €` en es y ru, `€11.90` en en.
+  - El botón se traduce al cambiar de idioma: `Añadir al carrito` / `Добавить в корзину` /
+    `Add to cart`.
+  - La imagen lleva `alt` con el nombre del plato y `loading="lazy"`.
+  - Con los 5 platos del seed salen **5 `<article>` y 5 `<li>`**.
+- **Verificado también en el CSS compilado**, no solo en las clases del HTML:
+  `.aspect-\[4\/3\]{aspect-ratio:4/3}`, `.line-clamp-2{-webkit-line-clamp:2}`,
+  `.lg\:grid-cols-3` y `.grid-cols-1` están en el bundle, así que Tailwind 4 los genera.
+- **Regresión comprobada:** `/menu` sigue sirviendo los 5 platos por el proxy de Vite, y los
+  tres módulos nuevos (`DishCard.tsx`, `button.tsx`, `utils.ts`) se sirven sin error.
+- `typecheck` y `lint` del **workspace raíz** en verde y **sin avisos**, `vite build` correcto
+  (109 módulos) y Prettier limpio.
+- **Un obstáculo propio:** el 5173 volvió a estar ocupado por un Vite que se me quedó de T-031.
+  Se identificó el PID y se comprobó que era un `vite.js` nuestro antes de matarlo.
+- **Nota:** hay procesos `tsx watch` y un servidor escuchando en el 3000 que **no son de esta
+  tarea** (parecen un `npm run dev` propio). No se tocaron.
+- **Impacto en otras tareas:**
+  - **T-033 ya puede construir el navbar sobre `Button`**, con sus variantes `default`,
+    `outline` y `ghost` y los tamaños `default`, `sm`, `lg` e `icon`.
+  - El Botón usa clases de Tailwind directas, **no tokens del tema**: funciona ya, pero si
+    más adelante se quiere el tema completo de shadcn habrá que añadir los tokens a
+    `index.css`, que hoy solo tiene `@import 'tailwindcss'`.
+  - `components.json` deja la CLI de shadcn lista para añadir más componentes sin
+    reconfigurar nada.
+  - **El botón todavía no hace nada**: no hay carrito ni acción detrás, porque eso llega con
+    las tareas del carrito. Por eso `onClick` no se pasa.
 
 ### 2026-10-02 — Deuda acumulada hasta T-025 (fuera de tarea)
 - Petición del dueño: revisar los gotchas que son deuda **de lo ya hecho**, dejando que las

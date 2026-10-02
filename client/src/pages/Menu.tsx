@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { fetchDishes } from '../api/dishes';
-import type { ApiDish } from '../api/dishes.types';
+import DishCard from '../components/DishCard';
 
 /**
  * skeletons del estado de carga: mismo hueco que la tarjeta final, sin texto. Se pintan
@@ -9,43 +9,13 @@ import type { ApiDish } from '../api/dishes.types';
  */
 const DishSkeleton = () => (
   <li className="flex flex-col gap-2 rounded-lg border border-stone-200 p-4">
-    <div className="h-32 animate-pulse rounded bg-stone-200" />
+    <div className="aspect-[4/3] w-full animate-pulse rounded bg-stone-200" />
     <div className="h-4 w-3/4 animate-pulse rounded bg-stone-200" />
     <div className="h-3 w-1/2 animate-pulse rounded bg-stone-200" />
   </li>
 );
 
-const DISH_SKELETONS = 4;
-
-/**
- * El precio se formatea con `Intl.NumberFormat` en el idioma de la petición. No se
- * construye a mano con `toFixed`: el separador decimal y de miles cambian entre idiomas
- * (`11,90` en español, `11.90` en inglés, `11,90` en ruso) y el precio llega ya en el
- * idioma del usuario, así que formatearlo en otro daría un número que no encaja con el
- * resto de la pantalla.
- */
-const formatPrice = (price: number, language: string) =>
-  new Intl.NumberFormat(language, {
-    style: 'currency',
-    currency: 'EUR',
-  }).format(price);
-
-const DishCard = ({ dish, language }: { dish: ApiDish; language: string }) => (
-  <li className="flex flex-col gap-2 rounded-lg border border-stone-200 p-4">
-    <img
-      src={dish.imageUrl}
-      alt={dish.name}
-      loading="lazy"
-      className="h-32 w-full rounded object-cover"
-    />
-    <h2 className="text-lg font-semibold">{dish.name}</h2>
-    <p className="text-sm text-stone-600">{dish.description}</p>
-    <p className="text-sm text-stone-500">{dish.ingredients}</p>
-    <p className="mt-auto text-base font-semibold">
-      {formatPrice(dish.price, language)}
-    </p>
-  </li>
-);
+const DISH_SKELETONS = 3;
 
 /**
  * Página del menú. Los cuatro estados que pide el enunciado se distinguen por el orden en
@@ -115,9 +85,20 @@ const Menu = () => {
   return (
     <main className="mx-auto max-w-5xl p-4">
       <h1 className="mb-4 text-3xl font-bold">{t('menu.title')}</h1>
-      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/*
+        Una columna en móvil y tres en desktop, que es el criterio de T-032. `sm:` se deja
+        para la zona intermedia (tablet), donde se ve a dos columnas: es lo que espera quien
+        usa esa pantalla y forzar a una o a tres solo haría huecos innecesarios.
+
+        El `<li>` envuelve a la tarjeta porque `DishCard` es un `<article>`: puede vivir
+        dentro de una lista o suelto en otra parte, y no debería imponer el contexto. Es la
+        lista la que aporta el elemento de lista.
+      */}
+      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {dishes.map((dish) => (
-          <DishCard key={dish.id} dish={dish} language={language} />
+          <li key={dish.id} className="h-full">
+            <DishCard dish={dish} language={language} />
+          </li>
         ))}
       </ul>
     </main>

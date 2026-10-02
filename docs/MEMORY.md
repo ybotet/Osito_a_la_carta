@@ -666,6 +666,22 @@ no son intercambiables.
   `api/dishes.ts` con los tipos y luego otra vez con el `fetch` deja solo el segundo, y su
   propio `import type` se resuelve a sí mismo: `TS2459 Module declares 'X' locally, but it is
   not exported`. Los tipos se fueron a `dishes.types.ts`. Visto en T-031.
+- **Los enunciados dan por hecho ficheros que pueden estar vacíos.** T-032 pedía importar el
+  tipo `Dish` de `shared/types.ts` y usar el `Button` de shadcn/ui: no existía ninguno de los
+  dos, y el `shared/types.ts` que sí hay (en la raíz, no en el cliente) tiene **cero líneas**,
+  igual que `shared/schemas.ts`. **Antes de dar por buena una referencia a un fichero,
+  comprobar que tiene contenido, no solo que existe.** Un `Test-Path` da `True` sobre un
+  fichero vacío y eso no es lo que se necesita. Visto en T-032.
+- **Un fichero que exporta componentes y además funciones rompe el Fast Refresh.** ESLint lo
+  avisa con `react-refresh/only-export-components`: al guardar, Vite deja de poder refrescar
+  solo el componente y recarga el módulo entero, perdiendo el estado del resto de la pantalla.
+  Solución: las funciones van a `lib/` (en T-032, `formatPrice` a `lib/format.ts`) y las
+  constantes que solo usa el propio componente se dejan sin exportar. Visto en T-032.
+- **`tailwind-merge` es lo que hace que una librería de componentes sea utilizable.** Sin él,
+  si un componente fija `px-4` y quien lo usa pasa `px-2`, los dos sobreviven en el `class` y
+  gana el que esté después en la hoja de estilos, no en el código. Con `cn` (que encadena
+  `clsx` + `twMerge`), el último gana siempre. Verificado en T-032: `cn('... px-4 py-2', 'px-2')`
+  devuelve la cadena sin `px-4`, y un `lg:grid-cols-3` no pisa un `grid-cols-2` sin prefijo.
 - **Un Vite de una tarea anterior puede quedarse vivo y bloquear el puerto 5173.** El
   arranque nuevo falla con "Port 5173 is already in use" y no es obvious que sea propio: en
   T-031 había un `vite.js` huérfano de T-030. Antes de matar un proceso que ocupa el puerto,
@@ -2638,6 +2654,59 @@ anotado.
   `ApiError` con `CATEGORY_NOT_FOUND`), pero el render del mensaje no, porque no hay navegador
   automatizado en el proyecto y `renderToStaticMarkup` no refleja el estado de error. Ver gotcha.
 - Sin navegación, así que `/menu` no se enlaza desde `/`.
+
+---
+
+### 2026-10-02 — T-032 Componente `DishCard` (+ Button de shadcn/ui)
+**Estado:** completada
+
+**Qué se hizo:**
+- `DishCard` con imagen 4:3, nombre, descripción truncada, ingredientes, precio localizado y
+  botón de "añadir al carrito". Grid de 1 columna en móvil y 3 en desktop.
+- Infraestructura de shadcn/ui montada: `Button` con variantes, helper `cn`,
+  `components.json` y las tres dependencias.
+
+**Cómo se hizo:**
+- Nuevos: `client/src/components/DishCard.tsx`, `client/src/components/ui/button.tsx`,
+  `client/src/lib/utils.ts`, `client/src/lib/format.ts`, `components.json`.
+- Modificado: `client/src/pages/Menu.tsx`, que ya no tiene tarjeta propia y usa el componente.
+- Dependencias con permiso del dueño: `clsx@2.1.1`, `tailwind-merge@3.7.0`,
+  `class-variance-authority@0.7.1`. `npm audit`: 0 vulnerabilidades.
+
+**Por qué se hizo así:**
+- **El enunciado daba por hecho un tipo `Dish` en `shared/types.ts` que no existe.** Ese
+  `shared/types.ts` está en la raíz y está vacío, igual que `shared/schemas.ts`. Se usa
+  `ApiDish` de `api/dishes.types.ts`, que es la definición real de lo que devuelve el endpoint.
+  Duplicar el tipo en un `shared/` del cliente habría creado dos verdades que pueden divergir.
+- **shadcn/ui se montó de verdad en vez de imitarlo.** Un `<button>` con clases de Tailwind no
+  habría sido shadcn y T-033 habría tenido que tomar esa decisión más tarde.
+- **`DishCard` es un `<article>` y la lista aporta el `<li>`.** Un componente que impone su
+  contexto no se puede usar suelto; así `Menu` envuelve y `DishCard` se reutiliza en un
+  detalle o en un carrusel sin tocarlo.
+- **`language` llega por props en vez de leerse de `i18n` dentro del componente**, igual que en
+  `fetchDishes`: mantiene el componente libre del singleton y comprobable sin red.
+- **`line-clamp-2` en vez de un truncado por altura.** El texto llega localizado y cambia de
+  longitud por idioma; con altura fija las tarjetas quedarían desiguales.
+- **`formatPrice` va en `lib/` y `buttonVariants` no se exporta**, porque un fichero que
+  exporta componentes y funciones rompe el Fast Refresh. Con eso ESLint queda sin avisos.
+
+**Impacto en otras tareas:**
+- **T-033 puede montar el navbar sobre `Button`**, con variantes y tamaños ya definidos.
+- `components.json` deja la CLI de shadcn lista para añadir componentes sin reconfigurar.
+- **El botón no hace nada todavía**: no hay carrito detrás, llegan con las tareas del carrito,
+  y por eso no se le pasa `onClick`.
+- El `cn` está disponible para cualquier componente futuro, que es la forma correcta de
+  sobrescribir utilidades desde fuera de un componente.
+
+**Pendientes / deuda técnica:**
+- **`index.css` solo tiene `@import 'tailwindcss'`.** Los tokens del tema de shadcn no están, y
+  el `Button` por eso usa clases de Tailwind directas. Si se quiere el tema completo, hay que
+  añadir los tokens y cambiar el botón a usarlos.
+- **`formatPrice` exige idioma no vacío** y lanza `RangeError` si se le pasa `''`: es
+  intencionado, para que un fallo así se delate en lugar de quedar tapado por un valor por
+  defecto.
+- El botón es `<button>` y no acepta `asChild` como el de shadcn oficial, así que no sirve
+  todavía para envolver un `<a>` o un `Link`.
 
 ---
 
