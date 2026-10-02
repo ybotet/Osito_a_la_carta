@@ -3,6 +3,7 @@ import express from 'express';
 import { logger } from './logger.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { dishesRouter } from './modules/dishes/dishes.routes.js';
+import { categoriesRouter } from './modules/categories/categories.routes.js';
 import { errorHandler, notFoundHandler } from './shared/error.middleware.js';
 
 const app = express();
@@ -11,6 +12,7 @@ app.use(express.json({ limit: '100kb' }));
 
 app.use('/api', healthRouter);
 app.use('/api', dishesRouter);
+app.use('/api', categoriesRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

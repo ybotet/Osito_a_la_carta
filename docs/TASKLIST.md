@@ -62,9 +62,11 @@
   - Criterio: tras el DELETE el plato desaparece de `GET /api/dishes` pero sigue en la BD;
     si no existe, 404; responde 204 sin body. **Nota: la parte de autorización queda
     pendiente de T-043; ver "Notas de progreso".**
-- [ ] **T-025**: `GET /api/categories` (público)
+- [x] **T-025**: `GET /api/categories` (público)
   - Criterio: devuelve las categorías en es/ru/en según `Accept-Language`, ordenadas por
-    `sortOrder`, con `slug` e `id`.
+    `sortOrder`, con `slug` e `id`. **Devuelve las 5 categorías sin filtrar**; el enunciado
+    pedía "con `isAvailable = 1`" pero esa columna no existe en `categories`. Decidido por
+    el dueño; ver "Notas de progreso".
 - [ ] **T-026**: `POST /api/categories` (solo admin)
   - Criterio: rechaza con 401 sin token, con 403 si no es admin; 409 si el `slug` ya existe.
   - Nota: **debe implementarse antes que T-022**, porque `POST /api/dishes` exige
@@ -596,6 +598,61 @@
   - T-051 (`POST /api/orders`) sigue validando disponibilidad de los platos del pedido, así
     que un plato deshabilitado no se puede pedir. Conviene que lo confirme al implementarla.
   - T-093 puede probar los dos 409 con las mismas consultas de conteo que usa el servicio.
+
+### 2026-10-01 — T-025 `GET /api/categories`
+- Archivos creados: `server/src/modules/categories/categories.routes.ts`,
+  `categories.service.ts`, `categories.repository.ts`, `categories.schema.ts`, y
+  `server/src/shared/language.ts`. Modificados: `server/src/app.ts` (monta el router) y
+  `server/src/modules/dishes/dishes.service.ts` (consume el idioma compartido).
+- Estructura de cuatro archivos según AGENTE.md §2.2, igual que `dishes`.
+- **Conflicto detectado antes de escribir código y resuelto por el dueño:** el enunciado pedía
+  "devuelve las categorías con `isAvailable = 1`", pero **`categories` no tiene esa
+  columna**. Comprobado en la base real (`id, slug, name_es, name_ru, name_en, sort_order`)
+  y en `schema.ts`, donde el único `isAvailable` es el de `dishes`. SPEC §6 también define
+  `Category` sin ningún campo de disponibilidad, y el criterio de aceptación de la tarea no
+  mencionaba filtrar. El dueño decidió devolver **las 5 categorías sin filtro**. Ocultar
+  una categoría, si alguna vez hace falta, sería una columna nueva y una migración nueva.
+- **La respuesta es `{ language, categories }`, el mismo envoltorio que `GET /api/dishes`.**
+  Cada elemento lleva `id`, `slug` y `name` ya localizado. Se mantiene la forma para que
+  haya una sola convención en la API.
+- **`resolveLanguage` se movió a `server/src/shared/language.ts`.** MEMORY ya lo pedía desde
+  T-020: "cuando exista la segunda implementación conviene moverla a un módulo
+  compartido". Esta es la segunda implementación, así que se hizo en lugar de duplicar el
+  parseo del header. `dishes.service.ts` ahora la importa de ahí y ya no la reexporta: los
+  módulos que necesiten el idioma lo sacan de `shared`, no del servicio de platos.
+- **El orden es `sort_order` y luego `id`.** Verificado de forma concluyente: **negando
+  todos los `sort_order` la respuesta se invierte por completo** (`bebidas, postres,
+  ensaladas, pastas, sopas`), algo que ordenar por `id` jamás daría. Y los ids de las 5
+  categorías son 2, 3, 4, 5 y 6, no 1 a 5, así que el orden de la respuesta no coincide con
+  el orden de ids: demuestra que manda `sort_order`.
+- Criterio verificado con peticiones reales: sin header devuelve **es**; `ru` devuelve
+  `Супы и бульоны, Паста и рис, Салаты, Десерты, Напитки`; `en` devuelve `Soups and broths,
+  Pasta and rice, Salads, Desserts, Drinks`. Los tres idiomas traen textos distintos entre
+  sí (no son traducciones mutuas), el ruso es cirílico real y ningún nombre sale vacío.
+- **`Accept-Language` se probó con 14 cabeceras**, todas correctas y sin un solo fallo:
+  sin header, `ru`, `en`, `RU`, `ru-RU`, `ru-RU,ru;q=0.9,en;q=0.8`, `en;q=0.8,ru;q=0.9`
+  (gana el de mayor `q`, no el primero), `fr-FR,fr;q=0.9` → es, `de;q=0.9,en-US;q=0.7` → en,
+  `ru;q=0` → es (un `q=0` significa "no lo quiero"), `*`, vacío, y `xx;q=abc,ru` → ru.
+- **Regresión comprobada tras mover `resolveLanguage`:** `GET /api/dishes` sigue
+  localizándose bien en es/ru/en (6 platos), el detalle en ruso sigue correcto, el 404 de
+  dishes sigue siendo `DISH_NOT_FOUND`, `/api/health` sigue en 200 y el 404 global en
+  `NOT_FOUND`.
+- `typecheck`, `lint` y formato en verde; verificado en los **dos modos** (`tsx` y
+  `node dist/app.js`), con resultados idénticos.
+- **Base de datos verificada sin residuos:** `categories` y `dishes` comparadas fila a fila
+  contra una copia previa, más el conteo de las otras cinco tablas y `foreign_key_check`.
+  Todo idéntico, incluidos los `sort_order` que se movieron durante la prueba.
+- **Impacto en otras tareas:**
+  - **T-026/T-027/T-028 (CRUD de categorías) ya no bloquean nada más.** Este era el getter
+    que el admin necesitaba para elegir categoría al dar de alta o editar un plato; hasta
+    ahora `POST /api/dishes` exigía un `categoryId` que el admin tenía que saber de memoria.
+  - T-031/T-032 (menú agrupado) ya pueden pintar los grupos sin adivinar los nombres: este
+    endpoint da el nombre ya localizado en el idioma de la petición.
+  - **T-043 tiene que proteger las escrituras de categorías**, pero este GET es **público y
+    lo seguirá siendo**: es lectura de menú, como `GET /api/dishes`.
+  - El `name` que devuelve este endpoint es el mismo que ya viaja dentro de
+    `dish.category.name` en `GET /api/dishes`. Si divergieran, la UI pintaría dos nombres
+    distintos para el mismo grupo.
 
 ---
 

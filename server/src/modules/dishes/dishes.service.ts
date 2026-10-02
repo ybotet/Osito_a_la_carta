@@ -16,55 +16,13 @@ import {
   ConflictError,
   NotFoundError,
 } from '../../shared/errors.js';
-import {
-  DEFAULT_LANGUAGE,
-  LANGUAGES,
-  dishSchema,
-  dishesResponseSchema,
-} from './dishes.schema.js';
+import { dishSchema, dishesResponseSchema } from './dishes.schema.js';
 import type {
   CreateDishBody,
   Language,
   UpdateDishBody,
 } from './dishes.schema.js';
-
-const isSupportedLanguage = (value: string): value is Language =>
-  (LANGUAGES as readonly string[]).includes(value);
-
-const resolveLanguage = (header: string | undefined): Language => {
-  if (header === undefined) {
-    return DEFAULT_LANGUAGE;
-  }
-
-  const preferred = header
-    .split(',')
-    .map((part) => {
-      const [rawTag = '', ...parameters] = part.trim().split(';');
-      const quality = parameters
-        .map((parameter) => parameter.trim())
-        .find((parameter) => parameter.startsWith('q='));
-
-      const parsed =
-        quality === undefined ? 1 : Number.parseFloat(quality.slice(2));
-
-      return {
-        tag: rawTag.trim().toLowerCase(),
-        quality: Number.isNaN(parsed) ? 0 : parsed,
-      };
-    })
-    .filter((candidate) => candidate.quality > 0)
-    .sort((a, b) => b.quality - a.quality);
-
-  for (const candidate of preferred) {
-    const [base = ''] = candidate.tag.split('-');
-
-    if (isSupportedLanguage(base)) {
-      return base;
-    }
-  }
-
-  return DEFAULT_LANGUAGE;
-};
+import { resolveLanguage } from '../../shared/language.js';
 
 const localize = (row: DishRow, language: Language) => {
   switch (language) {
@@ -262,7 +220,6 @@ export {
   getDish,
   listDishes,
   purgeDish,
-  resolveLanguage,
   setDishAvailability,
   updateDish,
 };

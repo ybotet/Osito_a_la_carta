@@ -168,6 +168,34 @@ sitio y los routers futuros no lo repiten. El primero es `health`; devuelve
 > Sección acumulativa. Cada decisión importante se documenta una vez
 > y se referencia desde las entradas de tareas.
 
+### 2026-10-01 — `resolveLanguage` vive en `shared/language.ts`, no en un servicio
+**Contexto:** T-020 lo dejó en `dishes.service.ts` con la nota de que, cuando apareciera la
+segunda implementación, convendría moverlo a un módulo compartido. T-025 es esa segunda
+implementación (`GET /api/categories` también se localiza por `Accept-Language`).
+**Decisión:** `server/src/shared/language.ts` exporta `resolveLanguage`, `LANGUAGES`,
+`DEFAULT_LANGUAGE` y el tipo `Language`. `dishes.service.ts` **ya no lo define ni lo
+reexporta**: lo importa de `shared`.
+**Alternativas consideradas:** (a) duplicar el parseo en el servicio de categorías;
+(b) importarlo desde `dishes.service.ts` sin moverlo; (c) moverlo a `shared/language.ts`.
+**Motivo:** (a) deja dos listas de idiomas y dos implementaciones de los pesos `q` que hay
+que mantener en un sitio solo: el día que se añadiera un idioma o se corrigiera un caso del
+header, se tocaría una y se olvidaría la otra, y los dos endpoints se pondrían a responder
+idiomas distintos. (b) crea una dependencia inversa: el módulo de categorías dependería
+del de platos para algo que no tiene que ver con platos, y cualquier futuro servicio
+(distinto de dishes) tendría que importar un servicio de platos para leer un header.
+**Consecuencias:**
+- **El idioma se importa de `shared/language.ts`, no de `dishes.service.ts`.** La entrada de
+  T-021 que decía "`resolveLanguage` sigue en el servicio de dishes: T-025 debe seguir
+  reutilizándolo" queda **superada por esta**: el reutilizarla sí, pero desde `shared`. Las
+  entradas anteriores no se borran, se leen con esta encima.
+- `LANGUAGES` y `DEFAULT_LANGUAGE` siguen exportándose desde `dishes.schema.ts` (para no
+  mover el schema entero), y `shared/language.ts` los reexporta para quien los necesite. Es
+  un reexport real, no una copia: si se añade un idioma al schema, el compartido lo ve.
+- **Cualquier endpoint nuevo que localice debe usar `resolveLanguage` de `shared`.** Si
+  aparece una tercera implementación, el sitio natural es este archivo.
+- `readAcceptLanguage` (leer el header crudo) vive aparte, en `shared/http.ts`. Los dos
+  hacen cosas distintas: uno lee el header, otro decide el idioma. No conviene mezclarlos.
+
 ### 2026-10-01 — Extensión: la disponibilidad tiene tres endpoints, no uno
 **Contexto:** la entrada anterior ("El borrado de platos es lógico, y por integridad
 referencial") terminó saying que **no** había forma de recuperar un plato y que habría que
@@ -888,6 +916,30 @@ no son intercambiables.
   con historial) se comprueban **antes** de escribir, y se verificó que la fila sobrevive
   con `is_available = 0` intacto. Si el guard estuviera después del `UPDATE`, el 409 dejaría
   el plato a medio camino.
+- **El enunciado de una tarea puede pedir filtrar por una columna que esa tabla no tiene.**
+  En T-025 pedía "devuelve las categorías con `isAvailable = 1`", pero `categories` solo tiene
+  `id, slug, name_es, name_ru, name_en, sort_order`: el `is_available` es de `dishes`. Se
+  detectó mirando `PRAGMA table_info(categories)` y `schema.ts` antes de escribir código.
+  **Un filtro pedido en el enunciado hay que contrastarlo con la tabla real**, porque puede
+  venir copiado del enunciado de otro endpoint: el criterio de aceptación de la propia tarea
+  (que no pedía filtrar) y SPEC §6 (que no define el campo) apuntaban en la otra dirección.
+- **Probar que un `ORDER BY` usa la columna es más fácil de lo que parece, y más fácil de
+  fallar.** En T-025, subir `bebidas` a 99 y bajar `sopas` a 0 **no cambió el orden**, porque
+  las otras filas seguían en medio: la prueba parecía pasar sin probar nada. Lo concluyente
+  fue **negar todos los `sort_order` a la vez**, que invierte la respuesta entera y eso no lo
+  puede producir un orden por `id`. Añadir a la lista de pruebas: el caso negativo debe ser
+  inequívoco, no solo "cambió un valor".
+- **Los ids de las filas insertadas no empiezan en 1.** Las 5 categorías tienen ids 2 a 6 (el
+  1 lo consumió la categoría de reserva `sin-categoria` que crea el seed y luego se borra).
+  Sirve como prueba gratis de que el orden de la respuesta viene de `sort_order` y no del
+  id, porque en este caso coinciden por casualidad: conviene mirar los ids reales antes de
+  concluir que "el orden es correcto".
+- **Cuando una función genérica se muda a `shared/`, hay que quitar el reexport del módulo
+  viejo.** `dishes.service.ts` seguía exportando `resolveLanguage` por compatibilidad, y eso
+  deja dos rutas públicas a lo mismo: una correcta (`shared/language.ts`) y otra que
+  perpetúa la dependencia que se quería eliminar. Si alguien importa desde el sitio viejo,
+  la mudanza no se ha hecho. Quitar el reexport de una vez y que el typecheck marque los
+  importadores afectados.
 - **Un script de prueba que inserta en una tabla con FK necesita una fila válida en la
   tabla padre.** Insertar un `order_item` con un `order_id` inventado falla por la FK del
   `order_id`, no por la del `dish_id`, y el error apunta al campo equivocado: parece que
@@ -961,6 +1013,69 @@ no son intercambiables.
 - `dishes.category_id` no tiene índice. Como el CRUD de categorías ya está decidido
   (T-025–T-028) y agrupar o filtrar el menú por categoría es un caso de uso real, se
   dejó planificado como la tarea **T-029** en TASKLIST.md.
+
+### 2026-10-01 — T-025 `GET /api/categories`
+**Estado:** completada.
+
+**Qué se hizo:**
+- Módulo `categories` con los cuatro archivos de AGENTE.md §2.2 (`routes`, `service`,
+  `repository`, `schema`), montado con `app.use('/api', categoriesRouter)`.
+- `server/src/shared/language.ts`, donde se muda `resolveLanguage` (estaba en
+  `dishes.service.ts`).
+- Respuesta `{ language, categories }`, cada elemento con `id`, `slug` y `name` localizado.
+
+**Por qué se hizo así:**
+- **El enunciado pedía filtrar por `isAvailable = 1` y esa columna no existe en
+  `categories`.** Comprobado en la base (`id, slug, name_es, name_ru, name_en, sort_order`),
+  en `schema.ts` (el único `isAvailable` es el de `dishes`) y en SPEC §6, que define
+  `Category` sin ningún campo de disponibilidad. El dueño decidió devolver **las 5
+  categorías sin filtro**. Ojo: **el enunciado de la tarea estaba mal en ese punto** y el
+  criterio de aceptación de TASKLIST no pedía filtrar. Si algún día hay que ocultar una
+  categoría del menú, es una columna nueva y una migración nueva.
+- **`resolveLanguage` se mudó a `shared/language.ts`.** MEMORY lo pidió explícitamente en
+  T-020 ("cuando exista la segunda implementación conviene moverla a un módulo
+  compartido") y en T-021 ("`resolveLanguage` sigue en el servicio de dishes: T-025 debe
+  seguir reutilizándolo"). Esta era la segunda implementación. Se **eliminó** del servicio
+  de platos y ya no se reexporta: el idioma se saca de `shared`, no de un servicio
+  concreto. Duplicar el parseo del header era la alternativa y habría significado dos
+  listas de idiomas y dos pesos `q` que mantener en un sitio solo.
+- **La respuesta usa el envoltorio `{ language, categories }`**, igual que
+  `GET /api/dishes`. El enunciado decía "devuelve las categorías"; se mantiene la forma
+  por coherencia, ya que el frontend necesita saber con qué idioma se resolvió.
+- **El orden es `sort_order` y luego `id`**, no solo por `id`: `sortOrder` existe
+  justamente para que el admin reordene el menú sin migrar.
+
+**Comprobado:**
+- Sin header → `es`; `ru` → `Супы и бульоны, Паста и рис, Салаты, Десерты, Напитки`;
+  `en` → `Soups and broths, Pasta and rice, Salads, Desserts, Drinks`. Textos distintos
+  entre sí, cirílico real, ningún nombre vacío.
+- **El `sortOrder` manda, demostrado de forma concluyente:** negando todos los `sort_order`
+  la respuesta se invierte por completo, algo que ordenar por `id` jamás daría. Además los
+  ids son 2-6, no 1-5, así que el orden de salida no coincide con el de ids.
+- **14 cabeceras `Accept-Language`, 0 fallos**: sin header, `ru`, `en`, `RU`, `ru-RU`,
+  `ru-RU,ru;q=0.9,en;q=0.8`, `en;q=0.8,ru;q=0.9`, `fr-FR,fr;q=0.9`, `de;q=0.9,en-US;q=0.7`,
+  `ru;q=0`, `*`, vacío y `xx;q=abc,ru`.
+- **Regresión tras mover `resolveLanguage`:** `GET /api/dishes` sigue localizando bien en
+  es/ru/en, el detalle y los 404 intactos, `/api/health` en 200.
+- `typecheck`, `lint` y formato en verde; los dos modos (`tsx` y `node dist/app.js`)
+  idénticos. Base verificada fila a fila contra copia previa: sin cambios.
+
+**Impacto en otras tareas:**
+- **T-026–T-028 (CRUD de categorías) dejan de depender de un endpoint inexistente.** Este
+  era el getter que el admin necesitaba para elegir categoría; hasta ahora `POST /api/dishes`
+  exigía un `categoryId` que había que saber de memoria.
+- T-031/T-032 pueden pintar los grupos con el nombre ya localizado.
+- **Este GET es público y lo seguirá siendo**, también con `requireAdmin` en T-043: es
+  lectura de menú, igual que `GET /api/dishes`. Solo las escrituras se protegen.
+- T-029 (índice de `dishes.category_id`) sigue pendiente y ya es más relevante: el menú
+  agrupado por categoría consulta dishes con filtro por esa columna.
+
+**Pendientes / deuda técnica:**
+- No hay forma de ocultar una categoría del menú (no existe la columna). Anotado, no
+  comprometido.
+- El `name` de este endpoint y el de `dish.category.name` en `GET /api/dishes` salen de la
+  misma fila, así que no pueden divergir; si alguien cachea uno y no el otro, la UI
+  mostrará nombres viejos.
 
 ### 2026-10-01 — T-030 y T-031 `PATCH .../availability` y `DELETE .../permanent`
 **Estado:** completadas **a medias en cuanto a autorización**: los tres endpoints de
