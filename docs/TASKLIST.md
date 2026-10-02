@@ -84,10 +84,12 @@
     vaciarla antes, borra o reasigna los platos.
   - **Nota: la parte de autorización (401/403) queda pendiente de T-043**, igual que en
     T-022, T-023, T-024, T-026 y T-027. Ver "Notas de progreso".
-- [ ] **T-029**: Índice en `dishes.category_id`
+- [x] **T-029**: Índice en `dishes.category_id`
   - Criterio: migración aplicada y `EXPLAIN QUERY PLAN` usa el índice al filtrar por
     categoría. Pendiente de A-001: agrupar y filtrar el menú por categoría ya es un caso
     de uso real y la columna no está indexada.
+  - **Nota: el índice acelera el `COUNT` por categoría, pero no siempre un `SELECT *`.**
+    Medido y documentado en "Notas de progreso".
 - [x] **T-029a**: `PATCH /api/dishes/:id/availability` (solo admin) — habilita/deshabilita
   - Criterio: `{"isAvailable": true}` sobre un plato deshabilitado lo devuelve al menú;
     `false` lo retira sin borrarlo. Añadida el 2026-10-01 por petición del dueño: sin esta
@@ -838,6 +840,71 @@
   - El admin necesita una forma de **saber cuántos platos tiene** una categoría antes de
     intentar el borrado, para explicar el 409. Hoy el 409 lo dice, pero solo tras el
     intento; el `totalDishes` del error es el único sitio donde sale.
+
+### 2026-10-02 — T-029 Índice en `dishes.category_id`
+- Archivos: modificados `server/src/db/schema.ts` y `server/src/db/migrations/meta/_journal.json`;
+  nuevos `server/src/db/migrations/0002_unusual_the_hand.sql` y
+  `server/src/db/migrations/meta/0002_snapshot.json` (los dos últimos los genera la
+  herramienta, no se escriben a mano).
+- **No se tocó ninguna migración ya aplicada.** 0000 y 0001 siguen intactas, según la regla
+  de MEMORY de no modificar migraciones aplicadas.
+- **El índice va en el callback de la tabla, y eso no es opcional.** La primera versión lo
+  declaraba suelto (`export const dishesCategoryIdIdx = index(...).on(dishes.categoryId)`):
+  **compilaba y `tsc --noEmit` pasaba**, pero `drizzle-kit generate` respondió "No schema
+  changes, nothing to migrate" y su propio resumen decía `dishes 0 indexes`. La forma
+  correcta es el tercer argumento de `sqliteTable`: `(table) => [index('dishes_category_id_idx').on(table.categoryId)]`.
+  Volver a generar dio `dishes 1 indexes` y creó la migración. Registrado como gotcha.
+- La migración contiene **una sola sentencia**: `CREATE INDEX dishes_category_id_idx ON
+  dishes (category_id)`.
+- Criterio verificado con `EXPLAIN QUERY PLAN` sobre la base real:
+  - Antes: `SCAN dishes` para `where category_id = 2`.
+  - Después: **`SEARCH dishes USING INDEX dishes_category_id_idx (category_id=?)`**.
+  - El `COUNT` de `countCategoryDishes` sale aún mejor: **`SEARCH dishes USING COVERING
+    INDEX dishes_category_id_idx (category_id=?)`**, porque solo necesita la columna
+    indexada.
+  - Control: `SELECT * FROM dishes` sin filtro sigue en `SCAN`, y el listado del menú
+    (join con `categories`) sigue en `SCAN d`. Es lo correcto: sin filtro por categoría, un
+    índice solo añadiría coste.
+- **`drizzle-kit migrate` es idempotente**: ejecutado dos veces, la segunda no duplica nada;
+  y `generate` posterior vuelve a decir "No schema changes".
+- **Medido a escala, con resultados que no son los esperados y conviene conocer.** Copia de
+  la base a un temporal, 4 000 platos:
+  - 5 categorías (800 platos cada una): el `COUNT` mejora de **118 ms a 95 ms**, pero un
+    `SELECT *` por categoría sale **más lento con índice: 457 ms vs 308 ms sin él**, porque al
+    devolver las filas completas hay que ir a buscarlas una a una y con el 20 % de la tabla en
+    la categoría el escaneo compensa.
+  - 40 000 platos en 200 categorías: el `COUNT` mejora de **46 ms a 24 ms**.
+  - El índice es el que pedía el enunciado y es el correcto para el `COUNT`, que es lo que
+    hace el código hoy (`countCategoryDishes` de T-028). La advertencia es para cuando se
+    añada `GET /api/dishes?category=`: con pocas categorías y muchos platos por categoría,
+    ese listado puede no ganar con el índice.
+- **Error propio que hubo que diagnosticar: la migración desapareció de la base.** Tras
+  aplicarla y verificarla, desapareció sin índice y con solo 2 filas en `__drizzle_migrations`,
+  aunque el `.sql` seguía en el repo y `generate` decía "No schema changes". Causa: yo
+  borré `osito.db-wal` justo después de aplicar la migración, y en modo WAL las
+  transacciones se escriben primero ahí y solo se vuelcan al fichero principal en un
+  checkpoint; borrar el `-wal` antes las descarta aunque drizzle-kit las diera por
+  aplicadas. Se comprobó comparando el SHA256 de cada `.sql` con la fila de
+  `__drizzle_migrations`. Solución: `PRAGMA wal_checkpoint(TRUNCATE)` antes de tocar los
+  sidecars, y reaplicar la migración. **Verificado que tras el checkpoint, borrar los
+  sidecars ya no pierde nada.** Registrado como gotcha, es la trampa más destructiva del
+  proyecto porque no da ningún error.
+- **Regresión comprobada con la migración aplicada:** `GET /api/categories` (5 categorías,
+  orden correcto), `GET /api/dishes` en es y en ru (6 platos, localización intacta),
+  `GET /api/dishes/1`, 404 de dish inexistente, 409 al borrar una categoría con platos, 404
+  al borrar una inexistente y `/api/health` en 200.
+- `typecheck`, `lint` y formato en verde. El índice es invisible para la API: no cambia
+  ningún contrato.
+- **Base de datos verificada sin residuos:** 5 categorías, 6 platos repartidos 2/1/1/1/1,
+  1 usuario, `foreign_key_check` limpio, sin tablas de prueba (`dishes_copy` no existe) y
+  `git status` con solo los cuatro ficheros de la migración y el schema.
+- **Impacto en otras tareas:**
+  - **Con T-029 se cierra la parte de A-001 que quedaba**: el CRUD de categorías y el índice
+    que lo hace escalable.
+  - **`GET /api/dishes?category=` sigue sin existir** y es el consumidor natural del índice.
+    Es lo que anotó T-028 como deuda; ahora tiene el índice debajo, pero la ruta no está.
+  - `dishes.is_available` sigue sin índice: no se ha pedido, y con el menú entero en pantalla
+    el `SCAN` es razonable.
 
 ### 2026-10-02 — Deuda acumulada hasta T-025 (fuera de tarea)
 - Petición del dueño: revisar los gotchas que son deuda **de lo ya hecho**, dejando que las

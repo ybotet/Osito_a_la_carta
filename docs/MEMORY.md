@@ -653,6 +653,13 @@ no son intercambiables.
 
 - **SQLite + Drizzle:** las migraciones no se pueden modificar una vez aplicadas.
   Si hay que corregir, crear una nueva.
+- **Un `index().on()` suelto no lo detecta drizzle-kit; hay que declarar el índice en el
+  callback de la tabla.** Escribir `export const dishesCategoryIdIdx = index('x').on(dishes.categoryId)`
+  fuera de `sqliteTable` **compila y pasa `tsc`**, pero `drizzle-kit generate` responde "No
+  schema changes, nothing to migrate" y el índice no llega nunca al SQL. La forma correcta es
+  el tercer argumento de `sqliteTable`: `(table) => [index('dishes_category_id_idx').on(table.categoryId)]`.
+  La señal de que falta algo es que el resumen del propio `generate` diga `dishes 0 indexes`.
+  Visto en T-029.
 - **El conteo que decide si se puede borrar debe contar filas, no solo las visibles.** Al
   borrar una categoría, contar solo los platos disponibles dejaría pasar categorías con
   dishes deshabilitados, y como la fila sigue existiendo el `DELETE` fallaría después por la
@@ -669,7 +676,18 @@ no son intercambiables.
   solución es
   excluir la fila editada (`ne(id, excludeId)`). Solo aplica si la columna es clave editable;
   si la clave fuera inmutable, no haría falta. Visto en T-027.
-- **Restaurar `osito.db` exige borrar `osito.db-wal` y `osito.db-shm`.** La base está en
+- **Borrar `osito.db-wal` DESPUÉS de aplicar una migración la deshace.** Es el error más
+  destructivo de este proyecto y se cuela solo, porque `drizzle-kit migrate` informa
+  "migrations applied successfully" y el índice se crea de verdad. En modo WAL las
+  transacciones van primero a `osito.db-wal` y solo se vuelcan al fichero principal en un
+  checkpoint; borrar el `-wal` antes de ese checkpoint las descarta, aunque la migración
+  pareciera aplicada. **Síntoma:** `sqlite_master` no tiene el índice y
+  `__drizzle_migrations` tiene una fila menos, pero el `.sql` y el snapshot siguen en el
+  repo y `drizzle-kit generate` dice "No schema changes". **Antes de borrar los sidecars,
+  hacer `PRAGMA wal_checkpoint(TRUNCATE)`**; después del checkpoint, borrarlos es seguro y
+  se comprobó que la migración persiste. Pasó en T-029 y costó una reaplicación.
+- **Borrar `osito.db-wal` antes de restaurar una copia de la base hace perder datos.** La
+  base está en
   modo WAL, así que al copiar el fichero `osito.db` a pelo **no basta**: los sidecars que
   dejó el servidor siguen ahí y SQLite los reproduce al abrir, devolviendo los datos de las
   pruebas aunque la copia sea limpia. Orden correcto: parar el servidor, copiar `osito.db`,
@@ -2437,6 +2455,59 @@ anotado.
   /api/dishes?category=`), que es lo que un admin querría antes de un borrado bloqueado.
 - **Se cumple lo que la entrada de T-027 anticipaba:** T-028 usa `findCategoryById` para el
   404 y cuenta platos por categoría para el 409, sin reutilizar nada del PUT.
+
+---
+
+### 2026-10-02 — T-029 Índice en `dishes.category_id`
+**Estado:** completada
+
+**Qué se hizo:**
+- Índice `dishes_category_id_idx` sobre `dishes(category_id)`, con su migración aplicada.
+- `EXPLAIN QUERY PLAN` pasa de `SCAN dishes` a `SEARCH dishes USING INDEX` al filtrar por
+  categoría, y a `SEARCH ... USING COVERING INDEX` en el `COUNT`.
+
+**Cómo se hizo:**
+- `server/src/db/schema.ts`: la tabla `dishes` pasa a la forma con callback para declarar el
+  índice: `(table) => [index('dishes_category_id_idx').on(table.categoryId)]`. Se importa
+  `index` de `drizzle-orm/sqlite-core`.
+- `server/src/db/migrations/0002_unusual_the_hand.sql` (nuevo), generado con
+  `npm run db:generate`. Contenido: un único `CREATE INDEX`.
+- `server/src/db/migrations/meta/0002_snapshot.json` y `_journal.json`, generados por la
+  misma herramienta.
+- **No se tocó ninguna migración ya aplicada**, según la regla de MEMORY de que no se
+  modifican una vez aplicadas: 0000 y 0001 siguen intactas.
+- Sin dependencias nuevas.
+
+**Por qué se hizo así:**
+- **El índice se declara en el callback de la tabla, no suelto.** La primera versión
+  (`export const dishesCategoryIdIdx = index(...).on(dishes.categoryId)`) **compilaba y
+  pasaba `tsc`**, pero `drizzle-kit generate` dijo "No schema changes" y el resumen decía
+  `dishes 0 indexes`. Es el fallo silencioso más fácil de no ver en esta tarea.
+- **Migración generada, no escrita a mano.** Un `CREATE INDEX` manual dentro de un `.sql`
+  dejaría el schema de TypeScript diciendo una cosa y la base otra; el snapshot de
+  `meta/` dejaría de reflejar la realidad.
+- **Se implementa solo lo que pedía el enunciado.** El criterio pedía únicamente el índice, y el
+  filtro por categoría ya existe en el código (`countCategoryDishes` de T-028), así que no
+  hizo falta tocar ningún endpoint.
+
+**Impacto en otras tareas:**
+- **Con T-029 se cierra la parte de A-001 que quedaba**: el CRUD de categorías (T-025 a
+  T-028) y el índice que lo hace escalable. Sigue pendiente `GET /api/dishes?category=`, que
+  es el consumidor natural del índice y sigue sin existir (anotado en T-028).
+- T-029 era también la tarea que T-028 señaló como segundo consumidor de `category_id`.
+- No cambia ningún contrato de API: es invisible para el cliente.
+
+**Pendientes / deuda técnica:**
+- **El índice no acelera `SELECT *` con pocas categorías.** Medido a 4 000 platos y 5
+  categorías (800 por categoría), el `COUNT` mejora de 118 ms a 95 ms, pero un `SELECT *` por
+  categoría sale **más lento** con índice (457 ms vs 308 ms): al devolver las filas
+  completas hay que ir a buscar cada una, y con el 20 % de la tabla en la categoría el
+  `SCAN` compensa. A escala realista (40 000 platos, 200 categorías) el `COUNT` sí mejora
+  de 46 ms a 24 ms. El índice es el de la tarea pedida y el correcto para el `COUNT`, pero
+  conviene saber que con pocas categorías y muchos platos por categoría el listado
+  completo puede no ganar.
+- `dishes.is_available` sigue sin índice. No se ha pedido, y con el menú entero en pantalla
+  el `SCAN` es lo razonable.
 
 ---
 

@@ -1,0 +1,1 @@
+CREATE INDEX `dishes_category_id_idx` ON `dishes` (`category_id`);

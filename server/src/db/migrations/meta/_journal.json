@@ -15,6 +15,13 @@
       "when": 1790853841561,
       "tag": "0001_broad_the_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790966012104,
+      "tag": "0002_unusual_the_hand",
+      "breakpoints": true
     }
   ]
 }

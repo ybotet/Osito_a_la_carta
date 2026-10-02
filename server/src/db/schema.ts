@@ -1,5 +1,11 @@
 import { sql } from 'drizzle-orm';
-import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import {
+  index,
+  integer,
+  real,
+  sqliteTable,
+  text,
+} from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -25,31 +31,45 @@ export const categories = sqliteTable('categories', {
   sortOrder: integer('sort_order').notNull().default(0),
 });
 
-export const dishes = sqliteTable('dishes', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  categoryId: integer('category_id')
-    .notNull()
-    .references(() => categories.id),
-  imageUrl: text('image_url').notNull(),
-  price: real('price').notNull(),
+/**
+ * Índice sobre `dishes.category_id`, añadido por T-029 con A-001 (organizar
+ * el menú por categoría). Es la columna por la que se filtra al listar los
+ * platos de una categoría y al contar cuántos tiene una para decidir si se
+ * puede borrar (`countCategoryDishes`).
+ *
+ * Va en el callback de la tabla, que es la única forma en que drizzle-kit lo
+ * detecta al generar la migración: un `index().on()` declarado aparte compila
+ * pero no llega al SQL.
+ */
+export const dishes = sqliteTable(
+  'dishes',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    categoryId: integer('category_id')
+      .notNull()
+      .references(() => categories.id),
+    imageUrl: text('image_url').notNull(),
+    price: real('price').notNull(),
 
-  nameEs: text('name_es').notNull(),
-  nameRu: text('name_ru').notNull(),
-  nameEn: text('name_en').notNull(),
+    nameEs: text('name_es').notNull(),
+    nameRu: text('name_ru').notNull(),
+    nameEn: text('name_en').notNull(),
 
-  descEs: text('desc_es').notNull(),
-  descRu: text('desc_ru').notNull(),
-  descEn: text('desc_en').notNull(),
+    descEs: text('desc_es').notNull(),
+    descRu: text('desc_ru').notNull(),
+    descEn: text('desc_en').notNull(),
 
-  ingredientsEs: text('ingredients_es').notNull(),
-  ingredientsRu: text('ingredients_ru').notNull(),
-  ingredientsEn: text('ingredients_en').notNull(),
+    ingredientsEs: text('ingredients_es').notNull(),
+    ingredientsRu: text('ingredients_ru').notNull(),
+    ingredientsEn: text('ingredients_en').notNull(),
 
-  isAvailable: integer('is_available').notNull().default(1),
-  createdAt: integer('created_at')
-    .notNull()
-    .default(sql`(unixepoch())`),
-});
+    isAvailable: integer('is_available').notNull().default(1),
+    createdAt: integer('created_at')
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => [index('dishes_category_id_idx').on(table.categoryId)],
+);
 
 export const orders = sqliteTable('orders', {
   id: integer('id').primaryKey({ autoIncrement: true }),
