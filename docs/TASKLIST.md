@@ -55,8 +55,13 @@
 - [x] **T-022**: `POST /api/dishes` (solo admin)
   - Criterio: rechaza con 401 sin token, con 403 si no es admin. **Nota: la parte de
     autorización queda pendiente de T-043; ver "Impacto" abajo.**
-- [ ] **T-023**: `PUT /api/dishes/:id` (solo admin)
-- [ ] **T-024**: `DELETE /api/dishes/:id` (solo admin) — borrado lógico (`isAvailable = 0`)
+- [x] **T-023**: `PUT /api/dishes/:id` (solo admin)
+  - Criterio: actualizar solo el precio funciona; un plato inexistente devuelve 404.
+    **Nota: la parte de autorización queda pendiente de T-043; ver "Notas de progreso".**
+- [x] **T-024**: `DELETE /api/dishes/:id` (solo admin) — borrado lógico (`isAvailable = 0`)
+  - Criterio: tras el DELETE el plato desaparece de `GET /api/dishes` pero sigue en la BD;
+    si no existe, 404; responde 204 sin body. **Nota: la parte de autorización queda
+    pendiente de T-043; ver "Notas de progreso".**
 - [ ] **T-025**: `GET /api/categories` (público)
   - Criterio: devuelve las categorías en es/ru/en según `Accept-Language`, ordenadas por
     `sortOrder`, con `slug` e `id`.
@@ -74,6 +79,14 @@
   - Criterio: migración aplicada y `EXPLAIN QUERY PLAN` usa el índice al filtrar por
     categoría. Pendiente de A-001: agrupar y filtrar el menú por categoría ya es un caso
     de uso real y la columna no está indexada.
+- [x] **T-030**: `PATCH /api/dishes/:id/availability` (solo admin) — habilita/deshabilita
+  - Criterio: `{"isAvailable": true}` sobre un plato deshabilitado lo devuelve al menú;
+    `false` lo retira sin borrarlo. Añadida el 2026-10-01 por petición del dueño: sin esta
+    vía un plato deshabilitado no tenía recuperación.
+- [x] **T-031**: `DELETE /api/dishes/:id/permanent` (solo admin) — purga física
+  - Criterio: borra la fila; 404 si no existe; 409 si el plato sigue disponible o tiene
+    historial (`order_items` o `page_views`). Añadida el 2026-10-01 por petición del dueño:
+    hasta entonces no había forma de quitar del todo un plato retirado del menú.
 
 ---
 
@@ -418,6 +431,171 @@
     haciendo falta para que el admin elija una categoría en el formulario.
   - T-093: los 400 de Zod llegan como `details` con los issues de Zod; es el formato que
     deberá esperar el frontend al mostrar errores de validación.
+
+### 2026-10-01 — T-023 `PUT /api/dishes/:id`
+- Archivos modificados: `server/src/modules/dishes/dishes.schema.ts`, `dishes.repository.ts`,
+  `dishes.service.ts`, `dishes.routes.ts`. Ningún archivo nuevo.
+- Criterio verificado con peticiones reales: `PUT /api/dishes/1` con `{"price": 9.99}`
+  devuelve **200** con el plato ya actualizado, y `PUT /api/dishes/999999` devuelve **404**
+  con `{ error: 'Dish not found', code: 'DISH_NOT_FOUND', details: { id: 999999 } }`.
+- **Decisión técnica: el schema del PUT es `createDishBodySchema.partial()`**, no una copia
+  con los campos opcionales escritos a mano. MEMORY lo exigía expresamente, y además evita
+  que las dos rutas diverjan: si el alta cambia una regla (`price` positiva, `trim().min(1)`,
+  URL válida), el PUT la hereda sin que nadie se acuerde de actualizarla.
+- **El body es de actualización parcial, no un reemplazo.** Con `.partial()` solo se
+  escribe lo que llega: comprobado que un `PUT {"price": 12.5}` **no toca** nombre,
+  descripción, ingredientes ni imagen. Se comparó el plato antes y después.
+- **Decisión técnica: el parche se construye campo a campo en `toUpdatePatch()`**, con
+  `...(body.x !== undefined && { x: body.x })` en vez de recorrer el body con
+  `Object.entries`. Con `exactOptionalPropertyTypes` activo, una clave `undefined` en
+  `.set()` intentaría escribir NULL sobre columnas `NOT NULL`, y en SQLite un `UPDATE` no
+  distingue "no mandaste el campo" de "mándalo a NULL". Escribirlo a mano además obliga a
+  revisar cada campo nuevo antes de que entre en el `UPDATE`.
+- **Un body vacío (`{}`) devuelve 200 sin tocar la base.** Se comprueba la existencia del
+  plato y se salta el `UPDATE`, porque un `UPDATE` sin columnas no es SQL válido. Se
+  decidió no inventar un 400 para ese caso: el enunciado solo pedía 404 y no hay regla
+  previa que lo exija. Si el dueño lo prefiere como error, es un cambio de tres líneas.
+- `categoryId` sigue siendo opcional, pero **si viene se valida contra `categories`** y
+  devuelve `400 CATEGORY_NOT_FOUND` igual que en el alta, para que la FK no reviente como
+  error de SQLite. Comprobado: `{"categoryId": 9999}` → 400, `{"categoryId": 3}` → 200 y
+  el plato pasa a la categoría correcta.
+- **`is_available = 0` devuelve 404 también en el PUT**, igual que en el GET. Se comprobó
+  ocultando un plato real: el PUT responde 404 y restaurado vuelve a 200. Consistente con
+  la decisión de T-021 de no revelar qué platos existieron.
+- **Los campos extra del body se descartan**, igual que en T-022: `{"hack": "x"}` da 200
+  y no guarda nada. No se usó `.strict()`, por coherencia con el alta.
+- Validación comprobada: `price: 0`, `price: -5`, `price: "mucho"`, `imageUrl` no válida y
+  `nameEs: "   "` devuelven 400. Body JSON malformado → 400 `INVALID_JSON`. `id` inválido
+  (`abc`, `0`) → 400 `VALIDATION_ERROR`. El texto ruso se guardó correcto (code points
+  cirílicos verificados; el `console` de PowerShell lo muestra mal, no son datos corruptos).
+- `typecheck`, `lint` y formato en verde; verificado en los **dos modos** (`tsx` y
+  `node dist/app.js` tras `npm run build`), con resultados idénticos. `GET /api/health`
+  sigue en 200 y el 404 global en `NOT_FOUND`.
+- **Base de datos verificada sin residuos:** se hizo una copia antes de probar y se
+  comparó fila a fila al terminar. Los 5 platos del seed quedaron **idénticos** a como
+  estaban, incluidos los precios que se tocaron durante las pruebas.
+- **Impacto en otras tareas:**
+  - **T-043 tiene que añadir `requireAdmin` a este PUT.** Hasta entonces la edición de
+    platos es **pública**, igual que el alta lo era en T-022. No desplegar antes de
+    T-043. El criterio de 401/403 sigue pendiente y queda anotado en la tarea.
+  - **T-024 (borrado lógico) no necesita cambios en el PUT**: `isAvailable` sigue sin
+    aceptarse en el body, igual que en T-022. Lo decide el endpoint de borrado.
+  - El admin (T-04x) necesitará leer el plato antes de editarlo para prellenar el
+    formulario; de eso se encarga `GET /api/dishes/:id`, que ya devuelve todos los campos.
+  - T-093 (tests) puede reusar `updateDishBodySchema` y `toUpdatePatch` para los casos de
+    validación sin necesidad de nuevos fixtures.
+
+### 2026-10-01 — T-024 `DELETE /api/dishes/:id` (borrado lógico)
+- Archivos modificados: `server/src/modules/dishes/dishes.repository.ts`, `dishes.service.ts`,
+  `dishes.routes.ts`. Ningún archivo nuevo.
+- Criterio verificado con peticiones reales: `DELETE /api/dishes/2` devuelve **204 sin body**
+  (cuerpo vacío y `content-type` ausente), el plato **desaparece de `GET /api/dishes`** (la
+  lista pasó de 6 a 5) y **la fila sigue en la BD** con `is_available = 0` y el resto de
+  campos intactos (precio, `name_ru`, `created_at`, `category_id` sin tocar). El total de
+  filas de `dishes` se mantuvo en 6: **no se eliminó ninguna fila**.
+- **Decisión técnica: el `WHERE` del UPDATE no filtra por `is_available`.** Es
+  `WHERE id = ?` a secas, para que borrar un plato ya borrado sea un no-op en vez de un
+  error. El 404 lo decide el servicio, que usa `findAvailableDishById` (que sí filtra por
+  disponibilidad) antes de llamar al repositorio.
+- **Un plato ya borrado responde 404, igual que uno que nunca existió.** Se comprobó: el
+  segundo `DELETE` del mismo plato da 404 `DISH_NOT_FOUND`, no 204 ni 500. Es la misma
+  decisión de T-021 de no revelar qué platos existieron, y de paso hace que el endpoint
+  sea idempotente desde fuera.
+- **El servicio no devuelve nada** (ni un objeto ni un id), porque el endpoint responde
+  204. No se construyó una respuesta "por si acaso": el `204` del enunciado implica que
+  no hay body que localizar, así que `Accept-Language` es irrelevante aquí.
+- **La ruta usa `res.status(204).end()`, no `res.json()`.** `json()` emitiría un body que
+  un 204 prohíbe, y Express además interpretaría un body con 204 como un bug. Verificado
+  que la respuesta llega con cuerpo vacío y sin `content-type`.
+- **Comprobado que el borrado no rompe el historial**, que es el motivo real del borrado
+  lógico: se creó un pedido de prueba con un `order_item` apuntando al plato borrado y la
+  FK siguió siendo válida (`PRAGMA foreign_key_check` vacío, `unit_price` conservado). Con
+  un `DELETE` real, `order_items` y `page_views` quedarían apuntando a platos
+  inexistentes. También se comprobó que `page_views` sigue admitiendo el `dish_id` de un
+  plato borrado.
+- Efectos colaterales verificados, todos coherentes con lo ya decidido en T-021/T-023: tras
+  el borrado, `GET /api/dishes/2` y `PUT /api/dishes/2` responden 404, y el listado sigue
+  localizándose bien en `ru`, `en` y sin header.
+- `POST` de T-022 sigue funcionando y su plato también se puede borrar por la vía nueva.
+  `PUT` sobre un plato disponible sigue en 200. `/api/health` en 200 y el 404 global en
+  `NOT_FOUND`.
+- `typecheck`, `lint` y formato en verde; verificado en los **dos modos** (`tsx` y
+  `node dist/app.js` tras `npm run build`), con resultados idénticos.
+- **Base de datos verificada sin residuos:** copia previa y comparación fila a fila de
+  `dishes` al terminar, más el conteo de `orders`, `order_items`, `page_views`, `categories`,
+  `users` y `notification_logs`. Todo quedó exactamente como estaba.
+- **Impacto en otras tareas:**
+  - **T-043 tiene que añadir `requireAdmin` a este DELETE.** Hasta entonces **cualquiera que
+    alcance la API puede borrar platos**: es la vía más destructiva de las tres
+    (alta, edición y borrado) y no desplegar antes de T-043. El criterio de 401/403 sigue
+    pendiente y queda anotado en la tarea.
+  - **No hay forma de restaurar un plato borrado.** No hay tarea para ello y no se ha
+    inventado ningún endpoint: reviving un `PUT` con `isAvailable` rompería la decisión de
+    T-022 y T-023 de que el body no controla la disponibilidad. Si el chef necesita
+    recuperar un plato por error, hay que decidir primero cómo (endpoint propio, o
+    `PATCH /api/dishes/:id/availability`).
+  - T-028 (`DELETE /api/categories/:id`) tiene aquí su referencia: el criterio de esa tarea
+    es devolver 409 si la categoría tiene platos, y ahora se sabe que un dish borrado
+    lógicamente **sigue contando como plato asociado** para esa comprobación, porque la
+    fila permanece. Es la decisión conservadora, pero conviene confirmarla.
+  - T-031/T-032 (menú) no necesitan cambios: el listado ya filtraba por `is_available = 1`
+    desde T-020, así que el borrado se propaga solo.
+
+### 2026-10-01 — T-030 y T-031 `PATCH .../availability` y `DELETE .../permanent`
+- Petición del dueño: faltaba poder recuperar un plato deshabilitado, y faltaba poder
+  eliminarlo de verdad. Quedan tres endpoints con responsabilidades separadas.
+- Archivos modificados: `server/src/modules/dishes/dishes.schema.ts`, `dishes.repository.ts`,
+  `dishes.service.ts`, `dishes.routes.ts`. Ningún archivo nuevo.
+- **Los tres endpoints y su semántica:**
+
+  | Endpoint | Efecto | Fila en BD |
+  | --- | --- | --- |
+  | `DELETE /api/dishes/:id` | deshabilita (`is_available = 0`), 204 | se conserva |
+  | `PATCH /api/dishes/:id/availability` | habilita o deshabilita, 200 con el plato | se conserva |
+  | `DELETE /api/dishes/:id/permanent` | purga, 204 | **se elimina** |
+
+- **Ciclo verificado de punta a punta:** deshabilitar (204, sale del listado, fila con
+  `is_available = 0`) → recuperar con `{"isAvailable": true}` (200, vuelve al listado,
+  `is_available = 1`) → volver a deshabilitar → purgar (204, **la fila ya no existe**, el
+  `count(dishes)` bajó de 6 a 5 y `GET` del purgado da 404).
+- **El purgado tiene dos 409, y ambos fueron decisiones explícitas del dueño:**
+  - `DISH_STILL_AVAILABLE` si el plato sigue visible en el menú. Así el flujo es
+    deshabilitar → revisar → purgar, y un plato en venta no desaparece por un clic.
+  - `DISH_HAS_HISTORY` si hay `order_items` o `page_views` apuntando al plato. Se
+    comprobó con los dos casos: con 1 pedido y 1 visita, y **solo con 1 visita y ningún
+    pedido**. Los conteos van en `details` (`{ id, orderItems, pageViews }`) para que el
+    frontend pueda decir qué bloquea el purgado. **El 409 no borra ni deshabilita nada:**
+    verificado que la fila sobrevive con `is_available = 0`.
+- **La razón de fondo del 409 no era hipotética: las FKs están en `NO ACTION`.** Se comprobó
+  en una base desechable que un `DELETE` físico falla con `SQLITE_CONSTRAINT_FOREIGNKEY` en
+  cuanto **una sola** tabla lo referencia, y que solo se borra si nada lo referencia. Por
+  eso los conteos se hacen en el servicio y no se intenta el `DELETE`: el usuario recibe un
+  mensaje de API, no una excepción de constraint.
+- **Un dish deshabilitado es invisible para el resto del módulo**, así que el PATCH usa una
+  consulta nueva, `findDishById`, que es `findAvailableDishById` sin el filtro de
+  `is_available`. Sin ella no habría forma de ver el plato que se quiere recuperar.
+- **`availabilityBodySchema` usa `z.boolean()` sin `coerce`, a propósito.** Comprobado que
+  `{"isAvailable": "false"}` da 400 y no un `true`: con `z.coerce.boolean()` el string
+  `"false"` es truthy en JS y se convertiría en "habilitar" cuando el cliente quería
+  deshabilitar. También 400: `1`, `null`, `{}`, `{otro: true}` y JSON malformado.
+- `isAvailable` sigue **sin** aceptarse en el body del POST ni del PUT. El PATCH es el único
+  sitio del API donde el cliente controla la disponibilidad.
+- `typecheck`, `lint` y formato en verde; verificado en los **dos modos** (`tsx` y
+  `node dist/app.js`), con resultados idénticos.
+- **Base verificada y restaurada:** estas pruebas borran filas de verdad, así que se hizo
+  una copia previa y se comparó al terminar. Se repusieron los platos purgados (1, 2 y 3
+  en distintas pruebas) y la tabla quedó **idéntica** a como estaba, con
+  `foreign_key_check` limpio y las otras seis tablas con el mismo conteo.
+- **Impacto en otras tareas:**
+  - **T-043 debe añadir `requireAdmin` a los tres endpoints.** El purgado es el más
+    peligroso de todos: **no desplegar antes de T-043**.
+  - **T-028 (`DELETE /api/categories/:id`) ya tiene su respuesta al 409:** un dish
+    deshabilitado **sigue contando como plato asociado**, porque la fila permanece. Con el
+    purgado, un dish deshabilitado y sin historial puede desaparecer de verdad y liberar la
+    categoría. El flujo natural es purgar primero y luego borrar la categoría.
+  - T-051 (`POST /api/orders`) sigue validando disponibilidad de los platos del pedido, así
+    que un plato deshabilitado no se puede pedir. Conviene que lo confirme al implementarla.
+  - T-093 puede probar los dos 409 con las mismas consultas de conteo que usa el servicio.
 
 ---
 
