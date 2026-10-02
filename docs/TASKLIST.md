@@ -79,11 +79,11 @@
   - Criterio: migración aplicada y `EXPLAIN QUERY PLAN` usa el índice al filtrar por
     categoría. Pendiente de A-001: agrupar y filtrar el menú por categoría ya es un caso
     de uso real y la columna no está indexada.
-- [x] **T-030**: `PATCH /api/dishes/:id/availability` (solo admin) — habilita/deshabilita
+- [x] **T-029a**: `PATCH /api/dishes/:id/availability` (solo admin) — habilita/deshabilita
   - Criterio: `{"isAvailable": true}` sobre un plato deshabilitado lo devuelve al menú;
     `false` lo retira sin borrarlo. Añadida el 2026-10-01 por petición del dueño: sin esta
     vía un plato deshabilitado no tenía recuperación.
-- [x] **T-031**: `DELETE /api/dishes/:id/permanent` (solo admin) — purga física
+- [x] **T-029b**: `DELETE /api/dishes/:id/permanent` (solo admin) — purga física
   - Criterio: borra la fila; 404 si no existe; 409 si el plato sigue disponible o tiene
     historial (`order_items` o `page_views`). Añadida el 2026-10-01 por petición del dueño:
     hasta entonces no había forma de quitar del todo un plato retirado del menú.
@@ -548,11 +548,11 @@
   `dishes.service.ts`, `dishes.routes.ts`. Ningún archivo nuevo.
 - **Los tres endpoints y su semántica:**
 
-  | Endpoint | Efecto | Fila en BD |
-  | --- | --- | --- |
-  | `DELETE /api/dishes/:id` | deshabilita (`is_available = 0`), 204 | se conserva |
-  | `PATCH /api/dishes/:id/availability` | habilita o deshabilita, 200 con el plato | se conserva |
-  | `DELETE /api/dishes/:id/permanent` | purga, 204 | **se elimina** |
+  | Endpoint                             | Efecto                                   | Fila en BD     |
+  | ------------------------------------ | ---------------------------------------- | -------------- |
+  | `DELETE /api/dishes/:id`             | deshabilita (`is_available = 0`), 204    | se conserva    |
+  | `PATCH /api/dishes/:id/availability` | habilita o deshabilita, 200 con el plato | se conserva    |
+  | `DELETE /api/dishes/:id/permanent`   | purga, 204                               | **se elimina** |
 
 - **Ciclo verificado de punta a punta:** deshabilitar (204, sale del listado, fila con
   `is_available = 0`) → recuperar con `{"isAvailable": true}` (200, vuelve al listado,
