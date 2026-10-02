@@ -1,6 +1,15 @@
-import { findAllCategories } from './categories.repository.js';
+import {
+  categorySlugExists,
+  findAllCategories,
+  insertCategory,
+} from './categories.repository.js';
 import type { CategoryRow } from './categories.repository.js';
-import { categoriesResponseSchema } from './categories.schema.js';
+import {
+  categoriesResponseSchema,
+  categorySchema,
+} from './categories.schema.js';
+import type { CreateCategoryBody } from './categories.schema.js';
+import { ConflictError } from '../../shared/errors.js';
 import type { Language } from '../../shared/language.js';
 import { resolveLanguage } from '../../shared/language.js';
 
@@ -34,6 +43,31 @@ const listCategories = (acceptLanguage: string | undefined) => {
   return { language, categories: categoriesResponseSchema.parse(payload) };
 };
 
-export { listCategories };
+/**
+ * Crea la categoría y devuelve la fila ya localizada al idioma de la misma petición, con
+ * la misma forma que devuelve el listado. Un POST no necesita que el cliente vuelva a
+ * pedir la categoría: si devolviera solo el id, el frontend tendría que hacer un GET
+ * extra (o reconstruir el nombre a mano) para pintar lo que acaba de crear.
+ */
+const createCategory = (
+  body: CreateCategoryBody,
+  acceptLanguage: string | undefined,
+) => {
+  if (categorySlugExists(body.slug)) {
+    throw new ConflictError(
+      `Ya existe una categoria con el slug "${body.slug}"`,
+      'CATEGORY_SLUG_TAKEN',
+      { slug: body.slug },
+    );
+  }
 
+  const language = resolveLanguage(acceptLanguage);
+  const row = insertCategory(body);
+
+  return categorySchema.parse(toResponse(row, language));
+};
+
+export { createCategory, listCategories };
+
+export type CreateCategoryResult = ReturnType<typeof createCategory>;
 export type ListCategoriesResult = ReturnType<typeof listCategories>;

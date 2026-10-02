@@ -67,10 +67,13 @@
     `sortOrder`, con `slug` e `id`. **Devuelve las 5 categorías sin filtrar**; el enunciado
     pedía "con `isAvailable = 1`" pero esa columna no existe en `categories`. Decidido por
     el dueño; ver "Notas de progreso".
-- [ ] **T-026**: `POST /api/categories` (solo admin)
+- [x] **T-026**: `POST /api/categories` (solo admin)
   - Criterio: rechaza con 401 sin token, con 403 si no es admin; 409 si el `slug` ya existe.
   - Nota: **debe implementarse antes que T-022**, porque `POST /api/dishes` exige
     `categoryId`.
+  - **Nota: la parte de autorización (401/403) queda pendiente de T-043**, que sigue sin
+    existir: no hay módulo `auth` ni `jsonwebtoken` instalado. El 409 y el resto del
+    criterio sí están implementados. Ver "Notas de progreso".
 - [ ] **T-027**: `PUT /api/categories/:id` (solo admin)
   - Criterio: permite renombrar los tres idiomas y cambiar `sortOrder`.
 - [ ] **T-028**: `DELETE /api/categories/:id` (solo admin)
@@ -653,6 +656,67 @@
   - El `name` que devuelve este endpoint es el mismo que ya viaja dentro de
     `dish.category.name` en `GET /api/dishes`. Si divergieran, la UI pintaría dos nombres
     distintos para el mismo grupo.
+
+### 2026-10-02 — T-026 `POST /api/categories`
+- Archivos modificados (ninguno nuevo, los cuatro ya existían de T-025):
+  `categories.routes.ts`, `categories.service.ts`, `categories.repository.ts` y
+  `categories.schema.ts`.
+- **La parte de autorización del criterio (401 sin token, 403 si no es admin) NO se puede
+  cumplir todavía y queda pendiente de T-043.** Comprobado en el repositorio antes de
+  escribir código: no existe `src/modules/auth`, `jsonwebtoken` no está en `package.json`
+  (solo `bcryptjs`) y no hay ningún sitio que emita un JWT. `requireAdmin` es exactamente
+  la tarea T-043, todavía `[ ]`. Decidido por el dueño: implementar el resto del endpoint y
+  dejar el 401/403 anotado, igual que se hizo en T-022/T-023/T-024 y
+  `PATCH /dishes/:id/availability`. La ruta lleva el mismo comentario
+  "Falta `requireAdmin`: se conecta en T-043".
+  - **Consecuencia a tener en cuenta:** hasta que T-043 exista, `POST /api/categories` es
+    público, igual que las otras cinco escrituras ya implementadas. El riesgo real no es
+    este endpoint por sí solo, sino que **la API no tiene ninguna escritura protegida**.
+- **Body: `slug` + los tres nombres obligatorios, `sortOrder` opcional.** Decidido por el
+  dueño. `sortOrder` es opcional con default 0 a propósito: el alta no debería obligar a
+  decidir el orden del menú, que es justo lo que permite reordenar después (A-001).
+- **El `slug` se normaliza y se valida, no se limpia en silencio.** `.trim().toLowerCase()` y
+  un regex `^[a-z0-9]+(?:-[a-z0-9]+)*$` con longitud 2-50. Se rechazan espacios, acentos y
+  tildes con 400 en vez de "arreglarlos": un slug es clave de filtro y de URL, y convertir
+  `niños` en algo de forma distinta a como lo haría el frontend rompe la comparación. Es la
+  única validación con mensaje en español propio en el schema; el resto heredan los
+  mensajes por defecto de Zod, como ya hacía `dishes.schema.ts`.
+- **El `toLowerCase()` del schema hace que el 409 detecte duplicados por caja.** Verificado:
+  `POST` con `slug: "SOPAS"` responde 409 igual que `"sopas"`, porque la normalización ocurre
+  en Zod **antes** de que el servicio consulte la base.
+- **El 409 se comprueba antes de insertar** y se lanza `ConflictError` con código
+  `CATEGORY_SLUG_TAKEN` y `details: { slug }`. La comprobación existe para dar el mensaje de
+  la API, no para garantizar integridad: hay `UNIQUE` en la columna.
+- **La carrera de dos peticiones simultáneas con el mismo slug está cubierta** y probada:
+  12 POST concurrentes con el mismo slug dieron **1 × 201 y 11 × 409**, y la tabla quedó con
+  **una sola fila**. Quien pierde la carrera recibe el error del `UNIQUE` de SQLite, que el
+  middleware de errores traduce a respuesta; la unicidad no depende del check del servicio.
+- **El 201 devuelve la categoría ya localizada** (`{ id, slug, name }` con el nombre en el
+  idioma de `Accept-Language`), con la misma forma que devuelve el listado, y no solo el id.
+  Si devolviera solo el id, el frontend tendría que hacer un GET extra o reconstruir el
+  nombre a mano para pintar lo que acaba de crear.
+- Criterio verificado con peticiones reales: 201 en es/ru/en y en `xx` (fallback a es) y sin
+  header; 409 con `CATEGORY_SLUG_TAKEN` para slug repetido y para el mismo slug en otra caja;
+  400 por slug con espacios, slug con tilde, `nameRu` ausente, nombre en blanco y
+  `sortOrder` no entero; 400 `VALIDATION_ERROR` con JSON malformado.
+- **Regresión comprobada:** `GET /api/categories` sigue devolviendo las 5 categorías
+  ordenadas por `sortOrder` y localizando igual que antes, en es y en `en`, tanto en `tsx`
+  como en `node dist/app.js`.
+- `typecheck`, `lint` y formato en verde; verificado en los **dos modos** (`tsx` y
+  `node dist/app.js`).
+- **Base de datos restaurada y verificada sin residuos:** 5 categorías, 6 platos,
+  1 usuario, `foreign_key_check` limpio, y `git status` con solo los cuatro archivos de
+  código. Ver gotcha del WAL abajo.
+- **Impacto en otras tareas:**
+  - **T-022 queda desbloqueado**: `POST /api/dishes` ya tiene el endpoint de categorías para
+    dar de alta, y su `categoryId` sigue validándose contra esta tabla.
+  - T-027/T-028 pueden reutilizar `categorySlugExists` para el 409 de slug duplicado, pero el
+    borrado de T-028 necesitará además contar platos asociados (409 si tiene), igual que
+    hizo `purgeDish` con `orderItems` y `pageViews`.
+  - **T-043 tiene que proteger esta ruta** con `requireAdmin`; mientras tanto el comentario
+    de la ruta lo deja explícito.
+  - T-027 debería decidir si el PUT admite cambiar el `slug`. Si lo admite, hereda la
+    normalización de este schema; si no, debería rechazarlo en vez de ignorarlo en silencio.
 
 ### 2026-10-02 — Deuda acumulada hasta T-025 (fuera de tarea)
 - Petición del dueño: revisar los gotchas que son deuda **de lo ya hecho**, dejando que las

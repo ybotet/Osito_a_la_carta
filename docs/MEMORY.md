@@ -653,6 +653,12 @@ no son intercambiables.
 
 - **SQLite + Drizzle:** las migraciones no se pueden modificar una vez aplicadas.
   Si hay que corregir, crear una nueva.
+- **Restaurar `osito.db` exige borrar `osito.db-wal` y `osito.db-shm`.** La base está en
+  modo WAL, así que al copiar el fichero `osito.db` a pelo **no basta**: los sidecars que
+  dejó el servidor siguen ahí y SQLite los reproduce al abrir, devolviendo los datos de las
+  pruebas aunque la copia sea limpia. Orden correcto: parar el servidor, copiar `osito.db`,
+  borrar `-wal` y `-shm`, y solo entonces verificar. Descubierto en T-026: la primera
+  restauración "falló" en silencio y dejó 13 categorías en vez de 5.
 - **Telegram Markdown:** los caracteres especiales (`_ * [ ] ( ) ~ \` > # + - = | { } . !`)
   deben escaparse en los mensajes o el envío falla silenciosamente.
 - **Mailgun:** el dominio debe estar verificado antes de enviar a cualquier correo.
@@ -2257,6 +2263,58 @@ anotado.
   Es intencional hasta T-007, pero si alguien importa el logger antes de esa tarea
   verá JSON plano sinPretty.
 - `config/index.ts` solo hace `export {}`; no exporta nada todavía.
+
+---
+
+### 2026-10-02 — T-026 `POST /api/categories`
+**Estado:** parcial (criterio de autorización pendiente de T-043)
+
+**Qué se hizo:**
+- `POST /api/categories` que crea una categoría: valida el body con Zod, comprueba que el
+  `slug` no exista y responde 201 con la categoría ya localizada.
+- Body: `slug` + `nameEs` + `nameRu` + `nameEn` obligatorios, `sortOrder` opcional.
+- 409 `CATEGORY_SLUG_TAKEN` si el `slug` ya existe, comprobado antes de insertar.
+
+**Cómo se hizo:**
+- Modificados los cuatro archivos que T-025 ya había creado; **ninguno nuevo**:
+  - `server/src/modules/categories/categories.schema.ts`: `createCategoryBodySchema` y el
+    `slugSchema` con `.trim().toLowerCase()` y regex `^[a-z0-9]+(?:-[a-z0-9]+)*$`.
+  - `server/src/modules/categories/categories.repository.ts`: `categorySlugExists` e
+    `insertCategory` con `.returning(categoryProjection)`. Se extrajo `categoryProjection`
+    para no repetir la lista de columnas.
+  - `server/src/modules/categories/categories.service.ts`: `createCategory(body, acceptLanguage)`.
+  - `server/src/modules/categories/categories.routes.ts`: la ruta, con 201.
+- Sin dependencias nuevas. `ConflictError` venía ya disponible en `shared/errors.ts`.
+
+**Por qué se hizo así:**
+- **El 401/403 del criterio no se implementó: `requireAdmin` es T-043 y no existe.** Se
+  comprobó antes de escribir código: no existe `src/modules/auth`, `jsonwebtoken` no está
+  instalado (solo `bcryptjs`) y nada emite un JWT. Implementar la autorización aquí habría
+  significado montar la infraestructura de T-040/T-041/T-042 dentro de T-026, mezclando
+  tareas. El dueño lo decidió así y la ruta lleva el mismo comentario que las otras
+  escrituras: "Falta `requireAdmin`: se conecta en T-043".
+- **El `slug` se normaliza y se valida en vez de limpiarse en silencio.** El slug es clave de
+  filtro y de URL; si el backend "arreglara" `Niños` de una forma y el frontend enviara
+  otra, la comparación fallaría sin error visible. Rechazar con 400 hace que el conflicto se
+  vea en el cliente, que es donde se puede corregir.
+- **El 201 devuelve la fila localizada, no solo el id.** Con solo el id, el frontend tendría
+  que hacer un GET extra o reconstruir el nombre a mano para pintar lo que acaba de crear.
+- **`sortOrder` es opcional con default 0** para no obligar a decidir el orden del menú en el
+  alta, que es justo lo que permite reordenar después.
+
+**Impacto en otras tareas:**
+- **T-022 queda desbloqueado**: el alta de platos ya tiene dónde elegir `categoryId`.
+- T-027 y T-028 pueden reutilizar `categorySlugExists`; T-028 necesitará además contar
+  platos asociados para su 409, como hizo `purgeDish` con `orderItems` y `pageViews`.
+- **T-043 tiene que proteger esta ruta.** Hasta entonces la API sigue sin ninguna escritura
+  protegida: T-022, T-023, T-024, T-029a, T-029b y esta.
+- T-027 debe decidir si el PUT admite cambiar el `slug`, y rechazarlo en vez de ignorarlo
+  si no lo admite.
+
+**Pendientes / deuda técnica:**
+- El 401/403 de T-026, a resolver en T-043.
+- La comprobación de slug duplicado es una carrera benigna: la integridad la garantiza el
+  `UNIQUE` de la columna, no el `SELECT` previo.
 
 ---
 
