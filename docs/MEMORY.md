@@ -653,6 +653,23 @@ no son intercambiables.
 
 - **SQLite + Drizzle:** las migraciones no se pueden modificar una vez aplicadas.
   Si hay que corregir, crear una nueva.
+- **TanStack Query devuelve `isPending` en render de servidor aunque la caché esté en error.**
+  Con `prefetchQuery` para dejar el error en la caché y `refetchOnMount: false`, el
+  `renderToStaticMarkup` sigue pintando el esqueleto: el observer arranca en `pending`
+  porque no hay montaje real en cliente. Comprobado con una sonda mínima que hace la misma
+  llamada a `useQuery`, que también devuelve `isPending`. **Sirve para los estados de carga,
+  vacío y con datos, pero NO para probar la rama de error**: si se fuerza y sale skeleton,
+  no significa que el código esté mal, sino que el método no puede observarlo. Para la rama
+  de error hay que mirar la capa de API (que el error se lanza con su código) o usar un
+  navegador de verdad. Visto en T-031.
+- **Dos ficheros con el mismo nombre en la misma carpeta se pisan en silencio.** Escribir
+  `api/dishes.ts` con los tipos y luego otra vez con el `fetch` deja solo el segundo, y su
+  propio `import type` se resuelve a sí mismo: `TS2459 Module declares 'X' locally, but it is
+  not exported`. Los tipos se fueron a `dishes.types.ts`. Visto en T-031.
+- **Un Vite de una tarea anterior puede quedarse vivo y bloquear el puerto 5173.** El
+  arranque nuevo falla con "Port 5173 is already in use" y no es obvious que sea propio: en
+  T-031 había un `vite.js` huérfano de T-030. Antes de matar un proceso que ocupa el puerto,
+  comprobar su línea de comandos con `Get-CimInstance Win32_Process`. Visto en T-031.
 - **Los JSON no se importan en Node sin `with { type: 'json' }`.** En el cliente los importa
   Vite y funciona, pero un script de verificación en Node (`node archivo.mjs`) falla con
   `ERR_MODULE_NOT_FOUND` o lo trata como CommonJS si se importa sin atributo, y el error no
@@ -2568,6 +2585,59 @@ anotado.
   mayúsculas, así que solo afecta a código propio.
 - Los archivos de traducción no tienen todavía tipo derivado: un `t('clave.inexistente')`
   compila igual. Derivar los tipos del JSON es la forma de que TypeScript avise.
+
+---
+
+### 2026-10-02 — T-031 Página `/menu` con TanStack Query
+**Estado:** completada
+
+**Qué se hizo:**
+- Página `/menu` que consume `GET /api/dishes` con TanStack Query, manda el `Accept-Language`
+  del idioma activo, y muestra un grid responsive con los cuatro estados: carga (skeleton),
+  error, vacío y datos.
+- `QueryClientProvider` y `BrowserRouter` montados en `main.tsx`, con rutas `/` y `/menu`.
+- Clave `menu.error` añadida a los tres idiomas de `locales`.
+
+**Cómo se hizo:**
+- Nuevos: `client/src/pages/Menu.tsx`, `client/src/api/dishes.ts` (fetch) y
+  `client/src/api/dishes.types.ts` (tipos). Modificados: `client/src/main.tsx` y los tres
+  JSON de traducciones.
+- Dependencias instaladas con permiso explícito del dueño: `@tanstack/react-query@5.104.1` y
+  `react-router-dom@7.18.4`. `npm audit`: 0 vulnerabilidades.
+
+**Por qué se hizo así:**
+- **El idioma va dentro de la `queryKey`.** Sin eso, TanStack serviría la caché de la petición
+  anterior al cambiar de idioma y la pantalla se quedaría en el idioma viejo hasta que se
+  recargara. Con el idioma en la clave cada idioma tiene su entrada y volver al anterior no
+  repregunta.
+- **`fetchDishes` recibe el idioma por parámetro y no lee `i18n`.** Quien llama ya lo tiene de
+  `useTranslation`; así la función no depende del singleton y se puede comprobar sin montar
+  React.
+- **El precio se formatea con `Intl.NumberFormat` en el idioma de la respuesta.** El separador
+  cambia entre idiomas y el precio llega ya localizado; `toFixed` daría un número descuadrado.
+- **`staleTime: 30_000` y `retry` en su valor por defecto.** El menú cambia poco, y con
+  `staleTime: 0` cada montaje repregunta. El retry por defecto ayuda con fallos de red
+  transitorios.
+- **Los tipos van en `dishes.types.ts`, no en el fichero que hace el fetch.** Escribí los dos
+  con el nombre `dishes.ts` y el segundo sobrescribió al primero: el `import type` del propio
+  módulo se resolvía a sí mismo y TypeScript daba `TS2459`. Separarlos evitó el conflicto.
+- **El plato basura de la base se borró antes de verificar**, por indicación del dueño.
+
+**Impacto en otras tareas:**
+- **T-032 puede extraerse la tarjeta casi hecha:** `DishCard` dentro de `Menu.tsx` ya pinta
+  imagen con `alt`, nombre, descripción, ingredientes y precio localizado. Es mover código.
+- **T-033 tiene lo difícil montado:** provider de React Query y router en `main.tsx`.
+- **No hay navegación todavía:** `/menu` se llega escribiendo la URL. El navbar es cosa de T-033.
+- El endpoint ya devuelve `category` con nombre localizado y `ApiDish` ya lo tipa: agrupar el
+  menú por categoría no necesita cambios en la API.
+- Sigue sin existir `GET /api/dishes?category=`, que es el consumidor natural del índice de
+  T-029.
+
+**Pendientes / deuda técnica:**
+- **El estado de error no se ha verificado en un navegador.** El camino de API sí (404 →
+  `ApiError` con `CATEGORY_NOT_FOUND`), pero el render del mensaje no, porque no hay navegador
+  automatizado en el proyecto y `renderToStaticMarkup` no refleja el estado de error. Ver gotcha.
+- Sin navegación, así que `/menu` no se enlaza desde `/`.
 
 ---
 

@@ -11,7 +11,8 @@
   "menu": {
     "title": "Menú",
     "loading": "Cargando el menú…",
-    "empty": "Todavía no hay platos en el menú."
+    "empty": "Todavía no hay platos en el menú.",
+    "error": "No se ha podido cargar el menú. Inténtalo de nuevo en unos minutos."
   },
   "cart": {
     "add": "Añadir al carrito",

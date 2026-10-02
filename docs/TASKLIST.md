@@ -107,8 +107,9 @@
   - Criterio: cambiar idioma cambia textos sin recargar. **Nota: los botones de idioma que
     hay ahora en `App.tsx` son de verificación, no de interfaz**; T-033 los sustituye por el
     selector de verdad en el navbar. Ver "Notas de progreso".
-- [ ] **T-031**: Página `/menu` que consume `GET /api/dishes`
-  - Criterio: muestra todos los platos disponibles.
+- [x] **T-031**: Página `/menu` que consume `GET /api/dishes`
+  - Criterio: muestra todos los platos disponibles. **Verificado: los 5 platos del seed.**
+    Ver "Notas de progreso" por el plato basura que había en la base.
 - [ ] **T-032**: Componente `DishCard` (imagen, nombre, descripción, ingredientes, precio)
   - Criterio: se ve correctamente en móvil y desktop.
 - [ ] **T-033**: Selector de idioma en navbar, persistido en `localStorage`
@@ -964,6 +965,82 @@
   - Cuando exista T-050 (preferencias de usuario), `preferred_lang` de la tabla `users`
     tiene que pasar a fijarse con `changeLanguage` al hacer login, y no solo con lo que diga
     el navegador.
+
+### 2026-10-02 — T-031 Página `/menu` con TanStack Query
+- Archivos nuevos: `client/src/pages/Menu.tsx`, `client/src/api/dishes.ts` (el `fetch`) y
+  `client/src/api/dishes.types.ts` (los tipos). Modificados: `client/src/main.tsx`
+  (`QueryClientProvider` y `BrowserRouter` con las rutas) y los tres JSON de `locales`, que
+  se ampliaron con `menu.error`.
+- **Dependencias instaladas**, como pedía el enunciado:
+  `@tanstack/react-query@5.104.1` y `react-router-dom@7.18.4` en `@osito/client`.
+  `npm audit`: 0 vulnerabilidades.
+- **Había un plato basura en la base y hubo que borrarlo antes de poder verificar.** La base
+  tenía **6** platos, no los 5 del seed: el `id` 11 con nombre `ffd`, descripción `bkswx` e
+  ingredientes `dada`, escrito a mano. El hueco en el `id` (5 → 11) indicaba que había más.
+  **Decidido por el dueño borrarlo**, y se hizo por la vía de la API, que es la que deja
+  registro: `DELETE /api/dishes/11` (lógico, 204) y luego `DELETE /api/dishes/11/permanent`
+  (204). Comprobado que el purgado exige el deshabilitado previo, y así se obtuvo el 409 que
+  devuelve `DISH_STILL_AVAILABLE`.
+- **El idioma va en la `queryKey` a propósito.** `['dishes', language]`: si no, al cambiar de
+  idioma TanStack serviría la caché de la petición anterior y la pantalla se quedaría en el
+  idioma viejo. Con el idioma en la clave cada idioma tiene su entrada y volver al anterior no
+  vuelve a pedir nada.
+- **`fetchDishes` recibe el idioma como parámetro y no lee `i18n` dentro.** Quien llama ya lo
+  tiene de `useTranslation`, y así la función no depende del singleton de i18n y es
+  comprobable sin montar React. Es lo que permite verificar por separado que el header sale
+  bien.
+- **El precio se formatea con `Intl.NumberFormat` en el idioma de la respuesta**, no con
+  `toFixed`. El separador cambia (`11,90 €` en español, `11.90 €` en inglés) y el precio llega
+  ya localizado; formatearlo en otro idioma daría un número descuadrado con el resto.
+- **`staleTime: 30_000`** en el `QueryClient`: el menú cambia poco y con el valor por defecto
+  (0) cada montaje volvería a pedir la lista. `retry` se deja en 3 a propósito, para que un
+  fallo de red en desarrollo se resuelva solo antes de mostrar el error.
+- **Los cuatro estados se comprueban en el orden carga → error → vacío**, que es el único
+  correcto: al revés se ve el error de la petición anterior mientras se pide la siguiente.
+- **Se añadió `menu.error` a los tres idiomas** (faltaba para el estado de error) y se
+  comprobó que los tres JSON siguen con **13 claves**, iguales en los tres.
+- Criterio verificado:
+  - `GET http://localhost:5173/menu` responde 200 y el proxy `/api` trae los **5 platos** del
+    seed, con su categoría localizada.
+  - **`Accept-Language` se propaga de verdad:** por el proxy de Vite, `es` devuelve
+    `Супы и бульоны`-style en ruso (`Овощной суп`) y `language: ru`. Y en la función,
+    `fetchDishes('es'|'ru'|'en')` manda exactamente ese valor en el header.
+  - Los **cuatro estados** renderizados con React: carga pinta 4 skeletons y ningún plato ni
+    mensaje de vacío; con datos pinta **exactamente 5 tarjetas `<li>`** con los 5 nombres, 5
+    `alt`, el precio en `11,90 €` y ninguno de los mensajes de vacío ni de error; vacío
+    pinta el mensaje y ningún skeleton.
+  - **El estado de error no se ha podido renderizar en la verificación automática, y conviene
+    saber por qué.** Con la caché de TanStack en error de verdad (`CATEGORY_NOT_FOUND`), el
+    render sigue dando `isPending`. Se comprobó con una sonda mínima que hace la misma llamada
+    a `useQuery`: también devuelve `isPending`. Es un límite de `renderToStaticMarkup` —el
+    observer arranca en `pending` porque no hay montaje real en cliente—, **no un fallo de
+    `Menu.tsx`**. Lo que sí está verificado del camino de error es la capa de API: un 404
+    lanza `ApiError` con `status: 404` y `code: 'CATEGORY_NOT_FOUND'`, y una respuesta que no
+    es JSON da `UNKNOWN_ERROR` en vez de propagar el error de parseo. Para verlo de verdad
+    basta con parar el servidor y recargar `/menu`.
+- **No hay navegador automatizado en el proyecto** (ni playwright ni jsdom), así que la
+  comprobación se hizo renderizando con `react-dom/server` y comprobando el HTML. No se
+  instaló ninguno: sería una dependencia que la tarea no pide.
+- `typecheck` y `lint` del **workspace raíz** en verde, `vite build` correcto y Prettier limpio.
+- **Base de datos verificada:** 5 platos (los del seed, con sus tres idiomas), 5 categorías,
+  1 usuario, `foreign_key_check` limpio, **cero filas** con el contenido basura.
+- **Un obstáculo propio que hubo que resolver:** el puerto 5173 estaba ocupado por un Vite de
+  T-030 que había quedado vivo, y el nuevo no arrancó ("Port 5173 is already in use"). Se
+  localizó el PID, se comprobó que era un `vite.js` nuestro antes de matarlo, y se arrancó de
+  nuevo.
+- **Impacto en otras tareas:**
+  - **T-032 (`DishCard`) tiene el trabajo hecho dentro de `Menu.tsx`:** la tarjeta ya pinta
+    imagen, nombre, descripción, ingredientes y precio, con `alt` en la imagen y el precio
+    localizado. Extraerla a `components/DishCard.tsx` es mover código, no escribirlo.
+  - **T-033 tiene lo difícil hecho:** `QueryClientProvider` y el router ya están montados en
+    `main.tsx`.
+  - **La navegación no existe todavía.** `main.tsx` monta `App` en `/` y `Menu` en `/menu`,
+    pero no hay navbar ni enlaces: llegar a `/menu` es escribiendo la URL. Es lo coherente con
+    el orden de tareas, porque el navbar es cosa de T-033.
+  - El endpoint ya devuelve `category` con `id`, `slug` y `name` localizado, y el tipo
+    `ApiDish` ya lo incluye: agrupar por categoría para T-031/T-032 no necesita tocar la API.
+  - Sigue **sin haber forma de filtrar el menú por categoría** (`GET /api/dishes?category=`),
+    que es lo que dejó anotado T-028 y ahora tiene el índice de T-029 debajo.
 
 ### 2026-10-02 — Deuda acumulada hasta T-025 (fuera de tarea)
 - Petición del dueño: revisar los gotchas que son deuda **de lo ya hecho**, dejando que las

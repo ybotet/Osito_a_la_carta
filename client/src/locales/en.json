@@ -11,7 +11,8 @@
   "menu": {
     "title": "Menu",
     "loading": "Loading the menu…",
-    "empty": "There are no dishes on the menu yet."
+    "empty": "There are no dishes on the menu yet.",
+    "error": "The menu could not be loaded. Please try again in a few minutes."
   },
   "cart": {
     "add": "Add to cart",
