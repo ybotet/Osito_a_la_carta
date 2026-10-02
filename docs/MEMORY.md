@@ -653,6 +653,12 @@ no son intercambiables.
 
 - **SQLite + Drizzle:** las migraciones no se pueden modificar una vez aplicadas.
   Si hay que corregir, crear una nueva.
+- **Un chequeo de "unicidad" que se hace sobre la propia fila da falsos positivos.** En un
+  PUT, comprobar `slug` con `SELECT ... WHERE slug = ?` hace que la categoría que se está
+  editando colisione consigo misma y devuelva 409 aunque no haya conflicto real. La
+  solución es
+  excluir la fila editada (`ne(id, excludeId)`). Solo aplica si la columna es clave editable;
+  si la clave fuera inmutable, no haría falta. Visto en T-027.
 - **Restaurar `osito.db` exige borrar `osito.db-wal` y `osito.db-shm`.** La base está en
   modo WAL, así que al copiar el fichero `osito.db` a pelo **no basta**: los sidecars que
   dejó el servidor siguen ahí y SQLite los reproduce al abrir, devolviendo los datos de las
@@ -2315,6 +2321,62 @@ anotado.
 - El 401/403 de T-026, a resolver en T-043.
 - La comprobación de slug duplicado es una carrera benigna: la integridad la garantiza el
   `UNIQUE` de la columna, no el `SELECT` previo.
+
+---
+
+### 2026-10-02 — T-027 `PUT /api/categories/:id`
+**Estado:** parcial (criterio de autorización pendiente de T-043)
+
+**Qué se hizo:**
+- `PUT /api/categories/:id` que actualiza `slug`, los tres nombres y `sortOrder`, todos
+  opcionales, y devuelve la categoría ya localizada.
+- 404 `CATEGORY_NOT_FOUND` si el id no existe, 409 `CATEGORY_SLUG_TAKEN` si el slug nuevo
+  está ocupado, 200 sin escribir si el body está vacío.
+- **Se corrigió la respuesta de `POST /api/categories` (de T-026)** para que use el mismo
+  sobre `{ language, category }`.
+
+**Cómo se hizo:**
+- Modificados los cuatro archivos del módulo, **ninguno nuevo**:
+  - `categories.schema.ts`: `updateCategoryBodySchema` (derivada con `.partial()`) y
+    `categoryEnvelopeSchema`.
+  - `categories.repository.ts`: `findCategoryById`, `toUpdatePatch`, `updateCategory`, y
+    `excludeId` opcional en `categorySlugExists`.
+  - `categories.service.ts`: `updateCategoryById`.
+  - `categories.routes.ts`: la ruta PUT.
+- Sin dependencias nuevas.
+
+**Por qué se hizo así:**
+- **El 401/403 del criterio no se implementó: `requireAdmin` es T-043 y sigue sin existir.**
+  Se comprobó antes de escribir código: no hay `src/modules/auth`, ni `jsonwebtoken` en
+  `package.json`, ni nada que emita un JWT. Se dejó anotado igual que en las cinco
+  escrituras anteriores.
+- **El PUT admite cambiar el `slug`.** T-026 había dejado esta decisión pendiente y el
+  criterio de T-027 no la menciona. Se derivó el schema con `.partial()` como ya hace
+  `updateDishBodySchema`, en vez de mantener un schema paralelo; y se prefirió admitir el
+  cambio con 409 antes que rechazarlo con 400, porque rechazarlo obligaría a un schema
+  distinto solo para eso.
+- **`excludeId` en `categorySlugExists` es imprescindible, no opcional.** Sin él, un PUT
+  que reenvíe el slug sin cambios se rechaza a sí mismo con un 409 absurdo. Es la única
+  forma de distinguir "este slug es mío" de "otro ya lo tiene".
+- **El 404 se comprueba antes que el 409.** Si el id no existe, el slug recibido es
+  irrelevante; devolver 409 sugeriría un conflicto que no hay.
+- **Se corrigió el defecto de T-026.** Su POST devolvía la categoría suelta sin `language`,
+  mientras que en dishes toda escritura devuelve `{ language, dish }`. Como el nombre
+  depende del idioma de la petición, el sobre no es decoración: sin él el cliente no sabe
+  si lo que ve es la traducción o el original. No había cliente que lo consumiera
+  (`client/src` no menciona categorías), así que el cambio no rompe nada.
+
+**Impacto en otras tareas:**
+- T-028 puede usar `findCategoryById` para el 404 y necesita contar platos por categoría
+  para su 409; no reutiliza el PUT.
+- **T-043 tiene que proteger esta ruta: son ya siete las escrituras sin proteger**
+  (T-022, T-023, T-024, T-026, T-027, T-029a, T-029b).
+- El frontend, cuando exista, debe leer `category.name` dentro del sobre, igual que `dish`.
+
+**Pendientes / deuda técnica:**
+- El 401/403 de T-027, a resolver en T-043.
+- `POST /api/categories` cambió de forma en esta tarea; si algún test futuro se escribió
+  contra la forma de T-026, hay que actualizarlo.
 
 ---
 

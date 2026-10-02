@@ -74,8 +74,10 @@
   - **Nota: la parte de autorización (401/403) queda pendiente de T-043**, que sigue sin
     existir: no hay módulo `auth` ni `jsonwebtoken` instalado. El 409 y el resto del
     criterio sí están implementados. Ver "Notas de progreso".
-- [ ] **T-027**: `PUT /api/categories/:id` (solo admin)
+- [x] **T-027**: `PUT /api/categories/:id` (solo admin)
   - Criterio: permite renombrar los tres idiomas y cambiar `sortOrder`.
+  - **Nota: la parte de autorización (401/403) queda pendiente de T-043**, igual que en
+    T-022, T-023, T-024 y T-026. Ver "Notas de progreso".
 - [ ] **T-028**: `DELETE /api/categories/:id` (solo admin)
   - Criterio: rechaza con 409 si la categoría tiene platos asociados. Se descarta el
     borrado en cascada para no perder dishes por un error de un clic; quien quiera
@@ -717,6 +719,65 @@
     de la ruta lo deja explícito.
   - T-027 debería decidir si el PUT admite cambiar el `slug`. Si lo admite, hereda la
     normalización de este schema; si no, debería rechazarlo en vez de ignorarlo en silencio.
+
+### 2026-10-02 — T-027 `PUT /api/categories/:id`
+- Archivos modificados (ninguno nuevo, los cuatro ya existían desde T-025):
+  `categories.routes.ts`, `categories.service.ts`, `categories.repository.ts` y
+  `categories.schema.ts`.
+- **La parte de autorización del criterio (401/403) NO se puede cumplir todavía y queda
+  pendiente de T-043**, igual que en T-022, T-023, T-024 y T-026: no existe
+  `src/modules/auth` ni `jsonwebtoken` instalado. La ruta lleva el mismo comentario.
+- **El PUT admite cambiar el `slug`, no solo los nombres.** El criterio no lo menciona, y
+  T-026 había dejado la decisión explícitamente pendiente para aquí. Decisión tomada:
+  admitirlo, con las mismas reglas de normalización y validación que el alta (derivadas del
+  mismo `slugSchema`) y 409 `CATEGORY_SLUG_TAKEN` si el slug nuevo está ocupado. Motivo:
+  derivar el PUT con `.partial()` como ya hace `updateDishBodySchema` es más simple que
+  mantener un schema paralelo, y con `.strict()` el PUT rechazaría el `slug` con un 400
+  en vez de ignorarlo.
+- **`updateCategoryBodySchema` se deriva con `.partial()`, no se reescribe.** Hereda
+  `trim().min(1)` de los nombres y la normalización del slug, así que un cambio de regla en
+  el alta no puede divergir del PUT.
+- **`categorySlugExists` admite `excludeId` para el PUT.** Sin esa excepción, reenviar el
+  slug sin cambios se rechazaría **a sí mismo** con un 409 absurdo. Verificado: `PUT` con
+  `slug:"ensaladas-frescas"` sobre la categoría que ya lo tiene responde 200, no 409.
+- **El 404 va ANTES que el 409 del slug, y todos los guards se resuelven antes de tocar
+  datos.** Un id inexistente con un slug ocupado responde 404 y no 409: el slug es
+  irrelevante si la petición no tiene ni a dónde aplicarse, y un 409 sugeriría un conflicto
+  que no existe. Verificado explícitamente con `PUT /api/categories/999` + `slug:"pastas"`.
+- **Un body vacío `{}` responde 200 sin escribir.** Se salta el `UPDATE` en vez de dejar que
+  Drizzle genere un `SET` sin columnas, igual que hace `updateDish`.
+- **El PUT devuelve `{ language, category }`, y el POST se corrigió para devolver lo
+  mismo.** Este era un defecto de T-026: su POST devolvía la categoría suelta, sin
+  `language`, mientras que en dishes toda escritura devuelve `{ language, dish }`. Como el
+  nombre depende del idioma de la petición, sin decir cuál se resolvió el cliente no puede
+  saber si lo que tiene en pantalla es la traducción o el original. Se añadió
+  `categoryEnvelopeSchema` y ahora POST y PUT de categorías usan el mismo sobre.
+  - **Esto cambia la respuesta de `POST /api/categories` de T-026**: antes
+    `{"id":7,"slug":"x","name":"Y"}`, ahora `{"language":"es","category":{...}}`. No hay
+    cliente que lo consuma todavía (se comprobó: `client/src` no menciona `slug` ni
+    categorías), así que no rompe nada existente.
+- Criterio verificado con peticiones reales: los tres idiomas se renombran en una sola
+  llamada; `sortOrder` cambia; el nombre de la respuesta sigue el idioma de la petición
+  (tras renombrar el ruso, la respuesta en `ru` trae el ruso y en `en` el inglés); un PUT
+  parcial de un idioma no toca los otros dos; 409 con slug ocupado (también con distinta
+  caja); 404 por id inexistente; 200 sin escribir con body vacío; 400 por nombre en blanco,
+  slug con espacios, `sortOrder` no entero e id no numérico; las claves extra
+  (`color`, `isAvailable`) se descartan sin efecto.
+- **Regresión comprobada:** `GET /api/categories` sigue devolviendo las 5 categorías en el
+  orden correcto y localizado igual que antes, y `GET /api/dishes` sigue en 200 con su
+  localización. Verificado en los **dos modos** (`tsx` y `node dist/app.js`).
+- `typecheck`, `lint` y formato en verde.
+- **Base de datos restaurada y verificada sin residuos:** las 5 categorías con sus valores
+  originales de `slug`, `sort_order` y los tres nombres, 6 platos, 1 usuario,
+  `foreign_key_check` limpio y `git status` con solo los cuatro archivos de código.
+- **Impacto en otras tareas:**
+  - **T-028** necesita contar los platos de la categoría para su 409, igual que hizo
+    `purgeDish` con `orderItems` y `pageViews`. No reutiliza nada de este PUT, pero sí
+    puede usar `findCategoryById` para el 404.
+  - **T-043 tiene que proteger esta ruta** con `requireAdmin`; son ya siete las escrituras
+    sin proteger (T-022, T-023, T-024, T-026, T-027, T-029a, T-029b).
+  - El frontend, cuando exista, tendrá que leer `category.name` dentro del sobre en lugar de
+    en la raíz; es el mismo contrato que ya consume `dish` en platos.
 
 ### 2026-10-02 — Deuda acumulada hasta T-025 (fuera de tarea)
 - Petición del dueño: revisar los gotchas que son deuda **de lo ya hecho**, dejando que las

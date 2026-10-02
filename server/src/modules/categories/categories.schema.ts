@@ -43,8 +43,35 @@ const createCategoryBodySchema = z.object({
   sortOrder: z.number().int().optional(),
 });
 
-export { categoriesResponseSchema, categorySchema, createCategoryBodySchema };
+/**
+ * `PUT` acepta las mismas columnas que el alta, pero todas opcionales: se actualiza
+ * solo lo que venga en el body. Se deriva con `.partial()` en vez de reescribir el objeto
+ * para que las dos rutas no puedan divergir (si el alta cambia una regla, el PUT la
+ * hereda), igual que hace `updateDishBodySchema` con `createDishBodySchema`.
+ */
+const updateCategoryBodySchema = createCategoryBodySchema.partial();
+
+/**
+ * Envoltura de una categoría suelta. Se une a `language` porque el nombre depende del
+ * idioma de la petición: sin decir cuál se resolvió, el cliente no puede saber si lo que
+ * tiene en pantalla es la traducción o el original. Es el mismo motivo por el que
+ * `GET /api/dishes` y `POST /api/dishes` devuelven `{ language, dish }`.
+ */
+const categoryEnvelopeSchema = z.object({
+  language: z.enum(['es', 'ru', 'en']),
+  category: categorySchema,
+});
+
+export {
+  categoriesResponseSchema,
+  categoryEnvelopeSchema,
+  categorySchema,
+  createCategoryBodySchema,
+  updateCategoryBodySchema,
+};
 
 export type Category = z.infer<typeof categorySchema>;
 export type CategoriesResponse = z.infer<typeof categoriesResponseSchema>;
+export type CategoryEnvelope = z.infer<typeof categoryEnvelopeSchema>;
 export type CreateCategoryBody = z.infer<typeof createCategoryBodySchema>;
+export type UpdateCategoryBody = z.infer<typeof updateCategoryBodySchema>;

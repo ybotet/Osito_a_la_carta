@@ -1,15 +1,20 @@
 import {
   categorySlugExists,
   findAllCategories,
+  findCategoryById,
   insertCategory,
+  updateCategory,
 } from './categories.repository.js';
 import type { CategoryRow } from './categories.repository.js';
 import {
   categoriesResponseSchema,
-  categorySchema,
+  categoryEnvelopeSchema,
 } from './categories.schema.js';
-import type { CreateCategoryBody } from './categories.schema.js';
-import { ConflictError } from '../../shared/errors.js';
+import type {
+  CreateCategoryBody,
+  UpdateCategoryBody,
+} from './categories.schema.js';
+import { ConflictError, NotFoundError } from '../../shared/errors.js';
 import type { Language } from '../../shared/language.js';
 import { resolveLanguage } from '../../shared/language.js';
 
@@ -64,10 +69,61 @@ const createCategory = (
   const language = resolveLanguage(acceptLanguage);
   const row = insertCategory(body);
 
-  return categorySchema.parse(toResponse(row, language));
+  return categoryEnvelopeSchema.parse({
+    language,
+    category: toResponse(row, language),
+  });
 };
 
-export { createCategory, listCategories };
+/**
+ * Actualiza los campos que vengan en el body y devuelve la categoría ya localizada.
+ *
+ * **El 404 va antes que el 409 del slug.** Es deliberado: si el id no existe, el slug
+ * recibido es irrelevante, y responder 409 sugeriría que el conflicto es real cuando la
+ * petición no tenía ni a dónde aplicarse. Todos los guards se resuelven antes de tocar
+ * datos, para que un 409 no deje la categoría a medio actualizar.
+ *
+ * El chequeo de slug excluye la propia fila (`excludeId`), de modo que reenviar el slug
+ * sin cambios no se considera un conflicto consigo mismo.
+ */
+const updateCategoryById = (
+  id: number,
+  body: UpdateCategoryBody,
+  acceptLanguage: string | undefined,
+) => {
+  if (findCategoryById(id) === undefined) {
+    throw new NotFoundError('Category not found', 'CATEGORY_NOT_FOUND', { id });
+  }
+
+  if (body.slug !== undefined && categorySlugExists(body.slug, id)) {
+    throw new ConflictError(
+      `Ya existe una categoria con el slug "${body.slug}"`,
+      'CATEGORY_SLUG_TAKEN',
+      { slug: body.slug },
+    );
+  }
+
+  // Un body vacío no produce ningún `SET`; se salta el UPDATE en vez de dejar que
+  // Drizzle genere un `UPDATE ... SET` sin columnas. El 404 de arriba ya lo resolvió.
+  if (Object.keys(body).length > 0) {
+    updateCategory(id, body);
+  }
+
+  const language = resolveLanguage(acceptLanguage);
+  const row = findCategoryById(id);
+
+  if (row === undefined) {
+    throw new NotFoundError('Category not found', 'CATEGORY_NOT_FOUND', { id });
+  }
+
+  return categoryEnvelopeSchema.parse({
+    language,
+    category: toResponse(row, language),
+  });
+};
+
+export { createCategory, listCategories, updateCategoryById };
 
 export type CreateCategoryResult = ReturnType<typeof createCategory>;
 export type ListCategoriesResult = ReturnType<typeof listCategories>;
+export type UpdateCategoryResult = ReturnType<typeof updateCategoryById>;
