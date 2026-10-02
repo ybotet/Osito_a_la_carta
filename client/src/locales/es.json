@@ -6,7 +6,9 @@
     "menu": "Menú",
     "cart": "Carrito",
     "login": "Iniciar sesión",
-    "logout": "Cerrar sesión"
+    "logout": "Cerrar sesión",
+    "main": "Navegación principal",
+    "backToMenu": "Volver al menú"
   },
   "menu": {
     "title": "Menú",
@@ -19,5 +21,17 @@
     "remove": "Quitar del carrito",
     "total": "Total",
     "checkout": "Finalizar pedido"
+  },
+  "language": {
+    "label": "Idioma de la interfaz",
+    "es": "Español",
+    "ru": "Русский",
+    "en": "English"
+  },
+  "dish": {
+    "loading": "Cargando el plato…",
+    "notFound": "Este plato no existe o ya no está disponible.",
+    "error": "No se ha podido cargar el plato. Inténtalo de nuevo en unos minutos.",
+    "ingredients": "Ingredientes"
   }
 }

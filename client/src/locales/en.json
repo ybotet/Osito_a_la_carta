@@ -6,7 +6,9 @@
     "menu": "Menu",
     "cart": "Cart",
     "login": "Sign in",
-    "logout": "Sign out"
+    "logout": "Sign out",
+    "main": "Main navigation",
+    "backToMenu": "Back to the menu"
   },
   "menu": {
     "title": "Menu",
@@ -19,5 +21,17 @@
     "remove": "Remove from cart",
     "total": "Total",
     "checkout": "Place order"
+  },
+  "language": {
+    "label": "Interface language",
+    "es": "Español",
+    "ru": "Русский",
+    "en": "English"
+  },
+  "dish": {
+    "loading": "Loading the dish…",
+    "notFound": "This dish does not exist or is no longer available.",
+    "error": "The dish could not be loaded. Please try again in a few minutes.",
+    "ingredients": "Ingredients"
   }
 }

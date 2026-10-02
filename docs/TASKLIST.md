@@ -114,10 +114,22 @@
   - Criterio: se ve correctamente en móvil y desktop. **Verificado: 1 columna en móvil y
     3 en desktop** (`grid-cols-1 lg:grid-cols-3`). Ver "Notas de progreso" por las dos cosas
     que el enunciado daba por hechas y no existían.
-- [ ] **T-033**: Selector de idioma en navbar, persistido en `localStorage`
-  - Criterio: al recargar, mantiene el idioma elegido.
-- [ ] **T-034**: Página `/menu/:id` con detalle del plato
+- [x] **T-033**: Selector de idioma en navbar, persistido en `localStorage`
+  - Criterio: al recargar, mantiene el idioma elegido. **Verificado de punta a punta: con el
+    navegador en `es-ES`, el usuario pulsa `RU` y en el proceso siguiente (que es una recarga)
+    i18next resuelve `ru`, no `es`.** Ver "Notas de progreso" para los cinco escenarios.
+  - **Nota: la tarea estuvo `[!]` bloqueada el 2026-10-02** porque el criterio era
+    incompatible con el orden de detección que había dejado T-030. El dueño autorizó invertirlo
+    y quedó corregido en `client/src/lib/i18n.ts`; la decisión antigua **no se ha borrado** de
+    `docs/MEMORY.md`, sigue documentada junto a la nueva.
+- [x] **T-034**: Página `/menu/:id` con detalle del plato
   - Criterio: muestra todos los datos del plato y botón "agregar al carrito".
+  - Criterio del enunciado de T-034 (click en un plato del menú navega al detalle y muestra los
+    datos correctos): **verificado contra la API real en marcha.** La tarjeta del menú emite el
+    enlace `href="/menu/7"` en la imagen y en el nombre, y `/menu/1` renderiza el plato que
+    devuelve `GET /api/dishes/1` en es, ru y en. **Lo que no se ha hecho es un clic real en un
+    navegador** (el proyecto no tiene navegador automatizado): el enlace y la ruta se han
+    comprobado en el HTML renderizado. Ver "Notas de progreso".
 - [ ] **T-035**: Estilos base con Tailwind + shadcn/ui (botones, cards, navbar)
   - Criterio: UI coherente y responsive.
 
@@ -1117,6 +1129,216 @@
     reconfigurar nada.
   - **El botón todavía no hace nada**: no hay carrito ni acción detrás, porque eso llega con
     las tareas del carrito. Por eso `onClick` no se pasa.
+
+### 2026-10-02 — T-033 (bloqueada esperando decisión)
+- **No se ha escrito código de producción.** Se leyó el enunciado, se revisó el estado real
+  (`client/src/lib/i18n.ts`, `App.tsx`, `main.tsx`, `button.tsx`, los tres JSON de traducciones)
+  y se midió el comportamiento del detector de idioma.
+- **El criterio de T-033 y la decisión de T-030 son incompatibles.**
+  - Criterio de T-033: «al recargar, mantiene el idioma elegido».
+  - Decisión de T-030 (`docs/MEMORY.md`): «el orden de detección es `navigator` antes que
+    `localStorage`», con el motivo de que si no «el usuario quedaría congelado en el idioma de su
+    última visita aunque su navegador dijera otro».
+- **Cómo se midió (no es una opinión, es el comportamiento real del detector).** Con
+  `i18next@26.4.2` + `i18next-browser-languagedetector@8.2.1` y un `localStorage` y un
+  `navigator` simulados, con el navegador en `es-ES` y `ru` ya guardado:
+
+  | `detection.order`                    | Idioma resuelto tras recargar | `t('hello')` | Clave guardada al final |
+  | ------------------------------------ | ----------------------------- | ------------ | ----------------------- |
+  | `['navigator', 'localStorage']` (actual) | **`es`**                | `hola`       | **`es-ES`** (se pierde)  |
+  | `['localStorage', 'navigator']`      | **`ru`**                      | `привет`     | `ru` (se conserva)       |
+
+  Y con el navegador en `es-ES` pero sin elección guardada, el orden invertido resuelve `es`
+  correctamente: el `navigator` sigue siendo el punto de partida cuando el usuario nunca ha
+  elegido nada.
+- **El motivo de fondo:** `detect()` **no** devuelve «el primero que exista», sino **la
+  concatenación de todos los detectores en el orden dado**, y de esa lista i18next elige el
+  primer idioma que soporte (`getBestMatchFromCodes`). Por eso con `navigator` primero el
+  navegador gana siempre y el valor guardado en `localStorage` no llega a llegar a mirarse.
+  Además, como `nonExplicitSupportedLngs` está activo, `es-ES` ya cuenta como `es` y por eso
+  el navegador gana también en un navegador español.
+- **Opciones propuestas al dueño:**
+  1. **`detection.order: ['localStorage', 'navigator']`.** Cumple el criterio. Contra: un
+     usuario que cambie el idioma de su navegador después de haber elegido en la web no lo ve
+     hasta que vuelva a elegir en la web. Es el comportamiento habitual de los sitios
+     multi-idioma y el que pide SPEC §7.2 («se guarda en `localStorage`»).
+  2. **Mantener `navigator` primero** y cambiar el criterio, para que la elección se guarde
+     pero no sobreviva a la recarga. Contra: incumple SPEC §7.2 y el criterio escrito de T-033,
+     y hace que el `localStorage` sea decorativo.
+- **Lo que sí está resuelto y no necesita permiso** (queda listo para cuando se desbloquee):
+  `LANGUAGES` ya está exportado por `lib/i18n.ts` y es la lista que consume `supportedLngs`, así
+  que el selector recorre esa constante en vez de repetir `['es','ru','en']`. El criterio de
+  T-030 y el de T-032 dicen que los tres botones de idioma de `App.tsx` son de verificación y
+  que T-033 los sustituye, así que también se quitarán.
+- **Segunda decisión pendiente, menor:** el enunciado permite «tres botones o dropdown». Con
+  botones no hace falta ninguna dependencia nueva; un dropdown de shadcn de verdad necesita
+  `@radix-ui/react-dropdown-menu`, que sí habría que instalar con permiso.
+- **Pendiente por SPEC §7.2:** el paso 2 del flujo de idioma («si hay sesión, se actualiza
+  `preferredLang` en BD») no se puede hacer todavía: no hay sesión ni endpoint de usuario
+  (T-045 y T-040–T-043). No se ha inventado ninguno.
+
+### 2026-10-02 — T-033 Selector de idioma en navbar
+- Archivos nuevos: `client/src/components/LanguageSwitcher.tsx` y
+  `client/src/components/Layout.tsx`. Modificados: `client/src/lib/i18n.ts` (orden de
+  detección y comentario corregido), `client/src/main.tsx` (`Layout` como ruta padre),
+  `client/src/App.tsx` (fuera los botones de verificación de T-030) y los tres JSON de
+  traducciones. **Ninguna dependencia nueva.**
+- **Sin dependencias nuevas, y no por descuido.** Se propuso el **dropdown de shadcn** que pide
+  el enunciado como una de las dos opciones ("tres botones o dropdown"). Ese componente es un
+  wrapper sobre `@radix-ui/react-dropdown-menu@2.1.24`, el proyecto no tiene **ningún** paquete
+  `@radix-ui`, y la instalación se **`autorizó y luego se denegó`**. Así que son tres botones
+  sobre el `Button` de T-032: el criterio se cumple igual y la lista de dependencias no crece.
+  Alternativas que se descartaron sin llegar a instalarse: el dropdown oficial (7 dependencias
+  transitivas de Radix) y un `<details>/<summary>` propio (no es un componente de shadcn y se
+  pierde el control de estilo y de teclado).
+- **El bloqueo se resolvió con una decisión del dueño:** invertir el orden de detección de
+  `localStorage` → `navigator`, que es lo que exige el criterio. La decisión antigua de T-030
+  **sigue en `docs/MEMORY.md`**; lo que se ha escrito al lado es que queda sustituida y por qué.
+- **Criterio verificado de punta a punta**, no por lectura del código: se empaquetó el módulo
+  real con esbuild y se ejecutó en Node simulando `window.localStorage` y `navigator`, con un
+  proceso distinto por escenario (que es lo que hace una recarga):
+
+  | Escenario                                                    | Resuelve | Guardado   |
+  | ----------------------------------------------------------- | -------- | ---------- |
+  | Navegador `es-ES`, sin elección guardada                      | `es`     | —          |
+  | Navegador `es-ES`, el usuario pulsa `RU`                      | `ru`     | **`ru`**   |
+  | **Recarga**: navegador `es-ES`, hay `ru` guardado              | **`ru`** | `ru`       |
+  | Navegador `ru-RU`, el usuario había elegido `EN`              | `en`     | `en`       |
+  | Navegador `ru-RU`, sin elección guardada                       | `ru`     | —          |
+
+  El segundo escenario es el que escribe la clave: `i18nextLng` queda a `ru` sin que el
+  componente escriba nada a mano. El tercero es el criterio literal, y el quinto confirma que
+  invertir el orden **no** rompen el respeta al navegador cuando el usuario no ha elegido nada.
+- **`LanguageSwitcher` no escribe en `localStorage` ni lleva `useEffect`.** La persistencia la
+  hace el detector que ya estaba configurado: `changeLanguage` dispara `cacheUserLanguage`.
+  Escribirlo también aquí sería tener dos fuentes de verdad para el mismo dato.
+- **La lista de botones sale de `LANGUAGES`,** la constante que `lib/i18n.ts` ya exporta y que
+  alimenta `supportedLngs` y los `resources`. Añadir un idioma no obliga a tocar el componente.
+- **El idioma activo se marca por dos vías, no solo por el color:** variante `default` frente a
+  `outline` del `Button` de shadcn, y `aria-current` para lectores de pantalla. Comprobado en el
+  HTML renderizado: con `es` activo sale `aria-current="true"` en el botón `ES` y `"false"` en los
+  otros dos.
+- **Lo visible es el código ISO (`ES`) y lo que se anuncia es el endónimo** (`Español`,
+  `Русский`, `English`), con `lang` en cada botón. El código es idéntico en los tres idiomas y por
+  eso no necesita traducción; el endónimo es lo único que le sirve a alguien cuya interfaz está en
+  un idioma que no lee, que es justo el caso de uso de este selector. **Los tres ficheros de
+  traducciones tienen por eso los mismos tres endónimos**, y solo se traduce `language.label`.
+- **5 claves i18n nuevas en los tres idiomas:** `nav.main`, `language.label`, `language.es`,
+  `language.ru`, `language.en`.
+- **`Layout` va como ruta padre en `main.tsx`, con `<Outlet />` dentro y sin props.** Es el
+  patrón de `react-router` para un layout compartido: cada página deja de decidir qué chrome
+  lleva encima, y T-034 (`/menu/:id`) lo heredará sin tocar nada.
+- **El navbar es mínimo a propósito:** el título, que enlaza a la portada, y el selector. Los
+  enlaces de menú, carrito y sesión existen en `locales` desde T-030 pero **no se pintan**:
+  decidir eso es el criterio de T-035, y pintarlos aquí sería hacer diseño antes de que exista
+  el criterio que lo fija.
+- **`App.tsx` pierde sus tres botones de idioma.** Es lo que T-030 dejó anotado desde el
+  principio: eran el mecanismo de verificación de aquella tarea y los sustituye este selector.
+  La lista de claves se queda, porque sigue siendo la forma rápida de ver que `changeLanguage`
+  repinta sin recargar.
+- Verificación técnica: `typecheck` y `lint` del workspace raíz **en verde y sin avisos**,
+  `vite build` correcto con **111 módulos** (eran 109: los dos nuevos), Prettier limpio, y en el
+  bundle de producción aparece **una** vez `` order:[`localStorage`,`navigator`] ``, que es la
+  forma minificada de la configuración corregida. El servidor de desarrollo responde **200** en
+  `/`, `/menu` y en los cinco módulos tocados, y `/api/dishes` sigue devolviendo 5 platos en
+  `language: "es"`: no se rompió nada de T-030 a T-032.
+- **Impacto en otras tareas:**
+  - **T-035 (estilos base) hereda este navbar** y es quien decide qué enlaces se pintan y con qué
+    aspecto. Los tokens del tema de shadcn siguen sin estar en `index.css`, así que el navbar
+    usa clases de Tailwind directas como el `Button`.
+  - **T-034 (`/menu/:id`) no necesita tocar el layout:** su ruta entra dentro de la de `Layout`.
+  - **T-045 (sesión) y el paso 2 de SPEC §7.2** (`preferredLang` en BD) siguen pendientes: no
+    hay sesión ni endpoint de usuario. Cuando existan, tendrán que **escribir** el idioma
+    escolhido, porque ahora mismo la elección vive solo en el `localStorage` del navegador.
+  - El selector **no** llama a `GET /api/dishes` ni a nada: el cambio de idioma llega al contenido
+    solo porque `Menu` mete el idioma en la `queryKey`, tal como decidió T-031.
+
+### 2026-10-02 — T-034 Página `/menu/:id`
+- Archivos nuevos: `client/src/pages/DishDetail.tsx` y
+  `client/src/components/ui/button-variants.ts`. Modificados: `client/src/api/dishes.ts`
+  (`fetchDishById`), `client/src/api/dishes.types.ts` (`ApiDishResponse`),
+  `client/src/components/DishCard.tsx` (enlaces al detalle),
+  `client/src/components/ui/button.tsx` (importa las variantes de su nuevo sitio),
+  `client/src/main.tsx` (ruta) y los tres JSON de traducciones. **Ninguna dependencia nueva.**
+- **La forma de la respuesta se comprobó contra el backend antes de escribir una línea.** Con
+  `curl` al servidor en marcha: `GET /api/dishes/1` devuelve **`{ language, dish }`**, no un plato
+  pelado, y el `dish` es el mismo objeto que viaja dentro del listado. El envoltorio es la
+  convención que fijó la decisión "los endpoints de listado devuelven `{ language, data }`", así
+  que `ApiDishResponse` lo reproduce en vez de inventar otra forma. `GET /api/dishes/9999` →
+  **404 `DISH_NOT_FOUND`** y `GET /api/dishes/abc` → **400**.
+- **`fetchDishById` reutiliza un `requestJson` compartido con `fetchDishes`.** Los dos necesitan
+  exactamente lo mismo (parsear el cuerpo, traducir el error a `ApiError` con su código), y
+  copiar 25 líneas habría dejado dos versiones de la misma lógica de error. El único cambio de
+  comportamiento es que el mensaje de respaldo ahora nombra la ruta que falló, que es más útil
+  diagnosing que decir siempre `/api/dishes`.
+- **El cuerpo **no** se valida con Zod en el cliente, y no por descuido.** `zod` no está en el
+  cliente y meterlo sería una dependencia nueva sin necesidad: el backend ya valida lo que
+  serializa (`dishSchema.parse` en `getDish`), así que un 200 con cuerpo raro solo puede venir de
+  un proxy. Es el mismo criterio que ya seguía `fetchDishes`.
+- **`buttonVariants` se movió a `button-variants.ts`.** No fue una decisión de gusto: la deuda que
+  dejó T-032 era exactamente que el `Button` **no admite `asChild`**, y por eso no servía para
+  envolver un `<Link>`. Un `<button>` no puede contener un enlace, así que el botón "volver al
+  menú" had de ser un `<Link>` con las mismas clases. Extraer las variantes es lo que T-032 dejó
+  escrito para cuando hiciera falta, y es lo que evita que el navbar y el botón se separen por
+  estilo. **La deuda de `asChild` queda resuelta sin Radix**: `Slot` viene con
+  `@radix-ui/react-slot`, que es una dependencia que ya se denegó en T-033.
+- **Comprobado que `VariantProps<typeof buttonVariants>` sigue funcionando con el `cva` en otro
+  fichero.** Es lo contrario de lo que se suele esperar (`TS2315`), y evita escribir a mano los
+  tres valores de cada variante.
+- **La tarjeta enlaza al detalle con la imagen y con el nombre, no con toda la tarjeta.** Un `<a>`
+  no puede envolver al `<button>` de "añadir al carrito": no se anudan elementos interactivos y
+  además se rompe el teclado. Poner el enlace en dos sitios agranda la zona pulsable sin inventar
+  un `stretched-link`.
+- **`DishDetail` es una página, no una segunda versión de `DishCard`.** La tarjeta es un resumen
+  dentro de un `<li>`; el detalle necesita imagen grande y el texto sin truncar. La descripción
+  aquí **no** lleva `line-clamp-2`, al revés que en la tarjeta.
+- **El `id` de la ruta se valida antes de preguntar.** `useParams` devuelve una cadena, así que
+  `/menu/abc` se detecta con `Number.isInteger` y se enseña el mensaje de "no existe" **sin gastar
+  una petición** (comprobado: cero llamadas a `fetch`). Es la misma regla que aplica
+  `idParamSchema` en el servidor.
+- **`DISH_NOT_FOUND` y "el plato no existe" son el mismo mensaje a propósito.** El backend
+  devuelve ese 404 también para un plato deshabilitado, que es la decisión de T-021 de no revelar
+  qué platos existieron; pero **cualquier otro** error sí muestra el mensaje de fallo de la API,
+  para que el usuario no piense que le han borrado un plato por un problema de red.
+- **5 claves i18n nuevas en los tres idiomas:** `nav.backToMenu`, `dish.loading`,
+  `dish.notFound`, `dish.error` y `dish.ingredients`. Se reutilizan `cart.add` y `app.title`, que
+  ya estaban de T-030.
+- Criterio verificado renderizando el componente real contra **la API real en marcha** (no una
+  copia de los datos):
+  - `DishCard` con un plato de prueba emite **dos** `href="/menu/7"` (imagen y título) y conserva
+    el botón de "Añadir al carrito".
+  - `/menu/1` renderiza, contra `GET /api/dishes/1` de verdad: nombre `Sopa de verduras`,
+    `alt="Sopa de verduras"`, precio `6,50`, etiqueta `Ingredientes`, botón "Añadir al carrito" y
+    enlace "Volver al menú".
+  - En ruso se renderiza `Овощной суп`, `Ингредиенты` y `Вернуться в меню`.
+  - **Se mandó exactamente una petición** por render, y con la cabecera correcta:
+    `GET /api/dishes/1 accept-language=es` y `GET /api/dishes/1 accept-language=ru`.
+  - `fetchDishById(9999, ...)` lanza `ApiError` con `status 404`, `code DISH_NOT_FOUND` y mensaje
+    `Dish not found`, en es y en ru.
+  - `/menu/abc` enseña el mensaje de "no existe" con **cero** llamadas a la API.
+- **Un fallo real que encontró la verificación:** la clave `dish.loading` se había añadido pero el
+  esqueleto no la pintaba, así que era una clave muerta y la carga era un silencio total. Ahora el
+  esqueleto lleva un `<p class="sr-only" role="status">`, igual que hace `Menu`. Ni `tsc` ni ESLint
+  avisan de una clave i18n sin usar; solo se ve al renderizar.
+- **Lo que no se ha podido verificar, y es una limitación conocida:** **la rama `isError` no se ha
+  visto en un render.** Con la caché de la query calentada con el 404 real, `renderToStaticMarkup`
+  sigue pintando el esqueleto, porque el observer arranca en `pending` sin montaje real en cliente
+  (el gotcha de TanStack registrado en T-031). Lo que sí está comprobado es el contrato del
+  error (`ApiError` 404 / `DISH_NOT_FOUND`) y que el componente que pinta `dish.notFound` es el
+  mismo que se ha renderizado en el caso de `id` inválido.
+- Verificación técnica: `typecheck` y `lint` del workspace raíz **en verde y sin avisos**,
+  `vite build` correcto con **113 módulos** (eran 111: los dos nuevos), Prettier limpio, y el
+  servidor de desarrollo responde **200** en `/menu`, `/menu/1`, `/menu/abc` y en los cinco módulos
+  tocados. `GET /api/dishes` sigue devolviendo 5 platos.
+- **Impacto en otras tareas:**
+  - **T-035 (estilos base) tiene menos trabajo del que parecía:** los tokens del tema y el aspecto
+    del navbar siguen pendientes, pero el `Button` ya tiene variantes compartibles con los enlaces.
+  - **T-050 (carrito)** tiene su punto de enganche: el botón de esta página y el de `DishCard` son
+    los dos que tienen que pasar a llamar al store. Se dejaron sin `onClick` a propósito, igual
+    que en T-032.
+  - **T-053/T-055 (resumen y detalle de pedido)** no se ven afectados: `buttonVariants` se puede
+    reutilizar para sus enlaces.
+  - **Ningún endpoint nuevo:** todo sale de `GET /api/dishes/:id`, que ya existía desde T-021.
 
 ### 2026-10-02 — Deuda acumulada hasta T-025 (fuera de tarea)
 - Petición del dueño: revisar los gotchas que son deuda **de lo ya hecho**, dejando que las

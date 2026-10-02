@@ -1,4 +1,4 @@
-import type { ApiDishesResponse } from './dishes.types.js';
+import type { ApiDishesResponse, ApiDishResponse } from './dishes.types.js';
 
 /**
  * Error de la API con su código y su status, para que la página pueda distinguirlos. Sin
@@ -18,25 +18,26 @@ export class ApiError extends Error {
 }
 
 /**
- * Pide los platos al backend en el idioma indicado.
+ * Hace la petición y devuelve el cuerpo ya parseado, o lanza `ApiError`.
  *
- * **`acceptLanguage` es obligatorio y lo decide quien llama, no esta función.** El idioma
- * de la interfaz (`i18n.language`) y el del contenido tienen que ser el mismo: si la
- * pantalla está en ruso y el backend contesta con los nombres en español, el usuario ve
- * una mezcla. Se pasa como parámetro en vez de leer `i18n` aquí porque quien llama ya lo
- * tiene de `useTranslation` y así esta función no depende del singleton de i18n, que es
- * lo que la hace comprobable sin montar React.
+ * **El cuerpo no se valida con Zod.** El cliente no tiene `zod` y meterlo sería una dependencia
+ * nueva sin necesidad: el backend ya valida lo que va a serializar (`dishSchema.parse` en el
+ * servicio), así que un 200 con un cuerpo inesperado solo puede venir de un proxy o de una caché,
+ * no del código de la aplicación. El `INVALID_RESPONSE` de abajo cubre ese caso.
  *
- * El backend responde 404 con `DISH_NOT_FOUND` o `CATEGORY_NOT_FOUND` y 400 con
- * `VALIDATION_ERROR`; aquí se traducen los dos casos a `ApiError`. Si la respuesta no es
- * JSON válido se devuelve un `ApiError` genérico en vez de propagar el error de parseo,
- * que en el mensaje no diría nada de la petición que lo provocó.
+ * **El idioma lo decide quien llama, no esta función.** El idioma de la interfaz
+ * (`i18n.language`) y el del contenido tienen que ser el mismo: si la pantalla está en ruso y
+ * el backend contesta con los nombres en español, el usuario ve una mezcla. Se pasa como
+ * parámetro en vez de leer `i18n` aquí porque quien llama ya lo tiene de `useTranslation` y así
+ * esta función no depende del singleton de i18n, que es lo que la hace comprobable sin montar
+ * React.
  */
-export const fetchDishes = async (
+const requestJson = async (
+  path: string,
   acceptLanguage: string,
   signal?: AbortSignal,
-): Promise<ApiDishesResponse> => {
-  const response = await fetch('/api/dishes', {
+): Promise<unknown> => {
+  const response = await fetch(path, {
     headers: { 'Accept-Language': acceptLanguage },
     ...(signal !== undefined && { signal }),
   });
@@ -53,7 +54,7 @@ export const fetchDishes = async (
       response.status,
       error?.code ?? 'UNKNOWN_ERROR',
       error?.error ??
-        `La peticion a /api/dishes fallo con status ${response.status}`,
+        `La peticion a ${path} fallo con status ${response.status}`,
     );
   }
 
@@ -65,5 +66,41 @@ export const fetchDishes = async (
     );
   }
 
-  return payload as ApiDishesResponse;
+  return payload;
 };
+
+/**
+ * Pide los platos al backend en el idioma indicado.
+ *
+ * El backend responde 404 con `DISH_NOT_FOUND` o `CATEGORY_NOT_FOUND` y 400 con
+ * `VALIDATION_ERROR`; los tres llegan traducidos a `ApiError` con su código.
+ */
+export const fetchDishes = async (
+  acceptLanguage: string,
+  signal?: AbortSignal,
+): Promise<ApiDishesResponse> =>
+  (await requestJson(
+    '/api/dishes',
+    acceptLanguage,
+    signal,
+  )) as ApiDishesResponse;
+
+/**
+ * Pide un plato concreto en el idioma indicado.
+ *
+ * **El `id` se pasa ya validado desde la página**, y no como `string` de la ruta, para que esta
+ * función no tenga que decidir qué es un id válido. El backend responde 404 con
+ * `DISH_NOT_FOUND` cuando no existe **o cuando está deshabilitado**, que es la decisión de
+ * T-021: un plato retirado no se distingue de uno que nunca existió. También 400 con
+ * `VALIDATION_ERROR` si el id no es un entero positivo.
+ */
+export const fetchDishById = async (
+  id: number,
+  acceptLanguage: string,
+  signal?: AbortSignal,
+): Promise<ApiDishResponse> =>
+  (await requestJson(
+    `/api/dishes/${id}`,
+    acceptLanguage,
+    signal,
+  )) as ApiDishResponse;

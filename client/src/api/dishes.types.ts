@@ -33,3 +33,19 @@ export type ApiDishesResponse = {
   language: string;
   dishes: ApiDish[];
 };
+
+/**
+ * Forma de la respuesta de `GET /api/dishes/:id`.
+ *
+ * **El envoltorio es el mismo que el del listado**, `{ language, ... }`, y no un objeto pelado:
+ * es la convención que fijó la decisión arquitectónica "los endpoints de listado devuelven
+ * `{ language, data }`". El backend lo construye en `getDish`, que devuelve
+ * `{ language, dish }`.
+ *
+ * `dish` es el mismo `ApiDish` del listado, porque ambos salen del mismo `toResponse` del
+ * servidor y por eso los dos tipos no pueden divergir.
+ */
+export type ApiDishResponse = {
+  language: string;
+  dish: ApiDish;
+};

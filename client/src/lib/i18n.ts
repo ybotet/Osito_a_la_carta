@@ -44,12 +44,24 @@ void i18n
      */
     nonExplicitSupportedLngs: true,
     /**
-     * `lng` fijo para el detector: sin él, `i18next-browser-languagedetector` mira primero
-     * `localStorage` y el usuario se queda en el idioma de la última visita aunque su
-     * navegador esté en otro. El orden de abajo es navegador → `localStorage` → español.
+     * **`localStorage` va antes que `navigator`** (decisión del dueño el 2026-10-02, en
+     * T-033): si el usuario ya eligió idioma en la web, ese idioma gana aunque su navegador
+     * diga otro. Es lo que piden el criterio de T-033 y el paso 2 del flujo de idioma de
+     * SPEC §7.2.
+     *
+     * **El orden es una prioridad real, no un "usa el otro si este no está".**
+     * `detect()` del detector **concatena** lo que encuentra en el orden dado y i18next se
+     * queda con el primer idioma de esa lista que soporte (`getBestMatchFromCodes`). Con
+     * `navigator` delante, `localStorage` no llegaría a mirarse nunca, porque
+     * `navigator.language` siempre existe; medido en T-033, además, el idioma descartado
+     * llegaba a **escribirse encima** del que el usuario había elegido.
+     *
+     * Sin elección guardada manda el navegador, y si el navegador tampoco dice nada,
+     * `fallbackLng`. La clave es `i18nextLng`, el `lookupLocalStorage` por defecto del
+     * paquete; `caches` es lo que hace que `changeLanguage` la escriba sola.
      */
     detection: {
-      order: ['navigator', 'localStorage'],
+      order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
     },
     interpolation: {

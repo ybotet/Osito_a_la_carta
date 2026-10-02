@@ -1,42 +1,19 @@
 import { useTranslation } from 'react-i18next';
 
 /**
- * Texto fijo de la tarea T-030, para comprobar que `i18n.changeLanguage('ru')` cambia lo
- * que se ve sin recargar. Lo consume `App`, que es la página real.
+ * Portada y banco de pruebas de las claves de T-030.
  *
- * Los botones de idioma están aquí a propósito y no en un componente de navegación: son el
- * mecanismo de verificación del criterio de T-030, no una pieza de la interfaz final.
+ * **Los botones de idioma que hubo aquí se fueron en T-033**: los sustituyó el
+ * `LanguageSwitcher` del navbar, que además es el que persiste la elección. Lo que queda es
+ * la lista de claves de los tres idiomas, que sirve para comprobar a simple vista que
+ * `changeLanguage` repinta sin recargar.
  */
 function App() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   return (
-    <main className="mt-10 flex flex-col items-center gap-6">
+    <main className="flex flex-col items-center gap-6 p-4">
       <h1 className="text-center text-3xl font-bold">{t('app.title')}</h1>
-
-      <nav className="flex gap-4">
-        <button
-          type="button"
-          className="underline"
-          onClick={() => void i18n.changeLanguage('es')}
-        >
-          {t('nav.menu')}
-        </button>
-        <button
-          type="button"
-          className="underline"
-          onClick={() => void i18n.changeLanguage('ru')}
-        >
-          {t('nav.cart')}
-        </button>
-        <button
-          type="button"
-          className="underline"
-          onClick={() => void i18n.changeLanguage('en')}
-        >
-          {t('nav.login')}
-        </button>
-      </nav>
 
       <section className="flex flex-col items-center gap-2 text-sm">
         <p>{t('menu.title')}</p>
