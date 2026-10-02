@@ -103,8 +103,10 @@
 
 ## Fase 3 — Frontend: menú y multi-idioma
 
-- [ ] **T-030**: Configurar `react-i18next` con `es.json`, `ru.json`, `en.json`
-  - Criterio: cambiar idioma cambia textos sin recargar.
+- [x] **T-030**: Configurar `react-i18next` con `es.json`, `ru.json`, `en.json`
+  - Criterio: cambiar idioma cambia textos sin recargar. **Nota: los botones de idioma que
+    hay ahora en `App.tsx` son de verificación, no de interfaz**; T-033 los sustituye por el
+    selector de verdad en el navbar. Ver "Notas de progreso".
 - [ ] **T-031**: Página `/menu` que consume `GET /api/dishes`
   - Criterio: muestra todos los platos disponibles.
 - [ ] **T-032**: Componente `DishCard` (imagen, nombre, descripción, ingredientes, precio)
@@ -905,6 +907,63 @@
     Es lo que anotó T-028 como deuda; ahora tiene el índice debajo, pero la ruta no está.
   - `dishes.is_available` sigue sin índice: no se ha pedido, y con el menú entero en pantalla
     el `SCAN` es razonable.
+
+### 2026-10-02 — T-030 `react-i18next` en el cliente
+- Archivos nuevos: `client/src/locales/es.json`, `ru.json`, `en.json` y
+  `client/src/lib/i18n.ts`. Modificados: `client/package.json`, `package-lock.json`,
+  `client/src/main.tsx` (importa la configuración) y `client/src/App.tsx` (pasa a usar `t()`).
+- **Dependencias instaladas con permiso explícito del dueño**, como pedía el enunciado:
+  `i18next@26.4.2`, `react-i18next@17.0.15` e `i18next-browser-languagedetector@8.2.1`, en el
+  workspace `@osito/client`. `npm audit` sigue en **0 vulnerabilidades**. Las tres son las que
+  nombra la tarea; si alguna sobra al añadir más idiomas, se quita entonces.
+- **Las traducciones van importadas en el bundle, no por HTTP.** `backend: 'i18next-http-backend'`
+  abriría una petición por idioma en el arranque y, con las peticiones ya a un proxy
+  `/api`, además atravesaría Nginx en producción. Con doce claves por idioma no hay motivo.
+- **`supportedLngs` + `nonExplicitSupportedLngs: true`.** Es el equivalente en el cliente de
+  lo que ya hace `resolveLanguage` en `server/src/shared/language.ts`: sin lo segundo, un
+  navegador en `ru-RU` se descartaría por no estar literalmente en la lista. Verificado que
+  `ru-RU` da el ruso, `es-419` el español y `en-US` el inglés.
+- **`escapeValue: false`**, que es lo que react-i18next recomienda: React ya escapa al
+  renderizar, y escapar dos veces rompería textos con acentos en lugar de arreglarlos.
+- **El orden de detección es `navigator` y después `localStorage`**, al revés de lo que suele
+  ser por defecto. Si `localStorage` fuera primero, el usuario se quedaría en el idioma de su
+  última visita aunque su navegador esté en otro. Con `navigator` primero, T-033 puede guardar
+  ahí la elección y ganarla solo cuando el usuario la haya hecho.
+- **El fallback es `es`**, el mismo valor que el default de `users.preferred_lang` en el
+  esquema y que el `DEFAULT_LANGUAGE` del backend. Verificado que un idioma sin recursos
+  (`de`) resuelve a español.
+- **`App.tsx` lleva botones de idioma solo para poder comprobar el criterio.** No son interfaz
+  final: T-033 los sustituye por el selector del navbar, que es lo que corresponde. Está
+  anotado en la tarea para que no se confundan con trabajo pendiente de diseño.
+- Criterio verificado ejecutando i18next con la misma configuración y los mismos JSON:
+  **las 12 claves cambian de valor al cambiar de idioma**, ninguna se queda igual entre
+  `es`, `ru` y `en`. Como `useTranslation` se suscribe a i18next, eso es lo que React pinta
+  sin recargar.
+  - También comprobado que el bundle de producción lleva dentro las traducciones de los tres
+    idiomas (`Осито а ля карта`, `Загружаем меню…`, `Оформить заказ`…), que no es lo mismo que
+    confiar en el fichero de configuración.
+- **Los tres JSON tienen exactamente las 12 claves exigidas**, sin faltan ni sobras en ningún
+  idioma, y **ningún valor vacío**. Los títulos son los tres distintos y correctos:
+  `Osito a la carta` / `Осито а ля карта` / `Osito a la carte`.
+- **El ruso es cirílico real, no transliterado**, comprobado con expresión regular en
+  `nav.menu`, `menu.loading` y `cart.checkout`.
+- `typecheck` y `lint` del **workspace raíz completo** (servidor y cliente) en verde, y
+  `vite build` correcto (47 módulos).
+- **Detalle documentado:** `changeLanguage('EN')` y `changeLanguage('RU')` en mayúsculas
+  caen al fallback `es` en vez de resolver al idioma. No rompe nada (el resultado es español,
+  que es el fallback previsto), pero quien lo use debería pasar el idioma en minúsculas.
+  El detector del navegador nunca entrega mayúsculas, así que solo afecta a código propio.
+- **Impacto en otras tareas:**
+  - **T-033 ya tiene la infraestructura:** el `caches: ['localStorage']` y el orden de
+    detección están puestos, así que el selector del navbar solo tiene que llamar a
+    `changeLanguage` y quitar los botones provisionales de `App.tsx`.
+  - **T-031 y T-032 ya pueden usar `t()`** sin configurar nada más.
+  - **El idioma de la UI y el del contenido son el mismo `i18n.language`**, que es lo que
+    hace falta para que `Accept-Language` que mande el cliente coincida con lo que ve el
+    usuario. Ninguna tarea anterior lo fijó; queda así por coherencia con el backend.
+  - Cuando exista T-050 (preferencias de usuario), `preferred_lang` de la tabla `users`
+    tiene que pasar a fijarse con `changeLanguage` al hacer login, y no solo con lo que diga
+    el navegador.
 
 ### 2026-10-02 — Deuda acumulada hasta T-025 (fuera de tarea)
 - Petición del dueño: revisar los gotchas que son deuda **de lo ya hecho**, dejando que las

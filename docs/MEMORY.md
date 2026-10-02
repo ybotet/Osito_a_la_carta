@@ -653,6 +653,14 @@ no son intercambiables.
 
 - **SQLite + Drizzle:** las migraciones no se pueden modificar una vez aplicadas.
   Si hay que corregir, crear una nueva.
+- **Los JSON no se importan en Node sin `with { type: 'json' }`.** En el cliente los importa
+  Vite y funciona, pero un script de verificación en Node (`node archivo.mjs`) falla con
+  `ERR_MODULE_NOT_FOUND` o lo trata como CommonJS si se importa sin atributo, y el error no
+  señala el JSON. Además **un script con `import` fuera del proyecto no resuelve
+  `node_modules`**: `better-sqlite3` da `ERR_MODULE_NOT_FOUND` aunque esté instalado, porque
+  se busca desde la ruta del script y no desde el `package.json` del workspace. Para
+  comprobar cosas de cliente hay que ejecutar el script **desde dentro de `client/`**.
+  Visto en T-030.
 - **Un `index().on()` suelto no lo detecta drizzle-kit; hay que declarar el índice en el
   callback de la tabla.** Escribir `export const dishesCategoryIdIdx = index('x').on(dishes.categoryId)`
   fuera de `sqliteTable` **compila y pasa `tsc`**, pero `drizzle-kit generate` responde "No
@@ -2508,6 +2516,58 @@ anotado.
   completo puede no ganar.
 - `dishes.is_available` sigue sin índice. No se ha pedido, y con el menú entero en pantalla
   el `SCAN` es lo razonable.
+
+---
+
+### 2026-10-02 — T-030 `react-i18next` en el cliente
+**Estado:** completada
+
+**Qué se hizo:**
+- `react-i18next` configurado con `es`, `ru` y `en`, un JSON por idioma con 12 claves, e
+  importación de la configuración en `main.tsx`.
+- `App.tsx` pasa a usar `t()` en vez de texto fijo.
+
+**Cómo se hizo:**
+- Nuevos: `client/src/locales/{es,ru,en}.json` y `client/src/lib/i18n.ts`.
+- Modificados: `client/package.json`, `package-lock.json`, `client/src/main.tsx`,
+  `client/src/App.tsx`.
+- **Dependencias instaladas con permiso explícito del dueño:** `i18next@26.4.2`,
+  `react-i18next@17.0.15`, `i18next-browser-languagedetector@8.2.1`, en `@osito/client`.
+  `npm audit`: 0 vulnerabilidades.
+
+**Por qué se hizo así:**
+- **Los JSON se importan, no se piden por HTTP.** `i18next-http-backend` haría una petición
+  por idioma en el arranque y, con las peticiones yendo por el proxy `/api`, atravesaría
+  Nginx en producción. Con doce claves por idioma no compensa.
+- **`nonExplicitSupportedLngs: true` es lo que hace que la lista de idiomas sirva de algo.**
+  Es el equivalente en el cliente de `resolveLanguage` en el backend: sin ello, un navegador
+  en `ru-RU` no está literalmente en la lista y se cae al fallback en vez de usar el ruso.
+- **El orden de detección es `navigator` antes que `localStorage`**, al revés del defecto
+  típico. Si `localStorage` fuera primero, el usuario quedaría congelado en el idioma de su
+  última visita aunque su navegador dijera otro; con `navigator` primero, la elección
+  explícita de T-033 puede ganar cuando exista.
+- **`escapeValue: false`** porque React ya escapa al renderizar y doble escapado rompe
+  acentos.
+- **Los botones de idioma de `App.tsx` son de verificación, no de interfaz.** T-033 los
+  sustituye por el selector real del navbar; está anotado en la tarea para que nadie los
+  interprete como diseño terminado.
+
+**Impacto en otras tareas:**
+- **T-033 ya tiene la infraestructura:** `caches: ['localStorage']` y el orden de detección
+  están puestos; solo falta el componente y quitar los botones provisionales.
+- T-031 y T-032 ya pueden usar `t()` sin configurar nada más.
+- **El idioma de la UI y el del contenido pasan a ser el mismo `i18n.language`,** que es lo
+  que hace que el `Accept-Language` que manda el cliente coincida con lo que ve el usuario.
+  Ninguna tarea anterior lo fijó.
+- Cuando exista T-050, `users.preferred_lang` tendrá que fijar el idioma con
+  `changeLanguage` al iniciar sesión, y no solo el detector del navegador.
+
+**Pendientes / deuda técnica:**
+- `changeLanguage('EN')` en mayúsculas cae al fallback en vez de resolver a `en`. No rompe
+  nada, pero el idioma debe pasarse en minúsculas. El detector del navegador nunca entrega
+  mayúsculas, así que solo afecta a código propio.
+- Los archivos de traducción no tienen todavía tipo derivado: un `t('clave.inexistente')`
+  compila igual. Derivar los tipos del JSON es la forma de que TypeScript avise.
 
 ---
 

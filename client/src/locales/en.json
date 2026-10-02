@@ -1,0 +1,22 @@
+{
+  "app": {
+    "title": "Osito a la carte"
+  },
+  "nav": {
+    "menu": "Menu",
+    "cart": "Cart",
+    "login": "Sign in",
+    "logout": "Sign out"
+  },
+  "menu": {
+    "title": "Menu",
+    "loading": "Loading the menu…",
+    "empty": "There are no dishes on the menu yet."
+  },
+  "cart": {
+    "add": "Add to cart",
+    "remove": "Remove from cart",
+    "total": "Total",
+    "checkout": "Place order"
+  }
+}

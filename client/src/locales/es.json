@@ -1,0 +1,22 @@
+{
+  "app": {
+    "title": "Osito a la carta"
+  },
+  "nav": {
+    "menu": "Menú",
+    "cart": "Carrito",
+    "login": "Iniciar sesión",
+    "logout": "Cerrar sesión"
+  },
+  "menu": {
+    "title": "Menú",
+    "loading": "Cargando el menú…",
+    "empty": "Todavía no hay platos en el menú."
+  },
+  "cart": {
+    "add": "Añadir al carrito",
+    "remove": "Quitar del carrito",
+    "total": "Total",
+    "checkout": "Finalizar pedido"
+  }
+}
