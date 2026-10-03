@@ -163,8 +163,15 @@
 
 ## Fase 4 — Autenticación
 
-- [ ] **T-040**: `POST /api/auth/register` con validación Zod
-  - Criterio: rechaza email duplicado con error claro.
+- [x] **T-040**: `POST /api/auth/register` con validación Zod
+  - Criterio: rechaza email duplicado con error claro. **Verificado con peticiones reales:** alta
+    nueva → **201** con `{ id, email, role, preferredLang }`; el mismo email otra vez → **409**
+    `EMAIL_TAKEN`. Ver "Notas de progreso" para el resto de la matriz de verificación.
+  - El módulo se creó con los cuatro ficheros de AGENTE.md §2.2 y el `role` lo fija el
+    repositorio a `customer`: **no se acepta desde el body**, así que un `{"role":"admin"}` se
+    ignora (probado: devuelve 201 y el usuario queda como `customer`).
+  - **El `passwordHash` no sale nunca:** la proyección de la respuesta no lo contempla, así que
+    no depende de acordarse de quitarlo. Verificado en la fila de la BD y en el `SELECT`.
 - [ ] **T-041**: `POST /api/auth/login` (devuelve access + refresh token)
   - Criterio: access token expira en 15 min, refresh en 7 días.
 - [ ] **T-042**: `POST /api/auth/refresh`
@@ -1541,6 +1548,89 @@
   - **T-053 (carrito)** y **T-044 (login)** solo tienen que quitar el `disabled` del navbar.
   - Cualquier componente de shadcn que se añada en adelante hereda el tema: si usa un token que
     no existe, hay que añadirlo en los dos bloques de `index.css` a la vez.
+
+### 2026-10-03 — T-040 `POST /api/auth/register`
+- **Primer módulo de `auth/` y el primero que toca `users`.** Estructura de cuatro ficheros
+  según AGENTE.md §2.2, igual que `dishes` y `categories`: `auth.routes.ts`,
+  `auth.service.ts`, `auth.repository.ts`, `auth.schema.ts`. Montado como
+  `app.use('/api', authRouter)`, con la ruta definida sin prefijo (`/auth/register`), que es la
+  convención que ya fijaron T-009 y T-020.
+- **Criterio verificado con peticiones reales contra el servidor en marcha** (`tsx` y luego
+  también contra `dist/`, con resultados idénticos):
+  - Alta nueva → **201** `{"id":2,"email":"ana.torres@example.com","role":"customer","preferredLang":"es"}`.
+    Ni `passwordHash` ni `password` en la respuesta, ni siquiera como campo vacío.
+  - Email duplicado exacto → **409** `{"error":"Ya existe un usuario con ese email","code":"EMAIL_TAKEN","details":{"email":"..."}}`.
+  - **Email duplicado con otro formato → 409 también:** `  ANA.Torres@Example.COM  ` da el
+    mismo 409, y el `details` devuelve el email ya normalizado. Ver la decisión de normalizar abajo.
+  - **El body no puede ascenderse a admin:** `{ "role": "admin", "id": 999, "createdAt": 1 }`
+    devuelve 201 y el usuario se guarda con `role = 'customer'` y su `created_at` real. Zod
+    descarta las claves desconocidas, y el repositorio pone el `role` sí o sí.
+  - Validaciones, todas **400 `VALIDATION_ERROR`** con los issues de Zod en `details`: password
+    de 7 caracteres; password de 8 espacios; password de 73 bytes; password de exactamente 72
+    bytes (esta **sí** se acepta, es el límite); email sin formato; `preferredLang` ausente;
+    `preferredLang: "de"`; body vacío `{}`. JSON truncado → **400 `INVALID_JSON`**.
+  - `GET /api/auth/register` → **404 `NOT_FOUND`**: solo existe el POST, que es lo que pedía la tarea.
+  - **La carrera está cubierta:** 12 POST simultáneos con el mismo email → **1 × 201 y 11 × 409
+    `EMAIL_TAKEN`**, y la tabla quedó con una sola fila. Igual que se probó en T-026 con el slug.
+  - **El hash, comprobado en la fila de la BD y no solo en la respuesta:** 60 caracteres con
+    prefijo `$2b$`, `bcrypt.getRounds` = **10**, `bcrypt.compare` con la contraseña correcta
+    `true` y con una incorrecta `false`, y el hash **no contiene la contraseña en claro**.
+- **Decisiones tomadas (todas anotadas también en `MEMORY.md`):**
+  1. **El email se normaliza a minúsculas y sin espacios en el schema.** No por estética: el
+     `UNIQUE` de SQLite sobre `TEXT` **distingue mayúsculas**, así que sin normalizar
+     `Ana@ejemplo.com` y `ana@ejemplo.com` serían dos usuarios distintos con la misma casilla en
+     la práctica, y el 409 no dispararía. La normalización va en el schema y no en el servicio,
+     como el `slug` de T-026, para que la comprobación y el `INSERT` reciban el mismo valor.
+  2. **`role` no está en el body.** Lo fija el repositorio a `customer`, igual que T-022 con
+     `isAvailable`. Un admin se crea con `npm run db:seed:admin`.
+  3. **`passwordHash` tampoco está en el shape de la respuesta**, así que no puede salir ni por
+     descuido: la proyección del `.returning()` y el `userSchema` lo excluyen.
+  4. **La contraseña se rechaza por encima de 72 bytes**, que es donde bcrypt corta en silencio.
+     Verificado que el corte es real (dos contraseñas distintas de 76 caracteres con los mismos
+     72 primeros **autentican la una contra la otra**) y que el límite es en **bytes**, no en
+     caracteres (40 `ñ` = 80 bytes; con un `.max(72)` por caracteres el filtro habría pasado).
+  5. **La contraseña no lleva `.trim()`**, pero sí se rechaza la que sea solo espacios. Recortar
+     en silencio cambiaría el secreto respecto de lo que comparará el login de T-041; ocho
+     espacios sí pasarían un `min(8)` pelado.
+  6. **`preferredLang` es obligatorio**, tal como lo pedía el enunciado, aunque la columna tenga
+     `default 'es'`. Se prefiere que el cliente diga con qué idioma se registra (SPEC §7.2) en vez
+     de que el servidor adivine.
+  7. **El servicio es síncrono a propósito**, y eso es lo que hace que la comprobación del 409
+     baste para la carrera. Ver "Pendientes" abajo: es un invariante que se puede romper sin
+     querer.
+- **`preferredLang` se guarda, pero todavía no hace nada.** SPEC §7.2 paso 2 pide que al cambiar
+  el idioma con sesión activa se actualice la columna: eso sigue pendiente de T-041/T-045, no de
+  esta tarea. Lo que sí queda es que **el alta es el único camino que fija el idioma inicial**.
+- **Verificación de no regresión:** `GET /api/health` 200, `GET /api/dishes` 200 con los 5 platos
+  del seed (5 también en `ru`), `GET /api/categories` 200 con las 5 categorías localizadas, ruta
+  inexistente → 404 `NOT_FOUND`, y el alta **también funciona a través del proxy de Vite**
+  (`http://localhost:5173/api/auth/register`), lo que confirma que el cliente la alcanza igual que
+  las demás. `npm run typecheck`, `npm run lint`, `npm run format:check` y `npm run build` en
+  verde, y el endpoint se probó también con `node dist/app.js` en el puerto 3100.
+- **Base de datos verificada sin residuos.** Se hizo copia antes de probar y al terminar se
+  borraron los 7 usuarios de prueba creados (más los que rechazaron las validaciones, que no
+  llegaron a insertarse). Comparación fila a fila contra la copia: **`users`, `categories`,
+  `orders`, `order_items`, `page_views`, `notification_logs` y `sqlite_sequence` idénticas**,
+  `foreign_key_check` vacío e `integrity_check` en `ok`. Se restauró también `sqlite_sequence`
+  de `users`, que quedó advances por los ids de prueba.
+  - **Excepción anotada, y no es de esta tarea:** la tabla `dishes` **no** coincide con la copia
+    porque durante las pruebas **otro proceso borró el plato `id = 11` (`name_es = 'ffd'`)**, un
+    plato basura de otra sesión. Esta tarea no escribe nunca en `dishes` (sus scripts de prueba
+    solo han hecho `DELETE FROM users`), así que **no se ha restaurado**: hacerlo sería pisar la
+    limpieza de quien lo borró. Queda dicho para que nadie lo lea como un fallo de T-040.
+- **Pendientes / deuda que deja esta tarea:**
+  - **T-041 (login) necesita `findUserByEmail`** con `passwordHash`, `role` y `preferredLang`.
+    Aquí solo se creó `emailExists`, porque el login es lo único que va a necesitar leer la fila
+    completa y no se ha inventado una función que nadie usa.
+  - **El invariante síncrono:** mientras el hash sea `hashSync` no cabe otra petición entre el
+    `emailExists` y el `INSERT`. En el día que se pase a `bcrypt.hash` (asíncrono, para no
+    bloquear el event loop ~100 ms por registro) hay que **capturar el `SQLITE_CONSTRAINT_UNIQUE`
+    y devolver este mismo 409**, o dos registros simultáneos con el mismo email devolverán 500.
+    Está escrito en el propio `auth.service.ts`, no solo aquí.
+  - **El 409 se sirve en inglés o español según el módulo** (`'Category not found'` vs
+    `'Ya existe una categoria con el slug'`). Aquí se eligió español, como el 409 de slug. La
+    traducción de los mensajes al idioma del usuario sigue pendiente para el frontend, que
+    tendría que usar `code` y no `error`.
 
 ---
 

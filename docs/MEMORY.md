@@ -168,6 +168,34 @@ sitio y los routers futuros no lo repiten. El primero es `health`; devuelve
 > Sección acumulativa. Cada decisión importante se documenta una vez
 > y se referencia desde las entradas de tareas.
 
+### 2026-10-03 — El email de `users` se normaliza en el borde, no en la base
+**Contexto:** T-040 tenía que rechazar el email duplicado con un 409, y `users.email` es
+`text unique`. El `UNIQUE` de SQLite sobre `TEXT` **distingue mayúsculas**, así que "comprobar si
+ya existe" y "no tener dos cuentas con la misma casilla" son cosas distintas.
+
+**Decisión:** el email se normaliza en el **schema** (`trim().toLowerCase()`) antes de validar, y
+por tanto el servicio, el repositorio y la tabla reciben y guardan siempre la misma forma.
+Decidido el 2026-10-03 en T-040.
+
+**Por qué en el schema y no en el servicio:** es el único sitio por el que pasan **todas** las
+entradas, incluidas las de las tareas futuras. Si normalizara el servicio, cualquier endpoint
+nuevo que se olvide de hacerlo volvería a tener el problema, y el 409 de dos endpoints distintos
+dejaría de significar lo mismo.
+
+**Por qué no las otras dos opciones:**
+- **`lower(email) = lower(?)` en el `WHERE`**: obligaría a duplicar la normalización en cada
+  escritura y quedaría un `SELECT` que no coincide con el `UNIQUE` de la columna, que sigue
+  distinguiendo mayúsculas: la integridad real quedaría en manos de la aplicación.
+- **`email COLLATE NOCASE`**: sería la solución de verdad (la restricción de la base), pero exige
+  **migración**. Cuando haga falta, es una migración nueva y no un cambio de schema en sitio
+  (AGENTE.md §2.4).
+
+**Consecuencias a tener en cuenta:**
+- El `details` del 409 devuelve el email **ya normalizado**, que es lo que hay en la tabla.
+- **Cualquier endpoint futuro que escriba `users.email` tiene que usar `emailSchema`** (o al menos
+  el mismo `trim().toLowerCase()`). T-045/T-046 (cambiar email desde el perfil) y el panel del
+  chef (T-08x) son los sitios donde esto puede volver a romperse.
+
 ### 2026-10-01 — `resolveLanguage` vive en `shared/language.ts`, no en un servicio
 **Contexto:** T-020 lo dejó en `dishes.service.ts` con la nota de que, cuando apareciera la
 segunda implementación, convendría moverlo a un módulo compartido. T-025 es esa segunda
@@ -1167,12 +1195,100 @@ no son intercambiables.
   mismo comando después, cinco veces seguidas, no falló ninguna, con los imports en el mismo
   orden. No es un problema del paquete ni del `paths`: si aparece, se reintenta y, si se repite
   siempre, se mira que el `node_modules` del workspace no esté a medio instalar. Visto en T-035.
+- **El `UNIQUE` de SQLite sobre `TEXT` distingue mayúsculas.** `users.email` es `text unique` y
+  eso significa que `Ana@ejemplo.com` y `ana@ejemplo.com` son **dos filas distintas**: la
+  comprobación de "ya existe" no dispara y se registran dos usuarios con la misma casilla en la
+  práctica. Por eso T-040 normaliza el email a minúsculas (y sin espacios) **en el schema**, no en
+  el servicio: así la comprobación y el `INSERT` reciben el mismo valor. Un `lower()` en el `WHERE`
+  o un `COLLATE NOCASE` en la columna serían las otras dos maneras de arreglarlo; la primera
+  obligaría a normalizar también al escribir y la segunda es una migración.
+- **bcrypt corta la contraseña a los 72 bytes y no lo dice.** Se comprobó en T-040: dos
+  contraseñas distintas de 76 caracteres que compartían los 72 primeros **autentican la una
+  contra la otra** (`compare` devuelve `true`). El límite es en **bytes**, no en caracteres: 40
+  `ñ` son 80 bytes, así que un `z.string().max(72)` por caracteres dejaría pasar la contraseña y
+  seguiría truncándose por dentro. El filtro correcto mide con `Buffer.byteLength(v, 'utf8')`.
+- **Con better-sqlite3, un `SELECT` seguido de un `INSERT` no puede intercalar otra petición.**
+  Los dos son síncronos y se ejecutan en el mismo tick de Node, así que un "comprobar y luego
+  insertar" cubre la carrera por sí solo, sin tocar el `UNIQUE`: es lo que hace que en T-026
+  (slug) y en T-040 (email) 12 peticiones simultáneas den 1 × 201 y 11 × 409. **Ese invariante
+  se rompe en cuanto se mete un `await` en medio** (por ejemplo, pasar de `bcrypt.hashSync` a
+  `bcrypt.hash` para no bloquear el event loop): entonces hay que capturar el
+  `SQLITE_CONSTRAINT_UNIQUE` y devolver el 409 de la API, o el perdedor de la carrera se lleva un
+  500.
+- **Un 400 de Zod devuelve todos los issues, no solo el primero.** En T-040, una contraseña de
+  siete espacios salía con dos entradas en `details` a la vez (`too_small` y el `custom` del
+  refine). El frontend puede esperar la lista completa y no hace falta recorrer el body buscando
+  el primer error.
+- **`process.loadEnvFile()` no pisa las variables que ya existen en `process.env`.** Se comprobó
+  en T-040: con `PORT=3100` en la consola, `node dist/app.js` arrancó en el 3100 aunque el
+  `.env` de la raíz diga `PORT=3000`. Sirve para levantar el `dist/` en otro puerto mientras el
+  `tsx watch` sigue en el suyo, y comprobar los dos modos a la vez.
+- **Al probar endpoints que escriben, copia la base antes y compara después tabla por tabla,
+  incluido `sqlite_sequence`.** En T-040 los `DELETE` de limpieza dejaron el autoincremental de
+  `users` en 6 con la tabla vacía: la comparación de filas daba idéntica y, sin embargo, el
+  siguiente alta empezaba en `id = 7`. Hay que restaurar `sqlite_sequence` a mano. Visto en T-040.
+- **El test de concurrencia se hace con `fetch` en paralelo desde Node, no con `Invoke-WebRequest`
+  en bucle.** PowerShell 5.1 no tiene paralelismo (`ForEach-Object -Parallel` es de la 7) y una
+  petición detrás de otra no prueba la carrera: hay que disparar las N a la vez con
+  `Promise.all` y contar los códigos de respuesta. Visto en T-040 (y en T-026).
 
 ---
 
 ## Historial de entradas
 
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
+### 2026-10-03 — T-040 `POST /api/auth/register`
+**Estado:** completada
+
+**Qué se hizo:**
+- Alta de cliente con email único, hash bcrypt y 409 `EMAIL_TAKEN` si el email ya existe.
+- Primer módulo de `auth/` y el primero que escribe en `users`.
+
+**Cómo se hizo:**
+- Creados: `server/src/modules/auth/auth.schema.ts`, `auth.repository.ts`, `auth.service.ts`,
+  `auth.routes.ts`. Modificado: `server/src/app.ts` (monta `authRouter` en `/api`).
+- Estructura de cuatro ficheros según AGENTE.md §2.2, como `dishes` y `categories`.
+  **Sin dependencias nuevas:** `bcryptjs` ya estaba desde T-013 y Zod es el validador del proyecto.
+- `201` con `{ id, email, role, preferredLang }`; la ruta define `/auth/register` sin prefijo
+  (convención de T-009/T-020).
+
+**Por qué se hizo así:**
+- **El email se normaliza a minúsculas en el schema.** El `UNIQUE` de SQLite sobre `TEXT`
+  distingue mayúsculas, así que sin normalizar `Ana@ejemplo.com` y `ana@ejemplo.com` serían dos
+  usuarios con la misma casilla en la práctica y el 409 no dispararía. Va en el schema, no en el
+  servicio, como el `slug` de T-026: la comprobación y el `INSERT` reciben el mismo valor.
+- **`role` no se acepta del body** (lo fija el repositorio a `customer`), igual que T-022 con
+  `isAvailable`. Zod descarta claves desconocidas, así que `{"role":"admin"}` se ignora.
+- **`passwordHash` no está en el shape de la respuesta** ni en la proyección del `.returning()`:
+  así no sale ni por descuido, en vez de depender de acordarse de quitarlo.
+- **Contraseña rechazada por encima de 72 bytes** (el punto donde bcrypt corta en silencio) y
+  **sin `.trim()`**, pero rechazando la que sea solo espacios. Recortar cambiaría el secreto
+  respecto de lo que comparará el login de T-041, y ocho espacios pasarían un `min(8)` pelado.
+- **`preferredLang` obligatorio**, tal como lo pedía el enunciado, aunque la columna tenga
+  `default 'es'`: SPEC §7.2 quiere que el idioma guardado sea el que el usuario está viendo.
+
+**Impacto en otras tareas:**
+- **T-041 (login)** necesita `findUserByEmail` con `passwordHash`, `role` y `preferredLang`, y
+  un `bcrypt.compare` (**con `bcryptjs`, no `bcrypt`**, como ya decidió T-013). Aquí solo se
+  creó `emailExists`, porque leer la fila completa no lo necesita nadie todavía.
+- **T-043** ya tiene dónde colgar `requireAuth`: el módulo `auth` existe y las clases de error
+  (`UnauthorizedError`, `ForbiddenError`) ya estaban en `shared/errors.ts` desde T-021.
+- **T-045 / T-046 (sesión)** arrastran lo que SPEC §7.2 paso 2 ya-avía pendiente: el alta es hoy
+  el único camino que fija `preferredLang`, y actualizarla al cambiar de idioma sigue sin endpoint.
+- **T-044 (formularios)** ya tiene `Input` y `Label` (de T-035); este endpoint es su `submit`.
+
+**Pendientes / deuda técnica:**
+- **Invariante síncrono, escrito también en el propio `auth.service.ts`:** mientras el hash sea
+  `hashSync`, entre `emailExists` y `INSERT` no cabe otra petición, y por eso el 409 por
+  comprobación cubre la carrera (probado: 12 POST simultáneos → 1 × 201 y 11 × 409). Si el hash
+  pasa a `bcrypt.hash` (asíncrono, para no bloquear el event loop ~100 ms), hay que **capturar
+  el `SQLITE_CONSTRAINT_UNIQUE` y devolver el mismo 409**, o dos registros simultáneos con el
+  mismo email darán 500.
+- Los mensajes de error siguen en inglés o español según el módulo y sin i18n; el frontend
+  tendrá que traducir por `code`, no por `error`.
+
+---
 
 ### 2026-10-03 — T-035 Estilos base con Tailwind + shadcn/ui
 **Estado:** completada (retoma la entrada del 2026-10-02, que sigue intacta más abajo)
