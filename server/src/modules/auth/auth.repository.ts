@@ -91,4 +91,20 @@ const authUserProjection = {
 const findUserByEmail = (email: string) =>
   db.select(authUserProjection).from(users).where(eq(users.email, email)).get();
 
-export { emailExists, findUserByEmail, insertUser };
+/**
+ * Busca el usuario por id **para la renovación de token** (T-042).
+ *
+ * Por qué no basta con creerse el `sub` del token, aunque venga firmado: si la fila
+ * desapareciera (un borrado de la cuenta, una restauración de la base, un id que ya no
+ * existe), el endpoint emitiría un access token válido para un usuario inexistente y el
+ * `requireAuth` de T-043 lo aceptaría como si fuera alguien. Releer la fila es una
+ * consulta de las inexpensive y hace que el token solo exista mientras el usuario exista.
+ *
+ * Devuelve la proyección de autenticación (con hash) porque quien llama es el servicio de
+ * autenticación; el hash nunca sale de ahí porque `refreshResponseSchema` solo lleva el
+ * token.
+ */
+const findUserById = (id: number) =>
+  db.select(authUserProjection).from(users).where(eq(users.id, id)).get();
+
+export { emailExists, findUserByEmail, findUserById, insertUser };

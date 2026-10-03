@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireAdmin } from '../../middleware/auth.js';
 import { idParamSchema, readAcceptLanguage } from '../../shared/http.js';
 import {
   createCategory,
@@ -17,23 +18,20 @@ categoriesRouter.get('/categories', (req, res) => {
   res.json(listCategories(readAcceptLanguage(req)));
 });
 
-// Falta `requireAdmin`: se conecta en T-043. Hasta entonces el alta es publica.
-categoriesRouter.post('/categories', (req, res) => {
+categoriesRouter.post('/categories', requireAdmin, (req, res) => {
   const body = createCategoryBodySchema.parse(req.body);
 
   res.status(201).json(createCategory(body, readAcceptLanguage(req)));
 });
 
-// Falta `requireAdmin`: se conecta en T-043. Hasta entonces la edicion es publica.
-categoriesRouter.put('/categories/:id', (req, res) => {
+categoriesRouter.put('/categories/:id', requireAdmin, (req, res) => {
   const { id } = idParamSchema.parse(req.params);
   const body = updateCategoryBodySchema.parse(req.body);
 
   res.json(updateCategoryById(id, body, readAcceptLanguage(req)));
 });
 
-// Falta `requireAdmin`: se conecta en T-043. Hasta entonces es publico.
-categoriesRouter.delete('/categories/:id', (req, res) => {
+categoriesRouter.delete('/categories/:id', requireAdmin, (req, res) => {
   const { id } = idParamSchema.parse(req.params);
 
   deleteCategory(id);

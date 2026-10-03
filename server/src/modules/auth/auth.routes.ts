@@ -1,6 +1,10 @@
 import { Router } from 'express';
-import { loginUser, registerUser } from './auth.service.js';
-import { loginBodySchema, registerBodySchema } from './auth.schema.js';
+import { loginUser, refreshAccessToken, registerUser } from './auth.service.js';
+import {
+  loginBodySchema,
+  refreshBodySchema,
+  registerBodySchema,
+} from './auth.schema.js';
 
 const authRouter = Router();
 
@@ -31,6 +35,21 @@ authRouter.post('/auth/login', (req, res) => {
   const body = loginBodySchema.parse(req.body);
 
   res.json(loginUser(body));
+});
+
+/**
+ * Renovación del access token. **200 con `{ accessToken }` y nada más**: el refresh token
+ * no se renueva (haría falta una tabla para revocar el anterior, decisión de T-045) y el
+ * usuario ya lo tiene en el cliente.
+ *
+ * **401 `INVALID_REFRESH_TOKEN` para cualquier problema con el token**, incluido que haya
+ * caducado: para el cliente es la misma situación (la sesión terminó) y es el código que
+ * T-046 tendrá que reconocer para limpiar la sesión en Zustand.
+ */
+authRouter.post('/auth/refresh', (req, res) => {
+  const body = refreshBodySchema.parse(req.body);
+
+  res.json(refreshAccessToken(body));
 });
 
 export { authRouter };

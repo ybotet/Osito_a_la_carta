@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireAdmin } from '../../middleware/auth.js';
 import { idParamSchema, readAcceptLanguage } from '../../shared/http.js';
 import {
   createDish,
@@ -17,6 +18,8 @@ import {
 
 const dishesRouter = Router();
 
+// Las dos lecturas siguen siendo públicas a propósito desde T-043: el menú es de cualquiera,
+// también sin sesión.
 dishesRouter.get('/dishes', (req, res) => {
   res.json(listDishes(readAcceptLanguage(req)));
 });
@@ -27,23 +30,20 @@ dishesRouter.get('/dishes/:id', (req, res) => {
   res.json(getDish(id, readAcceptLanguage(req)));
 });
 
-// Falta `requireAdmin`: se conecta en T-043. Hasta entonces el alta es publica.
-dishesRouter.post('/dishes', (req, res) => {
+dishesRouter.post('/dishes', requireAdmin, (req, res) => {
   const body = createDishBodySchema.parse(req.body);
 
   res.status(201).json(createDish(body, readAcceptLanguage(req)));
 });
 
-// Falta `requireAdmin`: se conecta en T-043. Hasta entonces la edicion es publica.
-dishesRouter.put('/dishes/:id', (req, res) => {
+dishesRouter.put('/dishes/:id', requireAdmin, (req, res) => {
   const { id } = idParamSchema.parse(req.params);
   const body = updateDishBodySchema.parse(req.body);
 
   res.json(updateDish(id, body, readAcceptLanguage(req)));
 });
 
-// Falta `requireAdmin`: se conecta en T-043. Hasta entonces el borrado es publico.
-dishesRouter.delete('/dishes/:id', (req, res) => {
+dishesRouter.delete('/dishes/:id', requireAdmin, (req, res) => {
   const { id } = idParamSchema.parse(req.params);
 
   deleteDish(id);
@@ -53,16 +53,14 @@ dishesRouter.delete('/dishes/:id', (req, res) => {
   res.status(204).end();
 });
 
-// Falta `requireAdmin`: se conecta en T-043. Hasta entonces es publico.
-dishesRouter.patch('/dishes/:id/availability', (req, res) => {
+dishesRouter.patch('/dishes/:id/availability', requireAdmin, (req, res) => {
   const { id } = idParamSchema.parse(req.params);
   const { isAvailable } = availabilityBodySchema.parse(req.body);
 
   res.json(setDishAvailability(id, isAvailable, readAcceptLanguage(req)));
 });
 
-// Falta `requireAdmin`: se conecta en T-043. Hasta entonces es publico.
-dishesRouter.delete('/dishes/:id/permanent', (req, res) => {
+dishesRouter.delete('/dishes/:id/permanent', requireAdmin, (req, res) => {
   const { id } = idParamSchema.parse(req.params);
 
   purgeDish(id);

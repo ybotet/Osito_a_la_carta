@@ -124,7 +124,86 @@ const loginResponseSchema = z.object({
   user: userSchema,
 });
 
-export { loginBodySchema, loginResponseSchema, registerBodySchema, userSchema };
+/**
+ * Body de `POST /api/auth/refresh`: el token y nada más.
+ *
+ * El token viene en el body y no en la cabecera `Authorization` a propósito: es una
+ * petición que el cliente hace **precisamente cuando ya no puede usar el `Authorization`
+ ***, porque el access ha caducado. Meterlo en la cabecera obligaría al interceptor
+ * (T-046) a montar una petición "a pelo" solo para esta ruta.
+ *
+ * **Se recorta con `.trim()`** porque un salto de línea al copiar y pegar es un fallo de
+ * cliente muy común y no puede hacer válido un token inválido: un JWT no puede tener
+ * espacios, así que quitar los del borde no cambia nada del contenido firmado.
+ */
+const refreshBodySchema = z.object({
+  refreshToken: z
+    .string()
+    .trim()
+    .min(1, { message: 'El refresh token no puede estar vacio' }),
+});
 
+/**
+ * Lo que exige el endpoint a un token **ya verificado con la firma**: que sea de tipo
+ * refresh y que traiga `sub`.
+ *
+ * **Se valida con Zod aunque el token venga firmado por el servidor**, y no por
+ * desconfianza del firmante sino porque `jwt.verify` devuelve `string | JwtPayload`: un
+ * token firmado cuyo payload sea una cadena suelta no tiene `.type` ni `.sub`, y sin
+ * esta comprobación el código leería `undefined` y buscaría un usuario por un id
+ * indefinido en lugar de responder un 401 claro. El `z.literal('refresh')` es además la
+ * segunda barrera que exige T-043: un access token ya falla antes, en la firma, porque
+ * está hecho con `JWT_SECRET`.
+ */
+const refreshClaimsSchema = z.object({
+  sub: z.string().min(1),
+  type: z.literal('refresh'),
+});
+
+/**
+ * Lo que `requireAuth` (T-043) exige a un access token **ya verificado con la firma**.
+ *
+ * Vive aquí, y no en `middleware/auth.ts`, junto al `refreshClaimsSchema` y al código que
+ * **firma** el token: el que escribe el payload y el que lo lee tienen que mirar la misma
+ * definición, o un cambio en uno se rompe en el otro sin que nada avise.
+ *
+ * **`email` y `role` son obligatorios, no opcionales**, porque el middleware no puede
+ * autorizar sin saber quién es el usuario: un token sin ellos se rechaza con 401 en vez de
+ * dejar `req.user` a medias.
+ */
+const accessClaimsSchema = z.object({
+  sub: z.string().min(1),
+  type: z.literal('access'),
+  email: z.string().min(1),
+  role: z.enum(['customer', 'admin']),
+});
+
+/**
+ * Respuesta del refresh: **solo el access token nuevo**, ni refresh token ni usuario.
+ *
+ * El refresh token **no se renueva**: hacerlo exigiría guardar los tokens emitidos para
+ * poder revocar el anterior (rotación real), y eso es una tabla nueva que sigue siendo
+ * decisión de T-045. El usuario tampoco se devuelve porque el cliente ya lo tiene del
+ * login y lo tiene guardado en Zustand; incluirlo aquí obligaría al frontend a
+ * sobrescribirlo en cada renovación.
+ */
+const refreshResponseSchema = z.object({
+  accessToken: z.string().min(1),
+});
+
+export {
+  accessClaimsSchema,
+  loginBodySchema,
+  loginResponseSchema,
+  refreshBodySchema,
+  refreshClaimsSchema,
+  refreshResponseSchema,
+  registerBodySchema,
+  userSchema,
+};
+
+export type AccessClaims = z.infer<typeof accessClaimsSchema>;
 export type LoginBody = z.infer<typeof loginBodySchema>;
+export type RefreshBody = z.infer<typeof refreshBodySchema>;
+export type RefreshClaims = z.infer<typeof refreshClaimsSchema>;
 export type RegisterBody = z.infer<typeof registerBodySchema>;

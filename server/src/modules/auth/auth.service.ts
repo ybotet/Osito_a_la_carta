@@ -2,9 +2,19 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/index.js';
 import { ConflictError, UnauthorizedError } from '../../shared/errors.js';
-import { emailExists, findUserByEmail, insertUser } from './auth.repository.js';
-import { loginResponseSchema, userSchema } from './auth.schema.js';
-import type { LoginBody, RegisterBody } from './auth.schema.js';
+import {
+  emailExists,
+  findUserByEmail,
+  findUserById,
+  insertUser,
+} from './auth.repository.js';
+import {
+  loginResponseSchema,
+  refreshClaimsSchema,
+  refreshResponseSchema,
+  userSchema,
+} from './auth.schema.js';
+import type { LoginBody, RefreshBody, RegisterBody } from './auth.schema.js';
 
 /**
  * 10 rounds, los mismos que usa `db:seed:admin`. Es el coste de hashear una contraseña
@@ -183,4 +193,93 @@ const loginUser = (body: LoginBody) => {
   });
 };
 
-export { loginUser };
+/**
+ * `INVALID_REFRESH_TOKEN` es el mismo `code` para **cualquier** fallo del token, y esa
+ * unificación es deliberada: "caducado", "firma que no cuadra" y "token inventado" son la
+ * misma situación para el cliente (la sesión se acabó) y distinguirlos por el mensaje solo
+ * le sirve a quien va probando tokens. El `catch` también se traga el error de base de
+ * datos a propósito, porque un 401 con un código conocido es mucho más fácil de manejar
+ * en el frontend que un 500: si `users` estuviera caído, el cliente cerraría sesión en vez
+ * de dejar al usuario con un error de red inexplicable.
+ */
+const invalidRefreshToken = (): never => {
+  throw new UnauthorizedError(
+    'Refresh token invalido o expirado',
+    'INVALID_REFRESH_TOKEN',
+  );
+};
+
+/**
+ * Verifica el refresh token y devuelve los claims ya validados: **solo si son de tipo
+ * refresh y con un `sub` utilizable.**
+ *
+ * Tres capas de comprobación, en este orden:
+ *
+ * 1. **La firma, con `JWT_SECRET` distinto del del access.** Por eso un access token
+ *    (o cualquier cosa firmada con el otro secreto) muere aquí, con `JsonWebTokenError`,
+ *    sin llegar a mirar el `type`. `algorithms: ['HS256']` va explícito porque si no
+ *    `jsonwebtoken` se fía del algoritmo que dice la cabecera del token, que es el punto
+ *    de entrada clásico del ataque de "alg: none" y de los cambios de HS/RS.
+ * 2. **El `type`,** que exige la decisión de T-041. Aquí es la segunda barrera: aunque
+ *    alguien firmara con el secreto de refresh un token de tipo access (imposible sin
+ *    conocer `JWT_REFRESH_SECRET`, pero el `type` es la regla que lo impide), este `check`
+ *    lo rechaza.
+ * 3. **El shape del payload con Zod.** `jwt.verify` devuelve `string | JwtPayload`; el
+ *    `safeParse` es lo que convierte ese `unknown` en algo con `sub: string` garantizado
+ *    (y de paso rechaza un token firmado cuyo payload sea una cadena suelta). Un fallo
+ *    aquí no es un 400: es el mismo 401, porque para el cliente el token no valió.
+ *
+ * Caducar y no caducar se tratan igual a propósito (ver `invalidRefreshToken`).
+ */
+const verifyRefreshToken = (token: string) => {
+  let payload: string | jwt.JwtPayload;
+
+  try {
+    payload = jwt.verify(token, env.JWT_REFRESH_SECRET, {
+      algorithms: ['HS256'],
+    });
+  } catch {
+    return invalidRefreshToken();
+  }
+
+  const claims = refreshClaimsSchema.safeParse(payload);
+
+  if (!claims.success) {
+    return invalidRefreshToken();
+  }
+
+  const userId = Number(claims.data.sub);
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return invalidRefreshToken();
+  }
+
+  return { claims: claims.data, userId };
+};
+
+/**
+ * Renueva el access token a partir de un refresh token válido.
+ *
+ * **El usuario se relee de la base de datos y no se copia del token.** Dos razones que se
+ * refuerzan: el refresh token solo lleva `sub` y `type` (decisión de T-041, para que un
+ * token de 7 días siga valiendo aunque el rol o el email cambien), y porque el rol del
+ * access token nuevo tiene que ser **el de ahora**, no el de hace siete días. Una cuenta
+ * borrada entre medias tampoco puede renovar: `findUserById` no la encuentra y el token
+ * tampoco se emite.
+ *
+ * Se firma con `JWT_SECRET`, que es el único secreto con el que `requireAuth` (T-043)
+ * aceptará el token, así que la renovación es la forma de recuperar un access caducado sin
+ * volver a pedir la contraseña.
+ */
+const refreshAccessToken = (body: RefreshBody) => {
+  const { userId } = verifyRefreshToken(body.refreshToken);
+  const user = findUserById(userId);
+
+  if (user === undefined) {
+    return invalidRefreshToken();
+  }
+
+  return refreshResponseSchema.parse({ accessToken: signAccessToken(user) });
+};
+
+export { loginUser, refreshAccessToken };

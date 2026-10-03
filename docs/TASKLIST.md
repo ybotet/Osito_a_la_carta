@@ -186,10 +186,38 @@
     `JWT_REFRESH_SECRET`. T-042 y T-043 tienen que exigir su `type`.
   - `jsonwebtoken` instalado con autorización del enunciado, que lo nombra
     (`server/package.json`, `package-lock.json`). Ver "Notas de progreso".
-- [ ] **T-042**: `POST /api/auth/refresh`
-  - Criterio: renueva access token con refresh válido.
-- [ ] **T-043**: Middleware `requireAuth` y `requireAdmin`
-  - Criterio: rutas protegidas devuelven 401 sin token.
+- [x] **T-042**: `POST /api/auth/refresh`
+  - Criterio: renueva access token con refresh válido. **Verificado:** con un refresh válido
+    devuelve **200** y solo `{ accessToken }`, con `(exp - iat) = 900 s` (15 min exactos) y `alg`
+    `HS256`; verificado además que el token nuevo **no** acepta `JWT_REFRESH_SECRET`.
+  - Refresh inválido **o caducado** → **401** `INVALID_REFRESH_TOKEN`, con el mismo `code` para
+    todos los fallos (firma que no cuadra, token caducado, `type` equivocado, `sub` inválido,
+    usuario borrado).
+  - **El usuario se relee de la base por `sub`**: una cuenta borrada no puede renovar aunque su
+    refresh siga sin caducar (probado). El token nuevo lleva el rol y el email **actuales**.
+  - **El refresh token no se renueva y no se devuelve `user`**: la rotación real exige tabla de
+    tokens revocados, que sigue siendo decisión de T-045.
+- [x] **T-043**: Middleware `requireAuth` y `requireAdmin`
+  - Criterio: rutas protegidas devuelven 401 sin token. **Verificado con peticiones reales**
+    contra las nueve escrituras (las seis de platos y las tres de categorías): sin token →
+    **401** `UNAUTHORIZED` en las nueve; con token de `customer` → **403** `FORBIDDEN` en las
+    nueve; con token de `admin` → la operación se ejecuta (`POST` 201, `PUT`/`PATCH` 200,
+    `DELETE` y `DELETE .../permanent` 204). Ver "Notas de progreso" para el resto de la
+    matriz de verificación.
+  - `requireAdmin` es `requireAuth` seguido de la comprobación de rol, y por eso el **401 va
+    antes que el 403**: sin sesión no se dice ni si la ruta existe.
+  - **`requireAuth` exige `type === 'access'` y verifica con `JWT_SECRET`**
+    (`algorithms: ['HS256']` explícito, como pusieron T-041 y T-042): un refresh token usado
+    como credencial de una escritura es 401, igual que un access caducado o firmado con el
+    secreto equivocado. Los nueve 401 llevan el mismo `code`, sin decir qué falló.
+  - **El `role` se cree del token, sin consultar la base.** Un admin degradado conserva el
+    acceso hasta 15 minutos (o 7 días si el cliente lo renueva); la deuda y el arreglo
+    (releer el usuario en `requireAdmin`, que ya tiene `findUserById`) están anotados.
+  - `req.user` es **opcional** en el tipo (`user?`), a propósito: marcarlo obligatorio haría
+    que TypeScript garantizase una sesión en las rutas públicas, donde no existe.
+  - **Se protegieron también las tres escrituras de categorías**, que T-026, T-027 y T-028
+    dejaron explícitamente pendientes de T-043 ("la parte de autorización del criterio
+    queda pendiente de T-043"). Con esto **la API ya no tiene ninguna escritura pública.**
 - [ ] **T-044**: Páginas `/login` y `/register` en frontend
   - Criterio: el formulario usa React Hook Form + Zod.
 - [ ] **T-045**: Store de sesión con Zustand + persistencia en `localStorage`
@@ -1561,6 +1589,87 @@
   - Cualquier componente de shadcn que se añada en adelante hereda el tema: si usa un token que
     no existe, hay que añadirlo en los dos bloques de `index.css` a la vez.
 
+### 2026-10-03 — T-042 `POST /api/auth/refresh`
+- **Tercera tarea del módulo `auth/` y de nuevo sin ficheros nuevos:** se ampliaron los cuatro de
+  T-040 (`refreshBodySchema`, `refreshClaimsSchema` y `refreshResponseSchema` en el schema;
+  `findUserById` en el repositorio; `verifyRefreshToken` + `refreshAccessToken` en el servicio;
+  la ruta en `auth.routes.ts`). **Sin dependencias nuevas:** `jsonwebtoken` ya está desde T-041.
+- **Criterio verificado con peticiones reales**, primero en `tsx` y luego contra
+  `node dist/app.js` en el puerto 3100, con resultados idénticos:
+  - Refresh válido → **200** y el cuerpo tiene **una sola clave**, `accessToken` (220 caracteres
+    para el admin, 231 para un cliente con email más largo). Claims del token emitido, decodificados
+    y verificados con la firma: `{"type":"access","email":…,"role":…,"sub":"2","iat":…,"exp":…}`,
+    con `(exp - iat) = 900 s` (**15 min**) y `alg` `HS256`. **No verifica con
+    `JWT_REFRESH_SECRET`** (`invalid signature`), igual que en T-041.
+  - **Los ocho intentos de colar un token que no debe renovar dan 401
+    `INVALID_REFRESH_TOKEN`, todos con el mismo mensaje y el mismo `code`:**
+    1. un **access token** usado como refresh (muere en la firma, por el secreto distinto);
+    2. una cadena que no es un JWT (`no-es-un-jwt`);
+    3. un token firmado con **otro secreto**;
+    4. un token **caducado** (`expiresIn: '-1s'`) firmado con el secreto bueno;
+    5. un token de `type: 'access'` **firmado con `JWT_REFRESH_SECRET`** (esto es lo que
+       comprueba el `z.literal('refresh')`, porque la firma sí cuadra);
+    6. un token con `sub: 'abc'`;
+    7. un token con `sub: '999'` (usuario inexistente → el `SELECT` no lo encuentra);
+    8. un token cuyo payload es **una cadena suelta** firmada con el secreto bueno, que es
+       justamente el caso que `jwt.verify` devuelve como `string` y no como `JwtPayload`.
+  - Body inválido → **400 `VALIDATION_ERROR`**: `{}`, `{"refreshToken":""}`,
+    `{"refreshToken":"   "}` (solo espacios) y `{"otro":1}` (falta el campo). JSON truncado →
+    400 `INVALID_JSON`. `GET /api/auth/refresh` → 404 `NOT_FOUND`.
+  - **Token con espacios y salto de línea alrededor** (`"  eyJ…\n"`, el fallo típico de copiar y
+    pegar) → **200**: el `.trim()` del schema lo arregla sin tocar la parte firmada.
+  - **El mismo refresh sirve para varias renovaciones** (probado tres veces seguidas sin
+    problema), porque no hay rotación. Y al revés: **si la cuenta se borra, el refresh deja de
+    servir** aunque el token siga sin caducar (401), que es justo lo que aporta el `SELECT` por
+    `sub`.
+- **Decisiones tomadas (anotadas también en `MEMORY.md`):**
+  1. **El token viene en el body y no en `Authorization`.** Es la única petición que el cliente
+     hace cuando ya no puede usar la cabecera, porque el access ha caducado; pedir una cabecera
+     para renovar el access sería pedirle al interceptor (T-046) que monte una petición "a pelo".
+  2. **`algorithms: ['HS256']` explícito** en la verificación, tal como exigía la decisión
+     promovida en T-041: sin esa opción `jsonwebtoken` se fía del algoritmo que declara la
+     cabecera del token.
+  3. **El shape del payload se valida con Zod (`refreshClaimsSchema`) aunque el token esté
+     firmado**, porque `jwt.verify` devuelve `string | JwtPayload` y porque es lo que comprueba el
+     `type`. Se usa `safeParse` y el fallo se traduce al mismo 401, **no a un 400**: para el
+     cliente el token no valió, y un 400 de validación aquí sería un error de programación, no de
+     credenciales.
+  4. **Caducado, firma inválida, `type` equivocado y usuario inexistente comparten el mismo
+     401 `INVALID_REFRESH_TOKEN`.** Para el cliente es la misma situación (la sesión terminó) y
+     distinguirlos solo ayudaría a quien prueba tokens.
+  5. **El `catch` de la verificación se traga también el error de base de datos**, para que una
+     caída de `users` produzca el 401 conocido y el cliente cierre sesión, en vez de un 500 que
+     dejaría al usuario con un error de red sin explicación.
+  6. **El usuario se relee de la base y no se copia del token**, para que el `role` del access
+     nuevo sea el de ahora y una cuenta borrada no pueda renovar. Es la razón de `findUserById`.
+  7. **La respuesta es solo `{ accessToken }`:** el refresh no se renueva (rotación real =
+     tabla de tokens revocados, decisión de T-045) y el `user` no se devuelve porque el cliente
+     ya lo tiene del login y lo tiene en Zustand; devolverlo obligaría a sobrescribirlo en cada
+     renovación.
+- **Verificación de no regresión:** `GET /api/health`, `/api/dishes` y `/api/categories` siguen en
+  200; el **login sigue funcionando** y su refresh renueva (probado con el admin real, con
+  `role: "admin"` en el claim del token nuevo); `POST /api/auth/register` sin tocar; y el refresh
+  también funciona **por el proxy de Vite** (`http://localhost:5173/api/auth/refresh` → 200).
+  `npm run typecheck`, `npm run lint`, `npm run format:check` y `npm run build` en verde.
+- **Base de datos verificada sin residuos:** el endpoint **no escribe nada** (es de lectura: un
+  `SELECT` por `id`). Se creó un cliente para la prueba, se borró al terminar y la tabla `users`
+  quedó con el admin y `sqlite_sequence.users` en `1`, con `integrity_check` en `ok`. `dishes` (5)
+  y `categories` (5) sin cambios.
+- **Pendientes / deuda que deja esta tarea:**
+  - **T-043 (`requireAuth`) sigue siendo la pieza que falta para que esto sirva de algo:** hasta
+    que exista, los tokens se emiten pero ninguna ruta los comprueba. Le toca exigir
+    `type === 'access'`, verificar con `JWT_SECRET` y decidir si se fía del `role` del token.
+  - **T-046 (interceptor)** tiene que distinguir este 401 por `code` para limpiar la sesión, y
+    saber que **el 401 es también la respuesta cuando el refresh caducó a los 7 días** (mismo
+    `code` que un token manipulado, a propósito).
+  - **No hay rotación de refresh token**, que es lo que permitiría invalidar sesiones y hacer
+    logout de verdad. Sigo pendiente de T-045 y de una posible tabla de tokens revocados.
+  - **Un token renovado dentro del mismo segundo que el login es byte a byte idéntico** al que
+    devolvió el login: es el comportamiento normal de JWT (misma carga útil, misma firma
+    HMAC), no un fallo, pero conviene saberlo para no esperar un token "nuevo" siempre.
+
+---
+
 ### 2026-10-03 — T-041 `POST /api/auth/login`
 - **Segunda tarea del módulo `auth/` y la primera que autentica.** No crea ficheros nuevos: se
   ampliaron los cuatro de T-040 (`auth.schema.ts`, `auth.repository.ts`, `auth.service.ts`,
@@ -1735,6 +1844,69 @@
     `'Ya existe una categoria con el slug'`). Aquí se eligió español, como el 409 de slug. La
     traducción de los mensajes al idioma del usuario sigue pendiente para el frontend, que
     tendría que usar `code` y no `error`.
+
+---
+
+### 2026-10-04 — T-043 `requireAuth` y `requireAdmin`
+- Creado: `server/src/middleware/auth.ts` (único fichero nuevo, sin dependencias nuevas:
+  `jsonwebtoken` ya estaba desde T-041). Modificados: `server/src/modules/auth/auth.schema.ts`
+  (se exporta `accessClaimsSchema`, que hasta ahora solo se usaba dentro del módulo),
+  `server/src/modules/dishes/dishes.routes.ts` y
+  `server/src/modules/categories/categories.routes.ts`.
+- Criterio verificado con peticiones reales contra **las nueve escrituras** de la API (las seis
+  de platos: `POST /dishes`, `PUT /dishes/:id`, `DELETE /dishes/:id`,
+  `PATCH /dishes/:id/availability`, `DELETE /dishes/:id/permanent`; y las tres de categorías):
+  **401** `UNAUTHORIZED` sin token en las nueve, **403** `FORBIDDEN` con token de `customer` en
+  las nueve, y operación correcta con token de `admin` (`POST` 201, `PUT`/`PATCH` 200, `DELETE`
+  y purga 204). Las lecturas siguen públicas: `GET /dishes`, `GET /dishes/:id` y
+  `GET /categories` devuelven 200 sin token.
+- **`requireAdmin` se compone de `requireAuth` y `adminOnly`, y el orden es el criterio de
+  seguridad:** sin token 401, con token de cliente 403. Al revés, un 403 confirmaría que la
+  ruta existe y que lo único que falta es el rol.
+- **Las comprobaciones del token son tres y en ese orden:** firma con `JWT_SECRET` y
+  `algorithms: ['HS256']` explícito (mata los refresh tokens y no se fía del `alg` de la
+  cabecera), luego `type === 'access'`, luego el shape de los claims con Zod. Verificado que
+  las nueve escrituras devuelven 401 con: refresh token, access caducado, access firmado con
+  `JWT_REFRESH_SECRET`, `type: 'refresh'` firmado con `JWT_SECRET`, token sin `role`, `sub` no
+  numérico, payload de tipo string, `alg: none` y basura.
+- **El esquema `bearer` se compara en minúsculas** (RFC 6750): `bearer`, `Bearer` y `BEARER`
+  valen igual, y sobran espacios alrededor del token. Verificado que `bearer <token>` en
+  minúsculas entra. `Bearer` sin token, `Bearer` con solo espacios, esquema `Basic` y una
+  cabecera repetida dan 401, igual que no traer cabecera.
+- **Todos los 401 llevan el mismo mensaje y el mismo `code`,** porque distinguirlos diría a
+  quien va probando qué ha fallado. No se registra el token: los 401 pasan por `errorHandler`,
+  que ya los deja en `logger.warn` con su `code` y su ruta.
+- **`req.user` es opcional en el tipo a propósito.** `user?` obliga a cada handler a
+  comprobarlo; `user` (obligatorio) haría que TypeScript garantizase una sesión también en las
+  rutas públicas, que no la tienen. `AuthUser` no incluye `passwordHash` ni `preferredLang`:
+  es lo mínimo para autorizar, y así el hash no puede propagarse.
+- **Decisión pendiente de fecha: el `role` se cree del token, sin releer el usuario.** Un admin
+  que degrade a customer, o una cuenta borrada, conservan el acceso hasta que el access caduca
+  (15 min, o 7 días si el cliente lo renueva con el refresh). El arreglo es una línea:
+  `findUserById` en `requireAdmin`, igual que hace ya `/auth/refresh`. No se hizo aquí porque
+  convierte un middleware síncrono en uno que toca la base en cada escritura.
+- **Se protegieron también las tres escrituras de categorías,** que el prompt base de T-043 no
+  nombraba (solo dice "POST/PUT/DELETE /api/dishes") pero que T-026, T-027 y T-028 dejaron
+  pendientes de esta tarea por decisión del dueño, con el razonamiento de que "la API no tiene
+  ninguna escritura protegida" era el riesgo real. Con las nueve, **no queda ninguna escritura
+  pública en la API.** El cliente no llama a esas rutas (comprobado: `categories` no aparece en
+  `client/src`) y el seed escribe en la base directamente, así que nada se rompió.
+- **El envoltorio de `requireAdmin` existe solo por los tipos:** la tercera posición de un
+  `RequestHandler` es de tipo `NextFunction`, así que un `RequestHandler` de cuatro parámetros
+  no se puede pasar ahí. Además `requireAuth` es síncrono, que es lo que hace seguro componerlo
+  sin `try/catch`: o llama a `next()` o lanza y lo captura el `errorHandler`.
+- **Verificado también contra el build de `dist/`** (`npm run build` + `node dist/app.js` en
+  el puerto 3100): las nueve escrituras devuelven 401 sin token y 403 con token de cliente. Es
+  la única forma de descartar que el middleware solo funcione con `tsx`.
+- `npm run typecheck`, `npm run lint` y `prettier --check` pasan en los dos workspaces.
+- Base de datos: se verificó con un usuario de prueba, un plato de prueba y una categoría de
+  prueba, y **todo se borró**. `dishes` (ids 1-5, contador 14), `categories` (ids 2-6,
+  contador 6) y `users` (solo el admin, contador 1) quedan como estaban;
+  `integrity_check` da `ok` y `foreign_key_check` vacío.
+- **Un aviso para quien venga después:** `DELETE /api/dishes/:id` devuelve **404** si el plato
+  ya está deshabilitado, y eso es intencionado (decisión de T-024: un plato deshabilitado es
+  indistinguible de uno que nunca existió; `PATCH .../availability` sí lo ve). No es un fallo
+  de T-043 ni de `requireAdmin`.
 
 ---
 
