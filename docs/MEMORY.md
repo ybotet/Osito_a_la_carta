@@ -168,6 +168,43 @@ sitio y los routers futuros no lo repiten. El primero es `health`; devuelve
 > Sección acumulativa. Cada decisión importante se documenta una vez
 > y se referencia desde las entradas de tareas.
 
+### 2026-10-03 — Los JWT llevan claim `type` y se firman con secretos distintos
+**Contexto:** T-041 tenía que emitir dos tokens con la misma librería (`jsonwebtoken`) y el mismo
+formato, y ambos son cadenas que `jwt.verify()` acepta sin mirar más que la firma.
+
+**Decisión:** los dos tokens llevan un claim **`type`** (`'access'` | `'refresh'`) y **se firman
+con secretos distintos**: el access con `env.JWT_SECRET` y el refresh con
+`env.JWT_REFRESH_SECRET`. Además, `email` y `role` van **solo** en el access, y `sub` es el `id`
+del usuario **en texto** (lo que JWT exige).
+Decidido el 2026-10-03 en T-041.
+
+**Por qué:**
+- **Sin `type`, un refresh token vale como credencial en cualquier ruta protegida.** Si
+  `requireAuth` (T-043) solo verifica la firma, aceptaría el token de 7 días igual que el de 15
+  minutos, y caducar el access no serviría para nada. Es la diferencia entre un refresh y un
+  bypass.
+- **Los secretos distintos son la segunda barrera, no la primera.** El claim ya los separa; tener
+  firmas distintas hace que un refresh no se pueda colar como access **ni siquiera comprobando mal
+  el claim**: la verificación con `JWT_SECRET` falla antes de mirar el `type`. Verificado en T-041:
+  los dos rechazos dan `invalid signature`.
+- **El refresh no lleva datos del usuario porque T-042 los relee de la base**, que es lo que
+  permite que un token de 7 días siga siendo válido aunque el email o el rol hayan cambiado.
+
+**Consecuencias a tener en cuenta al implementar:**
+- **T-042 (`POST /api/auth/refresh`)**: `jwt.verify(token, env.JWT_REFRESH_SECRET, { algorithms:
+  ['HS256'] })` **y** comprobar `payload.type === 'refresh'`, y releer el usuario por `sub`.
+  `TokenExpiredError` distingue "caducado" de "no válido" para poder responder 401 en los dos casos.
+- **T-043 (`requireAuth`)**: `jwt.verify(token, env.JWT_SECRET, …)`, comprobar
+  `payload.type === 'access'` y sacar el usuario de `sub` (con `Number()`, porque es texto).
+  **`algorithms: ['HS256']` siempre explícito**: sin esa opción, `jsonwebtoken` acepta el algoritmo
+  que diga la cabecera del token y es el punto de entrada clásico de los ataques de JWT.
+- **T-045** (Zustand + `localStorage`) guarda los dos tokens; no hay cookies, así que no hay
+  `httpOnly` ni CSRF que organizar con el access.
+- Si algún día se cambia `JWT_SECRET`, **todos los access tokens emitidos quedan inválidos de
+  golpe** (y con él las sesiones en el navegador). Cambiar `JWT_REFRESH_SECRET` pasa lo mismo con
+  los refresh. Es el comportamiento correcto, pero conviene saberlo antes de rotar un secreto en
+  producción.
+
 ### 2026-10-03 — El email de `users` se normaliza en el borde, no en la base
 **Contexto:** T-040 tenía que rechazar el email duplicado con un 409, y `users.email` es
 `text unique`. El `UNIQUE` de SQLite sobre `TEXT` **distingue mayúsculas**, así que "comprobar si
@@ -1231,12 +1268,98 @@ no son intercambiables.
   en bucle.** PowerShell 5.1 no tiene paralelismo (`ForEach-Object -Parallel` es de la 7) y una
   petición detrás de otra no prueba la carrera: hay que disparar las N a la vez con
   `Promise.all` y contar los códigos de respuesta. Visto en T-040 (y en T-026).
+- **Un `compare` de bcrypt a 10 rounds cuesta ~100 ms con `bcryptjs`, y eso se nota desde fuera.**
+  Medido en T-041: el login correcto de un usuario real tarda ~103 ms de mediana, y una petición
+  que ni siquiera llega a bcrypt (un 400 de validación) responde en ~10 ms. **Un 10x de diferencia
+  es lo que permite enumerar qué emails están registrados**, aunque el mensaje y el `code` sean
+  idénticos: el tiempo también filtra. La solución es comparar igualmente contra un hash de
+  relleno cuando el usuario no existe, y con 15 peticiones intercaladas por grupo la diferencia de
+  medianas bajó a 5 ms.
+- **`jsonwebtoken` no distribuye sus tipos:** hace falta `@types/jsonwebtoken` aparte, y es
+  dependencia de desarrollo. Además es un paquete CommonJS, así que desde este proyecto (ESM con
+  `verbatimModuleSyntax`) el import tiene que ser por defecto, `import jwt from 'jsonwebtoken'`,
+  como con `bcryptjs`. Sus exports son `sign`, `verify`, `decode`, `JsonWebTokenError`,
+  `TokenExpiredError` y `NotBeforeError`.
+- **En `jsonwebtoken`, `subject` es obligatorio como texto:** `sub: user.id` con un número falla el
+  type, hay que `String(user.id)`; y quien lo lea después tiene que hacer `Number()`, porque JWT no
+  sabe que ahí va un id.
+- **Para comparar tiempos hacen falta dos cosas, o el resultado no sirve de nada:** las muestras
+  **intercaladas** (un existing, un missing, un existing...) y saber leer la mediana en vez de la
+  media. En T-041 la media salía 38 ms por dos picos sueltos del servidor (uno era la primera
+  petición en frío, 737 ms) mientras la mediana marcaba 5 ms.
+- **`VACUUM INTO 'ruta.db'` hace una copia consistente de la base en un solo comando**, sin
+  tener que acordarse de copiar también el `-wal` y el `-shm` de una base en WAL. Útil antes de
+  probar endpoints que escriben, sobre todo si las consultas de comparación van a abrir la copia.
+  Visto en T-041.
 
 ---
 
 ## Historial de entradas
 
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
+### 2026-10-03 — T-041 `POST /api/auth/login`
+**Estado:** completada
+
+**Qué se hizo:**
+- Autenticación por email y contraseña con `bcrypt.compare`, 401 `INVALID_CREDENTIALS` si falla y
+  emisión de los dos tokens (access 15 min, refresh 7 días) firmados con secretos distintos.
+
+**Cómo se hizo:**
+- **Sin ficheros nuevos:** se ampliaron los cuatro del módulo que creó T-040
+  (`auth.schema.ts` + `loginBodySchema`/`loginResponseSchema`, `auth.repository.ts` +
+  `findUserByEmail`, `auth.service.ts` + `loginUser`, `auth.routes.ts` + `POST /auth/login`).
+- Modificados: `server/package.json` y `package-lock.json` con `jsonwebtoken@9.0.3` y
+  `@types/jsonwebtoken@9.0.10` (solo desarrollo).
+- `findUserByEmail` es exactamente la función que T-040 dejó anotada como pendiente para esta
+  tarea: `SELECT` con `passwordHash`, `role` y `preferredLang`, con su propia proyección
+  `authUserProjection`, separada de la pública.
+
+**Por qué se hizo así:**
+- **La dependencia sí estaba autorizada:** el enunciado nombra `jsonwebtoken` explícitamente, que
+  es justo el motivo por el que T-035 se detuvo (allí el enunciado pedía componentes sin nombrar
+  Radix, que además estaba denegado). `@types/jsonwebtoken` es inevitable porque el paquete no
+  distribuye tipos. Comprobado con `npm audit` que `jsonwebtoken` no aparece en ninguna
+  vulnerabilidad; los 4 avisos moderados del repo son de `drizzle-kit → esbuild` y son previos.
+- **El claim `type` (`'access' | 'refresh'`)** es la pieza de la que dependen T-042 y T-043; sin él
+  un refresh token serviría como credencial en cualquier ruta protegida. Ver "Decisiones
+  arquitectónicas clave".
+- **El refresh se firma con `JWT_REFRESH_SECRET` y el access con `JWT_SECRET`.** El enunciado solo
+  pedía "secretos desde env"; usar los dos a propósito es lo que hace que cada token solo valga
+  para lo suyo. Verificado: uno no verifica con el secreto del otro.
+- **`email` y `role` solo en el access.** El refresh no los lleva, así que T-042 tiene que releer
+  el usuario de la base al renovar (que además es lo correcto: así un refresh sigue valiendo si el
+  rol ha cambiado).
+- **El login reutiliza `emailSchema` con su normalización, pero no `passwordSchema`.** El login
+  responde "¿son estas las credenciales?", no "¿cumple las reglas?": con el `min(8)` del registro
+  una contraseña corta daría 400 en vez del 401 que el cliente tiene que pintar.
+- **`compareSync` y no `hash` asíncrono**, para conservar el invariante síncrono que decidió
+  T-040. El coste medido es que el login bloquea el event loop ~100 ms.
+
+**Impacto en otras tareas:**
+- **T-042 (refresh)**: verificar con `JWT_REFRESH_SECRET`, exigir `type === 'refresh'` y releer el
+  usuario de la base. Con `TokenExpiredError` se distingue "caducado" de "no válido".
+- **T-043 (`requireAuth`/`requireAdmin`)**: verificar con `JWT_SECRET`, exigir
+  `type === 'access'` y decidir si se fía del `role` del token (cuesta 0) o va a la base (cuesta 1
+  query). Si se fía del token, un cambio de rol tarda hasta 15 min en aplicarse; está anotado en el
+  propio `auth.service.ts`.
+- **T-045 (Zustand + `localStorage`)**: los dos tokens se persisten; no hay cookies, así que no
+  hay `httpOnly` que organizar ni CSRF que evitar con el access.
+- **T-046 (interceptor)**: el 401 del access ya viene con `code: 'INVALID_CREDENTIALS'`
+  distinguished de un `VALIDATION_ERROR`, así que el interceptor puede usar `code` y no el texto.
+- **T-093 (vitest)**: los secretos se leen de `env` al importar el módulo, así que los tests
+  tienen que preparar el entorno antes (el aviso ya estaba en la entrada de T-008).
+
+**Pendientes / deuda técnica:**
+- **No hay logout real:** los refresh tokens son sin estado (no hay tabla donde revocarlos), así
+  que cerrar sesión solo deja de renovar, y el token sigue siendo válido hasta que caduca a los 7
+  días. Una revocación de verdad exige tabla de tokens o una columna `token_version` en `users`,
+  y eso es una migración nueva. Decisión pendiente para T-045.
+- **El login bloquea el event loop ~100 ms** con `bcryptjs` a 10 rounds. Con `bcrypt` nativo sería
+  varias veces menos, pero T-013 ya decidió `bcryptjs` para no tener compilación nativa. Si algún
+  día moleste, es el sitio donde mirar (y el cambio obliga a lo de T-040).
+
+---
 
 ### 2026-10-03 — T-040 `POST /api/auth/register`
 **Estado:** completada

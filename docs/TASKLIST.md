@@ -172,8 +172,20 @@
     ignora (probado: devuelve 201 y el usuario queda como `customer`).
   - **El `passwordHash` no sale nunca:** la proyección de la respuesta no lo contempla, así que
     no depende de acordarse de quitarlo. Verificado en la fila de la BD y en el `SELECT`.
-- [ ] **T-041**: `POST /api/auth/login` (devuelve access + refresh token)
-  - Criterio: access token expira en 15 min, refresh en 7 días.
+- [x] **T-041**: `POST /api/auth/login` (devuelve access + refresh token)
+  - Criterio: access token expira en 15 min, refresh en 7 días. **Verificado decodificando los
+    tokens emitidos:** `(exp - iat) = 900 s` en el access y `604800 s` en el refresh, y los
+    claims son `{ type, email, role, sub }` y `{ type, sub }`.
+  - Login correcto → **200** con `{ accessToken, refreshToken, user: { id, email, role,
+    preferredLang } }`; el `user` **no trae `passwordHash`** (mismo `userSchema` del registro).
+  - Credenciales incorrectas → **401** `INVALID_CREDENTIALS`, **con el mismo mensaje y el mismo
+    `code` si el email no existe**, para no decir qué emails están registrados.
+  - **Los dos tokens van firmados con secretos distintos** (`JWT_SECRET` y `JWT_REFRESH_SECRET`)
+    y llevan un claim `type` que los distingue. Verificado que son intercambiables: el refresh
+    **no** verifica con `JWT_SECRET` (`invalid signature`) y el access **no** verifica con
+    `JWT_REFRESH_SECRET`. T-042 y T-043 tienen que exigir su `type`.
+  - `jsonwebtoken` instalado con autorización del enunciado, que lo nombra
+    (`server/package.json`, `package-lock.json`). Ver "Notas de progreso".
 - [ ] **T-042**: `POST /api/auth/refresh`
   - Criterio: renueva access token con refresh válido.
 - [ ] **T-043**: Middleware `requireAuth` y `requireAdmin`
@@ -1548,6 +1560,98 @@
   - **T-053 (carrito)** y **T-044 (login)** solo tienen que quitar el `disabled` del navbar.
   - Cualquier componente de shadcn que se añada en adelante hereda el tema: si usa un token que
     no existe, hay que añadirlo en los dos bloques de `index.css` a la vez.
+
+### 2026-10-03 — T-041 `POST /api/auth/login`
+- **Segunda tarea del módulo `auth/` y la primera que autentica.** No crea ficheros nuevos: se
+  ampliaron los cuatro de T-040 (`auth.schema.ts`, `auth.repository.ts`, `auth.service.ts`,
+  `auth.routes.ts`), que es justo para lo que servía la estructura de AGENTE.md §2.2.
+- **Dependencia nueva, autorizada por el propio enunciado, que nombra `jsonwebtoken`:**
+  `jsonwebtoken@9.0.3` (runtime) y `@types/jsonwebtoken@9.0.10` (solo desarrollo, porque
+  `jsonwebtoken` no distribuye sus propios tipos). Instaladas en `server/package.json` y
+  `package-lock.json`. Comprobado con `npm audit` que **`jsonwebtoken` no aparece en ninguna
+  vulnerabilidad**: los 4 avisos moderados que salen son de `drizzle-kit → @esbuild-kit →
+  esbuild` (servidor de desarrollo de una dependencia de desarrollo) y ya estaban antes.
+- **Criterio verificado con peticiones reales**, primero contra `tsx` y luego contra
+  `node dist/app.js` en el puerto 3100, con resultados idénticos:
+  - Login correcto → **200** `{"accessToken":…,"refreshToken":…,"user":{…}}` (231 y 164
+    caracteres respectively). El `user` es `{"id":2,"email":"login-test@example.com","role":"customer","preferredLang":"ru"}`
+    y **no contiene `passwordHash`**: es el mismo `userSchema` del registro, así que el hash no
+    puede salir por la forma de la respuesta.
+  - **Claims del access, decodificados y verificados con la firma:**
+    `{"type":"access","email":"login-test@example.com","role":"customer","sub":"2","iat":…,"exp":…}`
+    → `(exp - iat) = 900 s` (**15 min** exactos). `alg` = `HS256`.
+  - **Claims del refresh:** `{"type":"refresh","sub":"2",…}` → `(exp - iat) = 604800 s`
+    (**7 días** exactos). El refresh **no** lleva `email` ni `role`.
+  - **Los tokens no son intercambiables, y está comprobado, no supuesto:** verificar el refresh
+    con `JWT_SECRET` falla con `invalid signature`, y verificar el access con
+    `JWT_REFRESH_SECRET` también.
+  - Contraseña incorrecta → **401** `{"error":"Usuario o contrasena incorrectos","code":"INVALID_CREDENTIALS"}`.
+  - Email inexistente → **401 con el mismo mensaje y el mismo `code`**. Es deliberado: si los dos
+    fallos se distinguieran, el endpoint serviría para enumerar qué emails están registrados.
+  - Body vacío → 400 `VALIDATION_ERROR`; contraseña vacía → 400 (`min(1)`); email mal formado →
+    400; JSON truncado → 400 `INVALID_JSON`; `GET /api/auth/login` → 404 `NOT_FOUND`.
+  - `{"email":…,"password":…,"role":"admin"}` → **200 y el claim `role` sigue siendo `customer`**:
+    el body no puede ascenderse a admin por la vía del login.
+  - **Login con el email en otro formato:** `"  LOGIN-TEST@Example.COM  "` → **200** y el
+    `user.email` devuelto es `login-test@example.com`. Es la normalización de T-040 funcionando
+    también al entrar, no solo al registrarse.
+  - **Login del admin real** (`admin@osito.local`) → 200 con `role: "admin"` en la respuesta y en
+    el claim, comprobando que el camino de admin no es un caso especial.
+- **El tiempo de respuesta del 401 se igualó a propósito, y se midió.** Un `compare` de bcrypt a
+  10 rounds con `bcryptjs` cuesta **~100 ms** en esta máquina (una petición que no llega a
+  bcrypt, como un 400 de validación, responde en ~10 ms). Si el email no existiera devolviera el
+  401 sin comparar, los dos fallos serían distinguibles de sobra por tiempo. Por eso hay un
+  `compare` contra un **hash de relleno** cuando el usuario no existe. Medido con 15 peticiones
+  intercaladas por grupo: **mediana 103 ms con usuario real frente a 108 ms con usuario
+  inexistente (5 ms de diferencia)**, con los rangos solapados; la diferencia de medias (38 ms) la
+  explican dos picos sueltos del servidor, uno de ellos la primera petición en frío.
+- **Decisiones tomadas (anotadas también en `MEMORY.md`):**
+  1. **El claim `type` (`'access' | 'refresh'`) es obligatorio en los dos tokens.** Sin él, un
+     refresh token (7 días) valdría como credencial en cualquier ruta protegida, porque
+     `requireAuth` solo verifica la firma. Promovido a "Decisiones arquitectónicas clave".
+  2. **Dos secretos distintos, que es lo que ya distortaba el enunciado:** el access se firma con
+     `JWT_SECRET` y el refresh con `JWT_REFRESH_SECRET`. La separación real de los dos casos ya
+     la daba el claim `type`; los secretos distintos son la segunda barrera.
+  3. **`email` y `role` van solo en el access**, porque son lo que el servidor necesita en cada
+     petición sin ir a la base. El precio asumido: un cambio de rol no se ve hasta que el access
+     caduca (máximo 15 min). Anotado para T-043.
+  4. **`sub` es el `id` en texto**, como exige JWT; quien lo lea tiene que hacer `Number(sub)`.
+  5. **El login reutiliza `emailSchema` (con normalización) pero no `passwordSchema`:** el login
+     responde "¿son estas las credenciales?", no "¿cumple las reglas?". Aplicar el `min(8)` haría
+     que una contraseña corta devolviera 400 en vez del 401 que el cliente tiene que saber pintar.
+  6. **`bcrypt.compareSync` y no el `hash` asíncrono**, por el mismo invariante síncrono que
+     decidió T-040: mantiene el servicio sin `await` en medio. El coste es que **el login bloquea
+     el event loop ~100 ms**; en una API con un solo usuario a la vez es aceptable, y el día que
+     moleste el arreglo es el inverso: pasar a `hash` asíncrono **y** añadir el `await` obliga a
+     detectar el `SQLITE_CONSTRAINT_UNIQUE` en el registro (ver T-040).
+  7. **Los refresh tokens son sin estado: no hay tabla ni revocación.** Cerrar sesión (T-045) no
+     puede invalidar un refresh ya emitido; solo deja de renovar cuando caduca a los 7 días.
+- **Verificación de no regresión:** `GET /api/health` 200, `GET /api/dishes` 200, `GET
+  /api/categories` 200, ruta inexistente 404, `POST /api/auth/register` sigue dando 409 con email
+  duplicado y 201 con email nuevo, y el login **también funciona por el proxy de Vite**
+  (`http://localhost:5173/api/auth/login` → 200 con `accessToken`). `npm run typecheck`, `npm
+  run lint`, `npm run format:check` y `npm run build` en verde.
+- **Base de datos verificada sin residuos.** Backup con `VACUUM INTO` antes de limpiar y
+  comparación al terminar: `categories`, `dishes`, `orders`, `order_items`, `page_views` y
+  `notification_logs` **idénticas**; `users` e `sqlite_sequence` difieren **exactamente en los
+  datos de prueba** que se borraron (2 clientes creados para esta tarea). La fila del admin
+  sigue con el mismo `id`, el mismo `created_at` y el mismo hash, y `sqlite_sequence.users` volvió
+  a `1`. `foreign_key_check` vacío e `integrity_check` en `ok`. **El login no escribe nada**: no
+  hay sesión, ni `last_login`, ni actualización de `preferredLang`.
+- **Pendientes / deuda que deja esta tarea:**
+  - **T-042 (refresh)** tiene que verificar con `JWT_REFRESH_SECRET` **y** exigir
+    `type === 'refresh'`, y al renovar tiene que releer el usuario de la base (el refresh no lleva
+    `email` ni `role` a propósito).
+  - **T-043 (`requireAuth`)** tiene que verificar con `JWT_SECRET`, exigir `type === 'access'` y
+    decidir si se fía del `role` del token o va a la base. Está anotado en el propio
+    `auth.service.ts`.
+  - **No hay `logout` en el servidor** porque no hay estado que invalidar. Si el dueño quiere
+    cerrar sesión de verdad, hace falta una tabla de refresh tokens revocados (o `tokenVersion` en
+    `users`), y eso es una migración nueva.
+  - Los cuatro avisos de `npm audit` (moderados) vienen de `drizzle-kit → esbuild` y son
+    preexistentes: no los ha tocado esta tarea.
+
+---
 
 ### 2026-10-03 — T-040 `POST /api/auth/register`
 - **Primer módulo de `auth/` y el primero que toca `users`.** Estructura de cuatro ficheros

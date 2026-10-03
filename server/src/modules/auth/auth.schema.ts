@@ -89,6 +89,42 @@ const userSchema = z.object({
   preferredLang: z.enum(['es', 'ru', 'en']),
 });
 
-export { registerBodySchema, userSchema };
+/**
+ * Body de `POST /api/auth/login`: dos campos y nada más.
+ *
+ * **Reutiliza `emailSchema`, con su normalización a minúsculas.** Es lo que hace que un
+ * usuario pueda escribir `  Ana@Ejemplo.com ` y entrar igual que si hubiera escrito
+ * `ana@ejemplo.com`: el login busca por el mismo valor con el que se guardó, y ese valor
+ * lo decidió T-040 en el mismo sitio.
+ *
+ * **La contraseña aquí solo se exige que no esté vacía, y no se reutiliza `passwordSchema`
+ * a propósito.** El login no responde "¿esta contraseña cumple las reglas?", sino
+ * "¿son estas las credenciales?". Aplicar el `min(8)` y el límite de 72 bytes haría que
+ * una contraseña demasiado corta devolviera 400 en vez de 401 `INVALID_CREDENTIALS`, que
+ * es lo que el cliente tiene que saber pintar ("usuario o contraseña incorrectos"), y
+ * mezclaría las reglas del registro con las de la autenticación.
+ */
+const loginBodySchema = z.object({
+  email: emailSchema,
+  password: z
+    .string()
+    .min(1, { message: 'La contraseña no puede estar vacía' }),
+});
 
+/**
+ * Respuesta del login: los dos tokens y el usuario **sin hash**, que es el mismo
+ * `userSchema` del registro. El frontend guarda los tokens y ya tiene el usuario, así que
+ * no necesita una llamada extra para pintarlo.
+ *
+ * Se valida en runtime con `parse`, como en el resto del módulo.
+ */
+const loginResponseSchema = z.object({
+  accessToken: z.string().min(1),
+  refreshToken: z.string().min(1),
+  user: userSchema,
+});
+
+export { loginBodySchema, loginResponseSchema, registerBodySchema, userSchema };
+
+export type LoginBody = z.infer<typeof loginBodySchema>;
 export type RegisterBody = z.infer<typeof registerBodySchema>;

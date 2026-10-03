@@ -66,4 +66,29 @@ const insertUser = (
     .returning(publicUserProjection)
     .get();
 
-export { emailExists, insertUser };
+/**
+ * Proyección de **autenticación**: incluye el `passwordHash`, a diferencia de
+ * `publicUserProjection`. Es la única razón por la que existe el `SELECT` de esta función:
+ * el login necesita el hash para compararlo, y el hash nunca sale por la respuesta porque
+ * `loginResponseSchema` no lo contempla.
+ */
+const authUserProjection = {
+  id: users.id,
+  email: users.email,
+  passwordHash: users.passwordHash,
+  role: users.role,
+  preferredLang: users.preferredLang,
+};
+
+/**
+ * Busca el usuario por email para autenticar. Devuelve la fila con el hash o `undefined`.
+ *
+ * Llega el email **ya normalizado** por el schema (misma regla que `emailExists`, decidida
+ * en T-040), así que la igualdad es exacta y coincide con el `UNIQUE` de la columna. Se
+ * consulta la fila entera en vez de la existencia porque el login necesita el hash, el rol
+ * y el idioma para firmar el token y devolver el usuario.
+ */
+const findUserByEmail = (email: string) =>
+  db.select(authUserProjection).from(users).where(eq(users.email, email)).get();
+
+export { emailExists, findUserByEmail, insertUser };

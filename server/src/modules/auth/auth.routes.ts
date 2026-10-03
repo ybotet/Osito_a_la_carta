@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { registerUser } from './auth.service.js';
-import { registerBodySchema } from './auth.schema.js';
+import { loginUser, registerUser } from './auth.service.js';
+import { loginBodySchema, registerBodySchema } from './auth.schema.js';
 
 const authRouter = Router();
 
@@ -17,6 +17,20 @@ authRouter.post('/auth/register', (req, res) => {
   const body = registerBodySchema.parse(req.body);
 
   res.status(201).json(registerUser(body));
+});
+
+/**
+ * Login. **200 con los dos tokens y el usuario**, sin hash (lo decide
+ * `loginResponseSchema`).
+ *
+ * No toca `Accept-Language` por el mismo motivo que el registro: aquí no hay contenido
+ * multi-idioma que localizar. El idioma del usuario viene en `user.preferredLang`, que es
+ * de donde el frontend debe sacarlo.
+ */
+authRouter.post('/auth/login', (req, res) => {
+  const body = loginBodySchema.parse(req.body);
+
+  res.json(loginUser(body));
 });
 
 export { authRouter };
