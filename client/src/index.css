@@ -1,1 +1,82 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
+
+/**
+ * Tema de shadcn/ui, y a la vez los valores que usan los componentes de `components/ui/`.
+ *
+ * **Los tokens son la paleta `stone` de Tailwind 4, literalmente.** No son números copiados de
+ * otro sitio: son los mismos `oklch` que están en `node_modules/tailwindcss/theme.css`, así que
+ * `bg-muted` y un `bg-stone-100` escrito a mano son **el mismo color**. Es lo que hace que la
+ * app se vea coherente sin tener que reescribir de golpe las clases que ya había, que son
+ * `stone-*` de T-032 a T-034.
+ *
+ * **El tema va en `@theme inline` y no en un `tailwind.config.js`,** porque con Tailwind 4 la
+ * configuración es CSS-first y ese archivo no existe en el proyecto (lo decidió T-005). `inline`
+ * es lo que hace que las utilities generado apunten a la variable y no a una copia del valor:
+ * sin `inline`, Tailwind copiaría el `oklch` en cada clase y cambiar el tema obligaría a
+ * regenerar el CSS.
+ *
+ * **Solo la paleta clara.** El producto no tiene modo oscuro (SPEC.md no lo pide), así que no se
+ * añade bloque `.dark` ni el variant `dark`: sería código muerto. Cuando se quiera, se añade el
+ * `.dark` con los mismos nombres y el `@custom-variant dark`.
+ */
+:root {
+  --radius: 0.625rem;
+
+  /* Superficies y texto: blanco de fondo, `stone-900` para el texto. */
+  --background: #fff;
+  --foreground: oklch(21.6% 0.006 56.043);
+  --card: #fff;
+  --card-foreground: oklch(21.6% 0.006 56.043);
+  --popover: #fff;
+  --popover-foreground: oklch(21.6% 0.006 56.043);
+
+  /* Acción principal en `stone-900`, que es el color que ya usaba el `Button` de T-032. */
+  --primary: oklch(21.6% 0.006 56.043);
+  --primary-foreground: oklch(98.5% 0.001 106.423);
+  --secondary: oklch(97% 0.001 106.424);
+  --secondary-foreground: oklch(21.6% 0.006 56.043);
+
+  /* Superficies apagadas y bordes, los mismos tonos que usaba el CSS a mano hasta ahora. */
+  --muted: oklch(97% 0.001 106.424);
+  --muted-foreground: oklch(55.3% 0.013 58.071);
+  --accent: oklch(97% 0.001 106.424);
+  --accent-foreground: oklch(21.6% 0.006 56.043);
+  --destructive: oklch(57.7% 0.245 27.325);
+  --destructive-foreground: #fff;
+  --border: oklch(92.3% 0.003 48.717);
+  --input: oklch(92.3% 0.003 48.717);
+  --ring: oklch(70.9% 0.01 56.259);
+}
+
+/**
+ * Cada token se expone como utility de Tailwind: `--color-primary` es lo que hace que
+ * `bg-primary`, `text-primary` o `border-primary` existan. Los radios salen de `--radius` para
+ * que `rounded-md` de los componentes y el borde de las tarjetas usen la misma escala.
+ */
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}

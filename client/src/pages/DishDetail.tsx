@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { ApiError, fetchDishById } from '../api/dishes';
 import { formatPrice } from '../lib/format';
 import { Button } from '../components/ui/button';
-import { buttonVariants } from '../components/ui/button-variants';
 
 /**
  * Página de detalle de un plato (`/menu/:id`).
@@ -84,14 +83,17 @@ const DishDetailError = ({ isNotFound, message }: DishDetailErrorProps) => {
         {isNotFound ? t('dish.notFound') : t('dish.error')}
       </p>
       {message !== undefined ? (
-        <p className="mt-2 text-xs text-stone-500">{message}</p>
+        <p className="mt-2 text-xs text-muted-foreground">{message}</p>
       ) : null}
-      <Link
-        to="/menu"
-        className={`${buttonVariants({ variant: 'outline' })} mt-4`}
-      >
-        {t('nav.backToMenu')}
-      </Link>
+      {/*
+        `Button` con `asChild` y un `Link` dentro. Esto era un `Link` con
+        `buttonVariants({ variant: 'outline' })`, el apaño que dejó T-034 porque el `Button`
+        que había no tenía `asChild`. Con el componente oficial, `asChild` lo resuelve sin
+        copiar las clases a mano, que es justo para lo que existe.
+      */}
+      <Button asChild variant="outline" className="mt-4">
+        <Link to="/menu">{t('nav.backToMenu')}</Link>
+      </Button>
     </main>
   );
 };
@@ -151,14 +153,13 @@ const DishDetail = () => {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold">{dish.name}</h1>
         {/*
-          Un enlace con las clases del botón y no un `<Button>`: un `<button>` no puede
-          contener un enlace, y este `Button` no admite `asChild`, que es justo lo que hace
-          falta para navegar. Las variantes salen de `button-variants.ts` para que el aspecto sea
-          el mismo sin duplicar las clases a mano.
+          `Button` con `asChild` y un `Link` dentro: un `<button>` no puede contener un
+          enlace, y `asChild` es lo que permite tener las dos cosas sin copiar las clases del
+          botón en cada enlace.
         */}
-        <Link to="/menu" className={buttonVariants({ variant: 'outline' })}>
-          {t('nav.backToMenu')}
-        </Link>
+        <Button asChild variant="outline">
+          <Link to="/menu">{t('nav.backToMenu')}</Link>
+        </Button>
       </div>
 
       {/*

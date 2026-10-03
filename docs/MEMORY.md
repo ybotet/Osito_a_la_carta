@@ -2,7 +2,7 @@
 
 > Este archivo es la memoria del proyecto. Todo agente lo lee al empezar
 > y lo actualiza al terminar. Nunca se borra contenido: solo se agrega.
-> Última actualización: 2026-10-01
+> Última actualización: 2026-10-03
 
 ---
 
@@ -1127,12 +1127,108 @@ no son intercambiables.
   un campo inesperado sea un 400 hace falta `.strict()`. En `POST /api/dishes` se dejó
   sin `.strict()`, pero conviene saber que mandar `isAvailable: 0` no cambia nada: el
   repositorio lo fija en 1, no confía en el cliente.
+- **Con Tailwind 4 un token nuevo del tema va en los DOS bloques de `index.css`, y el valor
+  se duplica si se olvida el segundo.** En `:root` va el valor (`--primary: oklch(...)`) y en
+  `@theme inline` el mapeo a utility (`--color-primary: var(--primary)`). Si falta el mapeo,
+  la clase `bg-primary` **no se genera** y no hay ningún error: el CSS sale simplemente sin
+  ella. Y `inline` no es decorativo: sin él Tailwind copia el valor en cada utility y cambiar
+  el tema obligaría a regenerar el CSS. Visto en T-035, donde el bloque `@theme inline` no
+  existía y por eso no había ningún token.
+- **El alias `@/` hay que declararlo en TypeScript y en Vite, o uno de los dos miente.**
+  `paths` en `tsconfig.app.json` (y en `tsconfig.json`, que es el que resuelve `tsc -b`) hace
+  que `tsc` pase; `resolve.alias` en `vite.config.ts` es lo que hace que el import funcione en
+  el navegador. Con solo el `paths`, el typecheck sale verde y el navegador falla con un
+  import que no se encuentra. El valor sale de `import.meta.url` porque `client/package.json`
+  es `"type": "module"` y `__dirname` no existe. Visto en T-035.
+- **`components.json` tiene que estar en la carpeta de la app, no en la raíz del monorepo.**
+  La CLI de shadcn lo busca junto al `tsconfig.json`/código de la aplicación: en la raíz
+  respondía `Failed to load tsconfig.json` y desde `client/` decía que no había
+  `components.json` y proponía crear uno. Se movió a `client/`. Visto en T-035.
+- **Del registro de shadcn hay que retocar dos cosas en `button.tsx` o se pierde
+  comportamiento.** Una, **`type="button"` por defecto**: el registro no lo pone y un
+  `<button>` sin `type` dentro de un `<form>` es `submit` (con `asChild` no se aplica, porque
+  el hijo puede ser un `<a>` y ahí es HTML inválido). Dos, **`buttonVariants` sin exportar**:
+  el registro lo exporta, y exportarlo desde un fichero que también exporta un componente
+  dispara `react-refresh/only-export-components`, que es el mismo gotcha que ya tenía T-032.
+  Visto en T-035.
+- **`CardTitle` es un `div`, no un `<h3>`**, aunque parezca un título: el encabezado va dentro
+  si quieres la semántica. Un `<h2>` dentro de un `<h3>` tampoco vale. Visto en T-035.
+- **`npm run format` desde el workspace del cliente reformatea `client/dist`.** El
+  `.prettierignore` está solo en la raíz y Prettier lo busca **en el directorio desde el que
+  se ejecuta**, así que desde `client/` no aplica ninguno de sus patrones. Para tocar solo
+  código del cliente: `npx prettier --write src` desde `client/`, o `npm run format:check`
+  desde la raíz, que es la comprobación que se usa en el checklist. Visto en T-035.
+- **`npm run format:check` recorría los worktrees de `.kilo/`.** Son una copia entera del repo
+  y Git los excluye por su cuenta (`.git/info/exclude`), pero Prettier no lee eso: fallaba con
+  40 archivos ajenos. Se añadió `.kilo` al `.prettierignore` de la raíz. Visto en T-035.
+- **Con el servidor de Vite levantándose en paralelo, `tsc` puede dar un `TS2307` fantasma.**
+  Pasó una vez en T-035 con `class-variance-authority` instalado y presente en
+  `node_modules`: `--traceResolution` llegaba a la carpeta del paquete y no la encontraba, y el
+  mismo comando después, cinco veces seguidas, no falló ninguna, con los imports en el mismo
+  orden. No es un problema del paquete ni del `paths`: si aparece, se reintenta y, si se repite
+  siempre, se mira que el `node_modules` del workspace no esté a medio instalar. Visto en T-035.
 
 ---
 
 ## Historial de entradas
 
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
+### 2026-10-03 — T-035 Estilos base con Tailwind + shadcn/ui
+**Estado:** completada (retoma la entrada del 2026-10-02, que sigue intacta más abajo)
+
+**Qué se hizo:**
+- El tema de shadcn/ui en `client/src/index.css`: tokens `:root` + mapeo `@theme inline`.
+- Los componentes del registro en `src/components/ui/`: `button` (con `Slot`, `asChild` y
+  `type="button"`), `card`, `input` y `label`.
+- `DishCard`, `Layout`, `Menu` y `DishDetail` migrados a esos componentes; navbar con enlaces
+  reales; `components.json` movido a `client/`; alias `@/` declarado en `tsconfig` y en Vite.
+
+**Cómo se hizo:**
+- Creados: `client/src/components/ui/card.tsx`, `input.tsx`, `label.tsx`.
+- Modificados: `client/src/components/ui/button.tsx`, `client/src/index.css`,
+  `DishCard.tsx`, `Layout.tsx`, `pages/Menu.tsx`, `pages/DishDetail.tsx`,
+  `client/vite.config.ts`, `client/tsconfig.app.json`, `client/tsconfig.json`,
+  `client/package.json`, `.prettierignore`. Borrado: `client/src/components/ui/button-variants.ts`.
+- Movido: `components.json` de la raíz a `client/`.
+- Dependencias añadidas (con autorización del dueño): `@radix-ui/react-slot` (lo necesita el
+  `Button` oficial para `asChild`), `@radix-ui/react-label` (solo para `Label`) y
+  `tw-animate-css` (animaciones de los overlays; hoy todavía sin usar).
+- `buttonVariants` dejó de exportarse y `ui/button-variants.ts` se borró: con el `Button`
+  oficial, `asChild` sustituye al apaño que T-034 necesitó para dar estilo de botón a un enlace.
+
+**Por qué se hizo así:**
+- **El enunciado ("instalar y configurar shadcn/ui") describía un trabajo que ya estaba hecho a
+  medias.** shadcn/ui no se instala: la CLI copia ficheros. T-032 ya había copiado `Button`,
+  `cn` y las dependencias; lo que faltaba de verdad era el tema, del que dependía todo lo demás.
+- **`@theme inline` y no `tailwind.config.js`:** T-005 decidió que con Tailwind 4 la
+  configuración es CSS-first. Crear el fichero de config ahora sería contradecir una decisión
+  cerrada, y AGENTE.md §1 prohíbe reabrir decisiones de SPEC.
+- **Los tokens son la paleta `stone` literal de Tailwind,** no valores inventados: así
+  `bg-muted` y un `bg-stone-100` de T-032 a T-334 son el mismo color y la UI no se desincroniza.
+- **Solo tema claro:** el producto no tiene modo oscuro, así que el bloque `.dark` sería código
+  muerto.
+- **`toast` y `dropdown-menu` no se instalaron:** son 4 archivos más con dependencias de Radix
+  que T-033 ya había denegado, y su consumidor es T-092. Se decidió por partes; está en
+  "Decisiones resueltas" de `TASKLIST.md`.
+
+**Impacto en otras tareas:**
+- **T-092** es quien instala `toast` y `dropdown-menu`, y quien pide `@radix-ui/react-toast` y
+  `lucide-react` con motivo.
+- **T-044** tiene ya `Input` y `Label`; solo falta `react-hook-form` con su `zodResolver`.
+- **T-053** y **T-044** solo tienen que quitar el `disabled` de sus botones del navbar.
+- **T-091 (responsive)** hereda los breakpoints de aquí (`sm:grid-cols-2`, `md:grid-cols-2` y el
+  `flex-wrap` del navbar).
+- La CLI de shadcn **ya funciona** desde `client/`, que era el bloqueo registrado el 2026-10-02.
+
+**Pendientes / deuda técnica:**
+- `tw-animate-css` está instalada y ningún componente la usa todavía; la usarán los overlays.
+- **No se ha verificado el aspecto en un navegador de verdad** (el proyecto no tiene navegador
+  automatizado). Se comprobó el CSS generado en el build y servido por Vite: los tokens se
+  emiten y `.bg-primary` compila a `background-color: var(--primary)`.
+- `input` y `label` no tienen consumidor hasta T-044; es deliberado, no código muerto por error.
+
+---
 
 ### 2026-10-01 — A-001 Categorías de platos (tabla `categories`)
 **Estado:** completada
@@ -2607,6 +2703,63 @@ anotado.
   completo puede no ganar.
 - `dishes.is_available` sigue sin índice. No se ha pedido, y con el menú entero en pantalla
   el `SCAN` es lo razonable.
+
+---
+
+### 2026-10-02 — T-035 Estilos base con Tailwind + shadcn/ui (`bloqueada`)
+**Estado:** bloqueada (a la espera de decisión del dueño; no se ha escrito código)
+
+**Qué se hizo:**
+- Revisión del estado real de shadcn en el proyecto y de lo que pide cada componente del
+  enunciado. Sin código nuevo.
+
+**Cómo se hizo:**
+- Leídos `components.json`, `client/src/index.css`, `components/ui/button.tsx`,
+  `components/Layout.tsx`, `client/package.json` y las entradas de T-032 a T-034.
+- Se probó la CLI de verdad: `npx shadcn@latest add ... --dry-run` desde la raíz y desde
+  `client/`. Se consultó el registro oficial de shadcn para las dependencias de cada componente.
+- Archivos tocados: solo `docs/TASKLIST.md` y `docs/MEMORY.md`.
+
+**Por qué se hizo así:**
+- **shadcn/ui ya está instalado.** T-032 lo montó a mano (`components.json`, `cn`, `Button`,
+  `clsx`/`tailwind-merge`/`class-variance-authority`) y T-033/T-034 lo han usado. Lo que queda
+  no es un `init` sino **terminar la parte que quedó a medias**: los tokens del tema, que
+  `index.css` no tiene y que T-005 ya había avisado de que había que revisar.
+- **Bloqueo 1 — la CLI no encuentra la aplicación, y el fallo viene de T-032.** `components.json`
+  está en la **raíz** del monorepo y la app en `client/`. Desde la raíz, `shadcn add` responde
+  `Failed to load tsconfig.json` (en la raíz no hay `tsconfig.json`); desde `client/` responde
+  que no hay `components.json` y propone crearlo. La entrada de T-032 afirma que el fichero
+  "deja la CLI lista para añadir componentes sin reconfigurar", y **eso no se cumple tal como
+  está puesto**: habría que moverlo a `client/`.
+- **Bloqueo 2 — dependencias nuevas, con Radix ya denegado.** Según el registro oficial:
+  `card` e `input` no piden nada; `label` pide `@radix-ui/react-label`; el `button` oficial pide
+  `@radix-ui/react-slot`; `dropdown-menu` pide `@radix-ui/react-dropdown-menu` y `lucide-react`;
+  `toast` pide `@radix-ui/react-toast` y `lucide-react`. Además los overlays usan utilidades de
+  `tw-animate-css`, que no viene con Tailwind 4. **Radix se denegó en T-033** para el dropdown del
+  selector de idioma, así que instalar `@radix-ui/react-dropdown-menu` ahora es lo mismo que se
+  denegó, aplicado a otro componente.
+- **Bloqueo 3 — no cabe en una tarea.** Los seis componentes del enunciado son **7 archivos
+  nuevos** (`card`, `input`, `label`, `dropdown-menu`, y `toast` que trae `toast.tsx`,
+  `toaster.tsx` y `hooks/use-toast.ts`), y AGENTE.md §1 limita a 5 archivos nuevos por tarea.
+- Alternativas descartadas: (a) hacer los 7 archivos igualmente, que incumple el límite de
+  AGENTE.md; (b) reescribir a mano `label`/`dropdown-menu`/`toast` para no instalar Radix, que
+  contradice la decisión de T-032 de usar shadcn de verdad en vez de imitarlo.
+
+**Impacto en otras tareas:**
+- **T-035 sigue pendiente de una respuesta**; nada más depende de este bloqueo.
+- **T-044 (formularios de `/login` y `/register`)** necesita `input` y `label`, así que si se
+  aprueban vendrán justo en la tarea que los usa.
+- **T-092 (`ErrorBoundary` + toasts)** es el consumidor natural de `toast`; instalarlo en T-035
+  lo deja sin usar.
+- **T-091 (responsive)** depende del criterio visual de esta tarea: los breakpoints que se
+  fijen aquí son los que se.uspto después.
+
+**Pendientes / deuda técnica:**
+- `client/src/index.css` sigue con una sola línea (`@import 'tailwindcss'`). Cuando se añadan
+  los tokens, los componentes que ya usen `stone-*` seguirán funcionando igual: por eso se puede
+  añadir el tema sin reescribir de golpe toda la UI.
+- El `Button` actual es de shadcn en apariencia pero no es el de shadcn: no tiene `asChild`, y por
+  eso T-034 tuvo que extraer `buttonVariants` para poder dar estilo de botón a un enlace.
 
 ---
 

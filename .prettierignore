@@ -10,3 +10,7 @@ README.md
 # Metadatos generados por drizzle-kit: se reescriben en cada `db:generate`,
 # asi que reformatearlos haria fallar `format:check` de nuevo sin valor.
 server/src/db/migrations/meta
+
+# Worktrees del Agent Manager: son una copia completa del repo, asi que sin esto
+# `format:check` los recorre entera y falla con los 40 archivos de la copia.
+.kilo
