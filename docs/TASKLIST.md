@@ -218,10 +218,49 @@
   - **Se protegieron también las tres escrituras de categorías**, que T-026, T-027 y T-028
     dejaron explícitamente pendientes de T-043 ("la parte de autorización del criterio
     queda pendiente de T-043"). Con esto **la API ya no tiene ninguna escritura pública.**
-- [ ] **T-044**: Páginas `/login` y `/register` en frontend
-  - Criterio: el formulario usa React Hook Form + Zod.
-- [ ] **T-045**: Store de sesión con Zustand + persistencia en `localStorage`
-  - Criterio: al recargar, la sesión se mantiene si el token es válido.
+- [x] **T-044**: Páginas `/login` y `/register` en frontend
+  - Criterio: el formulario usa React Hook Form + Zod. **Verificado contra la API real**
+    (no una copia): las reglas compartidas rechazan en el cliente exactamente lo mismo que
+    rechaza el servidor, con el mismo mensaje; el registro (201) seguido del auto-login
+    (200 con los dos tokens) deja sesión en el store; el login con credenciales malas lanza
+    `ApiError 401 INVALID_CREDENTIALS`, que es lo que la página pinta.
+  - **Tras registrarse, la página entra sola**: `POST /api/auth/register` (T-040) devuelve
+    **solo** el usuario, sin tokens, así que la página hace `register` y después `login` con
+    las mismas credenciales. Es lo que hace falta para el criterio ("redirige a `/menu`
+    **autenticado**") sin tocar un endpoint ya verificado.
+  - **El error va dentro del formulario con `role="alert"`, no en un toast.** El sistema de
+    avisos (`ErrorBoundary` + toasts) y el componente `toast` de shadcn son de **T-092**, por
+    decisión registrada del dueño; instalarlos aquí los dejaba sin consumidor y repetía la
+    denegación de Radix de T-033.
+  - **Los mensajes se eligen por `code`, no se pintan los del backend.** El backend responde
+    en español (T-040) y traducirlos a posteriori sería frágil; con `INVALID_CREDENTIALS` y
+    `EMAIL_TAKEN` hay clave propia en es/ru/en. Verificado que **el texto del backend no llega
+    al bundle del cliente**.
+  - **Las reglas de validación viven ahora en `shared/schemas.ts`**, no duplicadas: el
+    formulario pinta el mensaje en el idioma de la interfaz y el servidor sigue contestando
+    en español con los mismos textos que antes. Esto obligó a cambiar el `rootDir` del
+    servidor (ver "Decisiones resueltas").
+  - `preferredLang` se manda con el idioma que está viendo el usuario y se comprueba contra
+    la lista de los tres antes de enviarlo.
+- [x] **T-045**: Store de sesión con Zustand + persistencia en `localStorage`
+  - Criterio: al recargar, la sesión se mantiene si el token es válido. **Verificado con dos
+    procesos distintos** (el segundo carga el mismo `localStorage`): `setSession` deja
+    `{"state":{"user":…,"accessToken":…,"refreshToken":…},"version":0}` bajo la clave
+    `osito-auth`, y el proceso nuevo **rehidrata los tres campos sin dejar correr una sola
+    microtask** (`persist.hasHydrated() === true`). `clearSession` los pone a `null` y
+    **vuelve a escribir el `localStorage`**, así que la sesión no reaparece al recargar.
+  - `isAuthenticated` es **derivado con un selector** (`useIsAuthenticated`), no un booleano en
+    el estado: guardado en el estado habría que mantenerlo a mano en cada `set` y se
+    quedaría viejo en cuanto hubiera una tercera forma de cambiar el estado. Exige `user`
+    **y** `accessToken`: con solo uno de los dos no hay sesión usable.
+  - Se persisten **solo los tres campos de dato**, no el estado entero (`partialize`).
+  - **`ApiAuthUser` vive en `client/src/api/auth.types.ts`, no en el store:** es la forma del
+    cable de `/api/auth/login`, y el `user` del store es exactamente ese objeto.
+  - Se instaló **`zustand@5.0.15`** (lo nombra el enunciado de la tarea). Sin vulns nuevas.
+  - **Limitación de la verificación, y no del store:** con `renderToStaticMarkup` el hook
+    devuelve `false` aunque haya sesión rehidratada, porque `useSyncExternalStore` usa
+    `getInitialState()` como snapshot de servidor. En el navegador no pasa: el store se
+    rehidrata al cargar el módulo, antes del primer render. Ver "Notas de progreso".
 - [ ] **T-046**: Interceptor de fetch que añade `Authorization` y maneja 401
   - Criterio: si el access expira, hace refresh automático.
 
@@ -1907,6 +1946,186 @@
   ya está deshabilitado, y eso es intencionado (decisión de T-024: un plato deshabilitado es
   indistinguible de uno que nunca existió; `PATCH .../availability` sí lo ve). No es un fallo
   de T-043 ni de `requireAdmin`.
+
+---
+
+### 2026-10-04 — T-045 Store de sesión con Zustand
+- Archivos nuevos: `client/src/store/auth.ts` y `client/src/api/auth.types.ts`. Modificado:
+  `client/package.json` (+ `package-lock.json`). **Sin cambios en servidor ni en API.**
+- Dependencia: **`zustand@5.0.15`**, la que nombra el enunciado de T-045. `npm audit` no
+  añade vulnerabilidades con ella (ver el aviso de audit más abajo, que es anterior).
+- **Se hizo T-045 antes que T-044 a propósito, por decisión del dueño.** T-044 dice "guarda los
+  tokens en el store de Zustand (T-045)" y el store no existía; crear un store a medias dentro
+  de T-044 habría mezclado dos tareas y dejado T-045 para rehacerlo.
+- **El estado son tres campos y nada más**: `user`, `accessToken` y `refreshToken`. Los tokens
+  **están en el estado** y no en un sitio aparte porque el backend no tiene sesiones ni
+  cookies (el login devuelve el token en el cuerpo), y T-046 tendrá que leerlos desde fuera de
+  React con `useAuthStore.getState()`.
+- **`setSession` recibe los tres a la vez, no campo a campo.** Siempre van juntos (los
+  devuelve juntos el login) y una sesión con `user` pero sin token no significa nada.
+- **`isAuthenticated` es un selector (`useIsAuthenticated`), no un booleano del estado.** Es lo
+  que "derivado" significa en Zustand. Guardarlo obligaría a mantenerlo sincronizado a mano en
+  cada `set`, y el día que hubiera una tercera forma de cambiar el estado se quedaría viejo.
+  Pide `user` **y** `accessToken` porque hay `accessToken` sin `user` cuando T-046 renueva el
+  token, y `user` sin token cuando una limpieza se quedó a medias.
+- **`clearSession` también borra el `localStorage`**, porque es lo que hace falta para cerrar
+  sesión de verdad: con `persist`, limpiar solo el estado dejaría la sesión de vuelta al
+  recargar.
+- **`partialize` persiste solo los tres campos de dato.** Las acciones no se guardarían igual
+  (`JSON.stringify` las omite), pero dejarlo escrito evita que un campo derivado futuro acabe
+  persistiéndose sin que nadie lo decida.
+- **La clave es `osito-auth`,** con prefijo para no colisionar con el `i18nextLng` que ya usa
+  `localStorage` desde T-030.
+- **`ApiAuthUser` está en `api/auth.types.ts` y no en el store** porque es la forma del cable
+  de `/api/auth/login`, no el estado: el `user` del store es ese mismo objeto. Los schemas de
+  **respuesta** se quedan en el servidor (donde se ejecutan con `parse` sobre lo que se
+  serializa); los de **entrada** son los que T-044 mueve a `shared/schemas.ts`, porque esas
+  reglas tienen que ser las mismas en los dos lados.
+- Criterio verificado con **dos procesos**, que es lo más cerca de "recargar la página" que se
+  puede llegar sin navegador:
+  - Ronda 1: `setSession(...)` y volcado del `localStorage` simulado.
+  - Ronda 2 (proceso nuevo, mismo almacenamiento): `user`, `accessToken` y `refreshToken`
+    vuelven a estar, y **`persist.hasHydrated()` es `true` sin haber dejado correr ninguna
+    microtask**: con `localStorage` la rehidratación es síncrona y ocurre al cargar el módulo
+    del store, o sea **antes del primer render**. En el navegador no hay parpadeo de
+    "sin sesión".
+  - `clearSession()` deja los tres en `null` y **reescribe el almacenamiento** con ese estado
+    vacío.
+- **Lo que no se ha podido verificar, y es una limitación del entorno:** el hook
+  `useIsAuthenticated()` en un render de **cliente**. Sin `jsdom` (no instalado, y no
+  autorizado) no hay DOM, y `renderToStaticMarkup` usa `getInitialState()` como snapshot de
+  servidor, así que devuelve `false` aunque el store tenga la sesión rehidratada. Sí está
+  comprobado que el hook se llama sin error y que con el store vacío devuelve `false`; el
+  caso `true` es el mismo selector aplicado al estado que la ronda 2 demuestra que existe.
+  Mismo género de gotcha que el observer `pending` de TanStack que registró T-031.
+- **Un hallazgo sobre `npm audit` que no es de esta tarea:** `npm audit` **ya no da 0
+  vulnerabilidades**; da **4 moderadas**, todas por `drizzle-kit` → `@esbuild-kit/esm-loader`
+  → `esbuild@<=0.24.2` (GHSA-67mh-4wv8-2f99, el servidor de desarrollo de esbuild). Las
+  notas de T-032 y T-035 dicen "0 vulnerabilidades" porque el aviso se publicó después. **No
+  se ha tocado**: el único fix que ofrece `npm audit` es `drizzle-kit@0.18.1`, que es un salto
+  mayor a la baja y puede romper `db:generate`/`db:migrate`.
+- Verificación técnica: `typecheck` y `lint` del cliente en verde, Prettier limpio y
+  `vite build` correcto con **115 módulos** transformados.
+- **Impacto en otras tareas:**
+  - **T-044** ya tiene store: las páginas llaman a `setSession` y no tocan el `localStorage`.
+  - **T-046** tiene lo que necesita para renovar el access sin React: `useAuthStore.getState()`
+    y `setSession`/`clearSession` son utilizables desde fuera de un componente.
+  - **SPEC §7.2 paso 2 sigue pendiente:** con sesión, cambiar el idioma debería actualizar
+    `preferred_lang` en la base, y **no hay endpoint para eso**. La elección de idioma sigue
+    viviendo solo en el `localStorage` del navegador. No se ha inventado el endpoint.
+  - El `user` del store no se usa todavía en ninguna página: las formas de auth (T-044) son su
+    primer consumidor.
+
+---
+
+### 2026-10-04 — T-044 Páginas `/login` y `/register`
+- Archivos nuevos: `client/src/pages/Login.tsx`, `client/src/pages/Register.tsx`,
+  `client/src/api/auth.ts`, `client/src/api/http.ts`. Modificados: `shared/schemas.ts` (tenía
+  0 bytes), `server/src/modules/auth/auth.schema.ts`, `server/src/shared/project-paths.ts`
+  (nuevo), `server/src/config/env.ts`, `server/src/db/database-url.ts`,
+  `server/src/modules/health/health.routes.ts`, `server/tsconfig.json`,
+  `server/package.json`, `client/src/api/dishes.ts`, `client/src/pages/DishDetail.tsx`,
+  `client/src/main.tsx`, `client/src/components/Layout.tsx`, los tres JSON de traducciones y
+  los dos `package.json`/`package-lock.json`.
+- Dependencias nuevas, las tres del enunciado: **`react-hook-form@7.89.0`**,
+  **`@hookform/resolvers@5.9.1`** y **`zod@3.25.76`** en el cliente. `npm ls zod` muestra
+  **una sola** copia en el monorepo: la del servidor (`^3.24.1`) se resuelve a la misma.
+- **Cuatro decisiones del dueño, preguntadas antes de escribir código** (el enunciaba cosas
+  que no eran posibles tal cual):
+  1. **Hacer T-045 antes que T-044**, porque T-044 tenía que guardar los tokens en un store que
+     no existía.
+  2. **Error en línea y no toast**, porque `toast` es de T-092 por decisión registrada.
+  3. **Mover los schemas a `shared/`** aunque obligara a cambiar el build del servidor (ver
+     abajo).
+  4. **Auto-login tras el registro**, porque `POST /api/auth/register` no devuelve tokens.
+- **El registro hace login detrás, y por qué:** el criterio dice "registro nuevo redirige a
+  `/menu` autenticado" y el endpoint de T-040 responde `201` con **solo** `{ id, email, role,
+  preferredLang }`. La página llama a `register`, luego a `login` con las mismas credenciales,
+  guarda la sesión y navega con `replace: true` (así el login no queda en el historial y "atrás"
+  no devuelve al formulario con la sesión ya abierta).
+- **El error se muestra con `role="alert"` dentro del formulario**, no en un toast: el sistema
+  de avisos es de T-092. Además un aviso que desaparece a los cinco segundos deja a quien navega
+  con teclado sin ninguna pista de por qué no le deja entrar.
+- **Los mensajes se eligen por `code`, no se pinta el `error` del backend.** El backend
+  responde en español y el usuario puede estar en ruso; con `INVALID_CREDENTIALS` y
+  `EMAIL_TAKEN` hay clave propia en los tres idiomas. Comprobado en el bundle: los textos del
+  backend **no** están en `client/dist/assets/*.js` y las traducciones sí.
+- **Los esquemas se construyen dentro del componente con `useMemo`**, no en el módulo: las
+  reglas vienen de `shared/schemas.ts` pero los mensajes salen de `t()`, así que un esquema de
+  módulo habría puesto español en una pantalla en ruso. `useMemo` hace que cambiar de idioma
+  rehaga el esquema con los textos nuevos.
+- **`createRegisterBodySchema(...).omit({ preferredLang: true })` en el registro:** el
+  formulario solo valida lo que teclea el usuario; `preferredLang` no es un campo suyo, sale
+  del idioma de la interfaz y se comprueba contra la lista de los tres al enviar. Quitarlo hace
+  que el tipo del formulario y el del esquema cuadren sin `cast`, y la regla del enum la sigue
+  aplicando el servidor.
+- **`ApiError` y `requestJson` se movieron de `api/dishes.ts` a `api/http.ts`** porque el login
+  necesita lo mismo (leer el cuerpo y traducir el fallo a un error con `code`) y dejar el error
+  en el módulo de platos habría hecho que `api/auth.ts` importara de `api/dishes.ts`.
+  `requestJson` ahora acepta `{ method, headers, body, signal }`, así que T-046 puede
+  envolverlo sin volver a tocar los llamadores. **Los cuerpos de respuesta siguen sin validarse
+  con Zod**: el backend valida lo que serializa (`userSchema.parse`), y traer Zod al cliente no
+  cambia ese criterio (el mismo de T-034).
+- **Los textos de validación del servidor no se han movido de idioma:** siguen en español en
+  `REGISTER_MESSAGES`/`LOGIN_MESSAGES`, con la misma palabra que antes, porque el frontend los
+  traduce por `code` y no por texto. Un `400` de la API responde exactamente igual que antes de
+  T-044 (comprobado en dev y en el build).
+- **`BCRYPT_MAX_BYTES` se exporta desde `shared/`** porque lo usan las dos lados: el servidor en
+  su mensaje y el cliente en la interpolación. Con el 72 escrito en dos sitios, cambiar el
+  límite habría dejado un texto diciendo 72 cuando el límite fuera otro.
+- **Los bytes de la contraseña se cuentan con `TextEncoder`, no con `Buffer.byteLength`.**
+  El esquema pasó a ejecutarse también en el navegador, donde `Buffer` no existe: con `Buffer`
+  el formulario reventaría con "Buffer is not defined" al escribir una contraseña. Los dos
+  cuentan UTF-8, así que el límite que ve bcrypt es el mismo (comprobado: 37 caracteres `á`
+  = 73 bytes, y el servidor y el cliente lo rechazan los dos).
+- **Rutas:** `/login` y `/register` entran **dentro** de la ruta de `Layout`, como las otras, y
+  no sueltas fuera: si no, el usuario que no sabe español se encuentra con un formulario en
+  ruso y un navbar sin selector de idioma.
+- **El botón de "Iniciar sesión" del navbar se habilitó** y pasó a `Button asChild` con un
+  `Link`, como el del menú (era lo que dejó escrito T-033). El del carrito sigue deshabilitado:
+  `/cart` es de T-053.
+- Verificación, contra la API real en marcha:
+  - **Las reglas compartidas, cliente contra servidor, entrada por entrada:** email sin
+    formato, email de 255 caracteres, contraseña corta, contraseña de solo espacios,
+    contraseña de 73 bytes, contraseña vacía y login válido. **En las siete coincide** el
+    veredicto y el texto.
+  - **Normalización igual en los dos lados:** el cliente entrega `"  T044@Ejemplo.COM "` ya
+    normalizado a `t044@ejemplo.com`, y el `409 EMAIL_TAKEN` del servidor trae ese mismo
+    email en `details`.
+  - **Flujo de registro:** `201` y después el auto-login `200` con `user`, `accessToken` y
+    `refreshToken`.
+  - **Login malo:** `ApiError` con `status 401`, `code INVALID_CREDENTIALS` y mensaje
+    `Usuario o contrasena incorrectos`.
+  - **Render real de las dos páginas en es, ru y en** (`renderToStaticMarkup` sobre el
+    componente de verdad, no una maqueta): todos los textos salen de los JSON, incluidos
+    `Mínimo 8 caracteres.` y, en ruso, `Пароль не может быть длиннее 72 байт` con la
+    interpolación de `{{max}}` funcionando.
+  - **Vite sirve los módulos nuevos** y el import compartido sale como
+    `/@fs/C:/.../shared/schemas.ts` y responde 200: el navegador puede cargarlo.
+  - **Los dos modos del servidor** (dev con `tsx` y `node dist/server/src/app.js`): mismos
+    status, mismos `code` y mismos mensajes en los siete casos de validación.
+- Verificación técnica: `typecheck` y `lint` de los dos workspaces en verde, Prettier limpio y
+  `vite build` correcto con **142 módulos** (eran 115 tras T-045).
+- **Lo que no se ha podido verificar, y es una limitación del entorno:** el `submit` real y la
+  redirección a `/menu`. No hay DOM en el entorno de verificación (`jsdom` no está instalado y
+  no se ha autorizado) y `renderToStaticMarkup` no dispara `handleSubmit`. Sí están
+  comprobados por separado el markup que se pinta, el contrato de la API y la escritura de la
+  sesión en el store.
+- Base de datos: se creó un usuario de prueba y **se borró**. Quedan los que ya había (el admin
+  del seed y `admin1@osito.com` de T-041), con el contador de `users` en 1 y
+  `integrity_check` en `ok`.
+- **Impacto en otras tareas:**
+  - **T-046 tiene el punto de enganche:** `api/http.ts` centraliza el `fetch` del cliente y ya
+    acepta método, cabeceras y cuerpo. Lo que falta es añadir `Authorization`, el refresh
+    automático y el `Accept-Language`.
+  - **T-050 (carrito)** ya tiene el `Button` con `onClick` pasando por un store de Zustand:
+    el patrón de `setSession` es el mismo.
+  - **T-092** sigue siendo quien instala `toast`; estas páginas tienen ya dónde enseñar el
+    error cuando llegue.
+  - **Cerrar sesión** sigue sin sitio en la interfaz: `nav.logout` existe desde T-030 pero el
+    botón no, porque es cosa de T-045/T-046 y no de estas páginas.
+  - **SPEC §7.2 paso 2** (actualizar `preferred_lang` al cambiar el idioma con sesión) sigue
+    pendiente: no hay endpoint para eso y no se ha inventado.
 
 ---
 

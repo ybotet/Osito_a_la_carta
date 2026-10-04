@@ -33,5 +33,40 @@
     "notFound": "Este plato no existe o ya no está disponible.",
     "error": "No se ha podido cargar el plato. Inténtalo de nuevo en unos minutos.",
     "ingredients": "Ingredientes"
+  },
+  "auth": {
+    "fields": {
+      "email": "Email",
+      "password": "Contraseña"
+    },
+    "login": {
+      "title": "Iniciar sesión",
+      "subtitle": "Entra con tu email y tu contraseña para hacer pedidos.",
+      "submit": "Entrar",
+      "submitting": "Entrando…",
+      "noAccount": "¿Todavía no tienes cuenta?",
+      "registerLink": "Crear una"
+    },
+    "register": {
+      "title": "Crear cuenta",
+      "subtitle": "Solo hacen falta un email y una contraseña.",
+      "submit": "Crear cuenta",
+      "submitting": "Creando la cuenta…",
+      "passwordHint": "Mínimo {{min}} caracteres.",
+      "hasAccount": "¿Ya tienes cuenta?",
+      "loginLink": "Inicia sesión"
+    },
+    "errors": {
+      "emailMax": "El email no puede superar los 254 caracteres",
+      "emailFormat": "El email no tiene un formato válido",
+      "passwordMin": "La contraseña debe tener al menos 8 caracteres",
+      "passwordOnlySpaces": "La contraseña no puede ser solo espacios",
+      "passwordTooLong": "La contraseña no puede superar los {{max}} bytes",
+      "passwordRequired": "La contraseña no puede estar vacía",
+      "invalidCredentials": "El email o la contraseña no son correctos.",
+      "emailTaken": "Ya existe una cuenta con ese email. Inicia sesión.",
+      "loginFailed": "No se ha podido iniciar sesión. Inténtalo de nuevo en unos minutos.",
+      "registerFailed": "No se ha podido crear la cuenta. Inténtalo de nuevo en unos minutos."
+    }
   }
 }

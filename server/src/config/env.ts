@@ -1,7 +1,5 @@
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { loadEnvFile } from '../shared/project-paths.js';
 
 const LOG_LEVELS = [
   'trace',
@@ -12,16 +10,6 @@ const LOG_LEVELS = [
   'fatal',
   'silent',
 ] as const;
-
-const loadEnvFile = (): void => {
-  const moduleDir = dirname(fileURLToPath(import.meta.url));
-  const projectRoot = resolve(moduleDir, '../../..');
-  const envPath = resolve(projectRoot, '.env');
-
-  if (existsSync(envPath)) {
-    process.loadEnvFile(envPath);
-  }
-};
 
 loadEnvFile();
 

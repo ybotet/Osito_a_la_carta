@@ -1,7 +1,8 @@
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { ApiError, fetchDishById } from '../api/dishes';
+import { ApiError } from '../api/http';
+import { fetchDishById } from '../api/dishes';
 import { formatPrice } from '../lib/format';
 import { Button } from '../components/ui/button';
 

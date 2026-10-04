@@ -168,6 +168,32 @@ sitio y los routers futuros no lo repiten. El primero es `health`; devuelve
 > Sección acumulativa. Cada decisión importante se documenta una vez
 > y se referencia desde las entradas de tareas.
 
+### 2026-10-04 — Las reglas de validación compartidas viven en `shared/` y los mensajes no
+**Contexto:** T-044 tenía que validar el formulario de registro y login con las mismas reglas
+que aplica el servidor, y el enunciado pedía "reutilizar los schemas de `shared/schemas.ts`",
+que era un fichero de 0 bytes. Los schemas estaban en `server/src/modules/auth/auth.schema.ts`,
+con los mensajes en español dentro del esquema.
+
+**Decisión:** las **reglas** (normalización del email, mínimo de contraseña, límite de bytes)
+viven en `shared/schemas.ts` como **fábricas que reciben los mensajes**:
+`createRegisterBodySchema(mensajes)` y `createLoginBodySchema(mensajes)`. El servidor las llama
+con sus textos en español; el cliente, con los suyos sacados de `t()`. Y para que el servidor
+pueda importarlas, su `rootDir` pasa a ser la raíz del repositorio y `shared/` entra en el
+`include` (con `rootDir: ./src` el import daba TS6059).
+
+**Por qué los mensajes se inyectan y no se traducen dentro del fichero:** un texto escrito en el
+esquema obliga al cliente a traducir algo ya construido, y para eso necesitaría un diccionario
+de errores por `code`. Con los mensajes inyectados, cada lado escribe en su idioma y las
+reglas no se duplican.
+
+**Consecuencias:**
+- El `dist` del servidor es ahora `dist/server/src/...` + `dist/shared/...`: `npm start` y el
+  `script` de PM2 (T-094) son `dist/server/src/app.js`.
+- Los caminos que se resolvían contando niveles (`resolve(moduleDir, '../../..')`) dejaron de
+  funcionar; ahora se buscan subiendo en `server/src/shared/project-paths.ts`.
+- **Los schemas de respuesta no se movieron**: se quedan en el servidor, donde se ejecutan con
+  `parse` sobre lo que se serializa, y el cliente los replica en `client/src/api/*.types.ts`.
+
 ### 2026-10-03 — Los JWT llevan claim `type` y se firman con secretos distintos
 **Contexto:** T-041 tenía que emitir dos tokens con la misma librería (`jsonwebtoken`) y el mismo
 formato, y ambos son cadenas que `jwt.verify()` acepta sin mirar más que la firma.
@@ -1299,12 +1325,99 @@ no son intercambiables.
   `invalid expiresIn option for string payload`, porque el `exp` solo tiene sentido en un objeto.
   Para probar ese caso (token firmado sin claims, que `verify` devuelve como `string` y no como
   `JwtPayload`) hay que firmarlo **sin** opciones. Visto en T-042.
+- **Nada de rutas calculadas con `resolve(moduleDir, '../../..')`.** Todo lo que se busca a
+  partir de la ubicación del módulo (el `.env`, el `package.json` del health) tiene que
+  **subir buscando el fichero**. T-044 movió el `rootDir` del servidor a la raíz del
+  repositorio, y con el `resolve` fijo pasaron de tres niveles a cinco: el `.env` dejó de
+  encontrarse (el servidor moría con "Copia .env.example a .env") y el módulo de health
+  reventó con `MODULE_NOT_FOUND`. Está en `server/src/shared/project-paths.ts`. Visto en T-044.
+- **`Buffer` no existe en el navegador.** Los schemas de `shared/schemas.ts` se ejecutan
+  también en el cliente con `zodResolver`, y el `Buffer.byteLength` que usaba el servidor para
+  medir la contraseña en bytes habría dado "Buffer is not defined" al escribir en el
+  formulario. Ahora usa `TextEncoder`, que funciona en los dos lados y cuenta UTF-8 igual.
+  Visto en T-044.
+- **Un esquema que se comparte no puede llevar dentro su propio `*/`.** Escribir
+  `shared/**/*.ts` dentro de un comentario de bloque lo cierra antes de tiempo y el resto del
+  fichero se parsea como código (`TS1160: Unterminated template literal` y errores en cascada
+  que apuntan a líneas equivocadas). Se escribe "los ficheros de `shared/`". Visto en T-044.
+- **Con `renderToStaticMarkup`, un store de Zustand se ve en su estado inicial.** React usa
+  `getInitialState()` como snapshot de servidor, así que un componente que use un selector
+  devuelve `false` aunque el store tenga la sesión rehidratada del `localStorage`. Para
+  comprobarlo hay que mirar `getState()` (o montar en cliente). En el navegador no pasa: el
+  store se rehidrata al cargar el módulo, antes del primer render. Visto en T-045.
+- **`tsx` no lee el `jsx: react-jsx` del cliente.** `client/tsconfig.json` es un fichero de
+  referencias sin `compilerOptions`, así que un script de verificación que importe un `.tsx`
+  del cliente compila JSX con el runtime clásico y falla con `React is not defined`. Se
+  arregla con `npx tsx --tsconfig ./tsconfig.app.json script.tsx`. Visto en T-044 y T-045.
 
 ---
 
 ## Historial de entradas
 
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
+### 2026-10-04 — T-044 Páginas `/login` y `/register`
+**Estado:** completada
+
+**Qué se hizo:**
+- `client/src/pages/Login.tsx` y `client/src/pages/Register.tsx` con React Hook Form y
+  `zodResolver`, rutas `/login` y `/register` dentro del layout y el enlace del navbar
+  habilitado.
+- `client/src/api/auth.ts` (`registerUser`, `loginUser`) y `client/src/api/http.ts`, donde se
+  movieron `ApiError` y `requestJson` para que auth y platos no dependan uno del otro.
+- **Las reglas de validación del email y la contraseña se movieron a `shared/schemas.ts`**,
+  que hasta ahora era un fichero de 0 bytes, y las dos sides los importan.
+
+**Cómo se hizo:**
+- **T-045 se hizo primero**, por decisión del dueño: T-044 tenía que guardar los tokens en un
+  store que no existía.
+- `shared/schemas.ts` expone **fábricas** (`createRegisterBodySchema`,
+  `createLoginBodySchema`) que reciben los mensajes. Las reglas se comparten; los textos son de
+  cada lado: el servidor responde en español (T-040) y el cliente en es/ru/en.
+- `server/tsconfig.json`: `rootDir` a `".."` y `shared/` en el `include`, porque `rootDir: ./src`
+  daba **TS6059** al importar de `shared/`. `npm start` pasó a `dist/server/src/app.js`.
+- `server/src/shared/project-paths.ts`: el `.env` y el `package.json` se buscan **subiendo en
+  el árbol** en vez de contando niveles, porque el cambio de `rootDir` los dejó a otra
+  distancia (ver gotchas).
+- Dependencias del enunciado: `react-hook-form`, `@hookform/resolvers` y `zod` en el cliente.
+- 21 claves i18n nuevas en los tres idiomas.
+
+**Por qué se hizo así:**
+- **Tras registrarse la página entra sola.** `POST /api/auth/register` devuelve solo el
+  usuario, sin tokens (T-040), así que hace `register` y luego `login` con las mismas
+  credenciales. Cumple el criterio ("redirige a `/menu` autenticado") sin tocar el endpoint.
+- **El error va en línea con `role="alert"`, no en un toast:** `toast` es de T-092 por decisión
+  registrada del dueño, y un aviso que desaparece a los cinco segundos deja sin pista a quien
+  navega con teclado.
+- **Los mensajes se eligen por `code`, no se pinta el `error` del backend.** El backend
+  responde en español; con `INVALID_CREDENTIALS` y `EMAIL_TAKEN` hay clave propia en es/ru/en.
+- **El esquema se construye dentro del componente con `useMemo`**, no en el módulo: los
+  mensajes salen de `t()` y así cambiar de idioma rehace el esquema con los textos nuevos.
+- **`ApiError` no se quedó en `api/dishes.ts`:** si `api/auth.ts` importara de ahí, la
+  dependencia apuntaría al revés y tocar el módulo de platos rompería el login sin que se
+  viera.
+- **`requestJson` no añade `Authorization` ni renueva el token:** eso es T-046, que ya tiene
+  el punto de enganche en `api/http.ts`.
+
+**Impacto en otras tareas:**
+- **T-046** envuelve `requestJson`: solo faltan `Authorization`, el refresh automático y
+  `Accept-Language`.
+- **T-092** sigue instalando `toast` y `dropdown-menu`; estas páginas ya tienen dónde enseñar
+  el error cuando llegue.
+- **El `dist` del servidor cambió de layout.** `npm start` y el `script` de PM2 de T-094 son
+  ahora `dist/server/src/app.js`; `docs/PROMPTS.md` ya está actualizado.
+- Cerrar sesión sigue sin sitio en la interfaz (es de T-045/T-046), y **SPEC §7.2 paso 2**
+  (actualizar `preferred_lang` al cambiar el idioma con sesión) sigue pendiente porque no hay
+  endpoint para eso.
+
+**Pendientes / deuda técnica:**
+- **Los cuerpos de respuesta no se validan con Zod en el cliente**, solo lo que se envía. Es el
+  mismo criterio de T-034: el backend valida lo que serializa.
+- **El texto del backend solo está traducido si el cliente tiene clave para su `code`.** Un
+  `code` nuevo que no aparezca en los JSON se pintaría en el idioma en que lo escriba el
+  servidor.
+
+---
 
 ### 2026-10-03 — T-042 `POST /api/auth/refresh`
 **Estado:** completada
@@ -3470,6 +3583,48 @@ anotado.
   existe para las rutas que necesiten sesión sin ser de admin, que todavía no hay.
 - `alg: none`, `sub` no numérico, payload de tipo string, esquema `Basic`, `Bearer` sin token
   y cabeceras repetidas dan 401: comprobado, no hay que volver a mirarlo.
+
+---
+
+### 2026-10-04 — T-045 Store de sesión con Zustand
+**Estado:** completada
+
+**Qué se hizo:**
+- `client/src/store/auth.ts`: store de Zustand con `user`, `accessToken`, `refreshToken`,
+  `setSession`, `clearSession` y el derivado `useIsAuthenticated()`, persistido en
+  `localStorage` con el middleware `persist`.
+- `client/src/api/auth.types.ts`: los tipos de la forma de cable de `/api/auth/*`.
+- Se instaló `zustand@5.0.15`, la dependencia que nombra el enunciado de la tarea.
+
+**Por qué se hizo así:**
+- **T-045 se hizo antes que T-044, por decisión del dueño.** T-044 tenía que "guardar los
+  tokens en el store de Zustand (T-045)" y el store no existía; hacerlo a medias dentro de
+  T-044 habría mezclado dos tareas.
+- **`isAuthenticated` es un selector, no un booleano en el estado.** "Derivado" en Zustand
+  significa calcularlo donde se usa. Guardarlo obligaría a mantenerlo sincronizado a mano en
+  cada `set` y se quedaría viejo en cuanto hubiera una tercera forma de cambiar el estado.
+- **`clearSession` también borra el `localStorage`.** Es lo que hace falta para cerrar sesión
+  de verdad: limpiando solo el estado, la sesión vuelve al recargar.
+- **`partialize` persiste solo los tres campos de dato**, no el estado entero.
+- **Los tokens viven en el estado** porque el backend no tiene sesiones ni cookies, y T-046
+  los leerá con `useAuthStore.getState()` desde fuera de React.
+- **`ApiAuthUser` está en `api/auth.types.ts`:** es la forma del cable, no el estado. Los
+  schemas de **respuesta** se quedan en el servidor, donde se validan con `parse` sobre lo que
+  se serializa; los de **entrada** son los que T-044 lleva a `shared/schemas.ts`, porque esas
+  reglas tienen que coincidir en los dos lados.
+
+**Impacto en otras tareas:**
+- T-044 ya tiene dónde guardar la sesión; T-046 tiene lo que necesita para renovar el access
+  sin React.
+- **SPEC §7.2 sigue pendiente** en su paso 2 y no es de esta tarea: no existe endpoint para
+  actualizar `preferred_lang`, así que la elección de idioma sigue solo en el navegador.
+
+**Pendientes / deuda técnica:**
+- **Los tokens en `localStorage` son legibles desde cualquier XSS.** Es la arquitectura
+  decidida (SPEC §4 y el enunciado de T-045), pero conviene saber que es el punto débil de la
+  sesión; una cookie `httpOnly` lo evitaría y sería un cambio de backend.
+- **No hay forma de invalidar el refresh token desde el cliente** (misma deuda de T-041/T-042):
+  `clearSession` limpia el navegador, no el token.
 
 ---
 

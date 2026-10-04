@@ -31,7 +31,42 @@
   "dish": {
     "loading": "Loading the dish…",
     "notFound": "This dish does not exist or is no longer available.",
-    "error": "The dish could not be loaded. Please try again in a few minutes.",
+    "error": "We could not load the dish. Please try again in a few minutes.",
     "ingredients": "Ingredients"
+  },
+  "auth": {
+    "fields": {
+      "email": "Email",
+      "password": "Password"
+    },
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Sign in with your email and password to place an order.",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "noAccount": "Do not have an account yet?",
+      "registerLink": "Create one"
+    },
+    "register": {
+      "title": "Create account",
+      "subtitle": "All we need is an email and a password.",
+      "submit": "Create account",
+      "submitting": "Creating the account…",
+      "passwordHint": "At least {{min}} characters.",
+      "hasAccount": "Already have an account?",
+      "loginLink": "Sign in"
+    },
+    "errors": {
+      "emailMax": "The email cannot be longer than 254 characters",
+      "emailFormat": "The email is not a valid address",
+      "passwordMin": "The password must be at least 8 characters long",
+      "passwordOnlySpaces": "The password cannot be only spaces",
+      "passwordTooLong": "The password cannot be longer than {{max}} bytes",
+      "passwordRequired": "The password cannot be empty",
+      "invalidCredentials": "The email or the password is not correct.",
+      "emailTaken": "There is already an account with that email. Sign in.",
+      "loginFailed": "We could not sign you in. Please try again in a few minutes.",
+      "registerFailed": "We could not create the account. Please try again in a few minutes."
+    }
   }
 }

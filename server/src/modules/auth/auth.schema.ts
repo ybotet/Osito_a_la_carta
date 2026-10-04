@@ -1,58 +1,43 @@
 import { z } from 'zod';
+import {
+  BCRYPT_MAX_BYTES,
+  createLoginBodySchema,
+  createRegisterBodySchema,
+} from '../../../../shared/schemas.js';
+import type {
+  LoginBodyMessages,
+  RegisterBodyMessages,
+} from '../../../../shared/schemas.js';
 
 /**
- * Límite de bcrypt: **72 bytes**, no 72 caracteres.
+ * Los textos que el servidor inyecta en las reglas compartidas de `shared/schemas.ts`.
  *
- * bcrypt corta la contraseña a los 72 bytes y no avisa, así que dos contraseñas que
- * coincidan en los primeros 72 bytes producen el mismo hash y las dos entran. Es un
- * fallo de seguridad silencioso, no una molestia de validación, así que el body se
- * rechaza en el borde en vez de dejar que el corte pase desapercibido.
+ * **Van aquí y no dentro del esquema para que las reglas tengan un solo sitio.** Desde T-044
+ * las reglas del email y de la contraseña viven en `shared/`, porque el formulario del cliente
+ * tiene que aplicar exactamente las mismas: si el formulario aceptara algo que aquí se
+ * rechaza, el usuario vería un 400 de la API después de rellenar el formulario. Lo único que
+ * cambia entre los dos lados es **en qué idioma se dice el error**, y eso es lo que se
+ * inyecta.
  *
- * El límite se mide en bytes porque es lo que ve bcrypt: con `z.string().max(72)`
- * una contraseña de 72 caracteres cirílicos o con `ñ` passaría el filtro y seguiría
- * truncándose por dentro.
+ * Estos textos son los mismos que tenía T-040 y T-041 escritos dentro del esquema, sin
+ * cambiar ni una palabra: el `400` de la API no cambia ni de mensaje ni de `code`
+ * (`VALIDATION_ERROR`) por mover las reglas. Son además la razón de que T-040 eligiera
+ * español y no inglés, como sí hacen platos y categorías: el frontend acaba traduciendo
+ * este texto y no tiene un diccionario de errores por `code`.
  */
-const BCRYPT_MAX_BYTES = 72;
+const REGISTER_MESSAGES: RegisterBodyMessages = {
+  emailMax: 'El email no puede superar los 254 caracteres',
+  emailFormat: 'El email no tiene un formato valido',
+  passwordMin: 'La contraseña debe tener al menos 8 caracteres',
+  passwordOnlySpaces: 'La contraseña no puede ser solo espacios',
+  passwordTooLong: `La contraseña no puede superar los ${BCRYPT_MAX_BYTES} bytes`,
+};
 
-/**
- * El email se normaliza a minúsculas y sin espacios antes de validarse.
- *
- * **El motivo no es la estética: es que `users.email` es `UNIQUE` y el `UNIQUE` de
- * SQLite sobre `TEXT` distingue mayúsculas.** Sin normalizar, `Ana@ejemplo.com` y
- * `ana@ejemplo.com` serían dos usuarios distintos con, en la práctica, la misma
- * casilla, y el segundo podría registrarse sin que el 409 lo detecte. El 409 solo
- * es fiable si "el mismo email" está definido de una sola forma.
- *
- * Se normaliza en el schema y no en el servicio, igual que hizo T-026 con el `slug`:
- * la comprobación del 409 y el `INSERT` reciben exactamente el mismo valor, y no
- * puede haber una diferencia entre lo que se comprueba y lo que se guarda.
- */
-const emailSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .max(254, { message: 'El email no puede superar los 254 caracteres' })
-  .email({ message: 'El email no tiene un formato valido' });
-
-/**
- * Contraseña: mínimo 8 y sin recorte silencioso.
- *
- * **No se aplica `.trim()`**, a diferencia del email: recortar una contraseña cambia
- * el secreto en silencio, y el login (T-041) comparará la cadena tal cual llegó. Si el
- * alta recortara y el login no, una contraseña con un espacio al final se registraría
- * sin él y luego no entraría. En vez de recortar, se **rechaza** la que solo tenga
- * espacios: sin esta comprobación, ocho espacios pasarían el `min(8)` y serían una
- * contraseña válida.
- */
-const passwordSchema = z
-  .string()
-  .min(8, { message: 'La contraseña debe tener al menos 8 caracteres' })
-  .refine((value) => value.trim().length >= 8, {
-    message: 'La contraseña no puede ser solo espacios',
-  })
-  .refine((value) => Buffer.byteLength(value, 'utf8') <= BCRYPT_MAX_BYTES, {
-    message: `La contraseña no puede superar los ${BCRYPT_MAX_BYTES} bytes`,
-  });
+const LOGIN_MESSAGES: LoginBodyMessages = {
+  emailMax: 'El email no puede superar los 254 caracteres',
+  emailFormat: 'El email no tiene un formato valido',
+  passwordRequired: 'La contraseña no puede estar vacía',
+};
 
 /**
  * Body de `POST /api/auth/register`.
@@ -67,12 +52,12 @@ const passwordSchema = z
  * columna tenga `default 'es'` en la base. Se prefiere que el cliente diga con qué
  * idioma se registra en vez de que el servidor adivine: es el idioma que el usuario
  * está viendo en ese momento, y el que SPEC §7.2 manda guardar.
+ *
+ * Las reglas (normalización del email, mínimo de contraseña y el límite de 72 bytes de
+ * bcrypt) viven en `shared/schemas.ts` desde T-044, no aquí: son las mismas que aplica el
+ * formulario del cliente.
  */
-const registerBodySchema = z.object({
-  email: emailSchema,
-  password: passwordSchema,
-  preferredLang: z.enum(['es', 'ru', 'en']),
-});
+const registerBodySchema = createRegisterBodySchema(REGISTER_MESSAGES);
 
 /**
  * Lo que sale del endpoint. **El `passwordHash` no está en el schema a propósito:** si
@@ -92,24 +77,16 @@ const userSchema = z.object({
 /**
  * Body de `POST /api/auth/login`: dos campos y nada más.
  *
- * **Reutiliza `emailSchema`, con su normalización a minúsculas.** Es lo que hace que un
- * usuario pueda escribir `  Ana@Ejemplo.com ` y entrar igual que si hubiera escrito
- * `ana@ejemplo.com`: el login busca por el mismo valor con el que se guardó, y ese valor
- * lo decidió T-040 en el mismo sitio.
- *
- * **La contraseña aquí solo se exige que no esté vacía, y no se reutiliza `passwordSchema`
- * a propósito.** El login no responde "¿esta contraseña cumple las reglas?", sino
+ * **La contraseña aquí solo se exige que no esté vacía, y no se reutiliza la regla del
+ * registro a propósito.** El login no responde "¿esta contraseña cumple las reglas?", sino
  * "¿son estas las credenciales?". Aplicar el `min(8)` y el límite de 72 bytes haría que
  * una contraseña demasiado corta devolviera 400 en vez de 401 `INVALID_CREDENTIALS`, que
  * es lo que el cliente tiene que saber pintar ("usuario o contraseña incorrectos"), y
  * mezclaría las reglas del registro con las de la autenticación.
+ *
+ * Las reglas, eso sí, están en `shared/schemas.ts` (ver `createLoginBodySchema`).
  */
-const loginBodySchema = z.object({
-  email: emailSchema,
-  password: z
-    .string()
-    .min(1, { message: 'La contraseña no puede estar vacía' }),
-});
+const loginBodySchema = createLoginBodySchema(LOGIN_MESSAGES);
 
 /**
  * Respuesta del login: los dos tokens y el usuario **sin hash**, que es el mismo

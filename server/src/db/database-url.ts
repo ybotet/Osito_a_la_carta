@@ -1,6 +1,4 @@
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { loadEnvFile } from '../shared/project-paths.js';
 
 const DEFAULT_DATABASE_URL = './osito.db';
 
@@ -13,17 +11,11 @@ const DEFAULT_DATABASE_URL = './osito.db';
  * moría pidiendo `MAILGUN_API_KEY` o `TELEGRAM_BOT_TOKEN` para generar una migración que
  * no tiene nada que ver con el correo. Aquí solo se lee `DATABASE_URL`, y si no está se
  * usa el default en vez de morir.
+ *
+ * El `loadEnvFile` es el de `shared/env-file.ts`, el mismo que usa `config/env.ts`: las dos
+ * copias que había se buscaban el `.env` contando niveles, y con el `rootDir` del servidor
+ * en la raíz del repositorio (T-044) solo una de las dos encontraba el fichero.
  */
-const loadEnvFile = (): void => {
-  const moduleDir = dirname(fileURLToPath(import.meta.url));
-  const projectRoot = resolve(moduleDir, '../../..');
-  const envPath = resolve(projectRoot, '.env');
-
-  if (existsSync(envPath)) {
-    process.loadEnvFile(envPath);
-  }
-};
-
 const resolveDatabaseUrl = (): string => {
   loadEnvFile();
 

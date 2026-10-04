@@ -17,11 +17,10 @@ import { Button } from './ui/button';
  * contener un enlace, así que la alternativa era copiar las clases del botón en cada enlace y
  * que se desincronizasen al primer cambio de variante.
  *
- * **Los enlaces van a las rutas que ya existen.** `/menu` es la única real de momento; el carrito
- * y el inicio de sesión se muestran **deshabilitados** en vez de apuntar a sitios que no están:
- * un enlace a `/cart` (T-053) o a `/login` (T-044) que todavía no existe es un 404 con el logo
- * de la web, y es peor que un botón que se ve desactivado. En esas tareas se quita el
- * `disabled` y se pone la ruta.
+ * **Los enlaces van a las rutas que ya existen.** `/menu`, `/login` y `/register` son reales:
+ * el carrito sigue **deshabilitado** en vez de apuntar a un `/cart` (T-053) que todavía no
+ * existe, porque un enlace a una ruta inexistente es un 404 con el logo de la web y es peor
+ * que un botón que se ve desactivado. Ese botón es lo que cambia T-053.
  */
 const Layout = () => {
   const { t } = useTranslation();
@@ -55,8 +54,13 @@ const Layout = () => {
                 {t('nav.cart')}
               </Button>
 
-              <Button variant="ghost" size="sm" disabled>
-                {t('nav.login')}
+              {/*
+                El enlace a `/login` se habilitó en T-044, cuando la ruta ya existía. Va como
+                `Button asChild` con un `Link` dentro, igual que el del menú, para que hereden
+                las mismas clases y no se desincronicen al cambiar el `Button`.
+              */}
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/login">{t('nav.login')}</Link>
               </Button>
 
               <span className="mx-1 hidden h-5 w-px bg-border sm:block" />

@@ -1234,7 +1234,7 @@ T-094: Crear scripts de despliegue.
 
 - server/ecosystem.config.cjs con:
   - name: 'osito-server'
-  - script: 'dist/app.js'
+  - script: 'dist/server/src/app.js'
   - instances: 1
   - autorestart: true
   - max_memory_restart: '512M'
