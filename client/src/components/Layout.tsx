@@ -1,6 +1,8 @@
 import { Outlet, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from './LanguageSwitcher';
+import UserMenu from './UserMenu';
+import { useAuthStore } from '../store/auth';
 import { Button } from './ui/button';
 
 /**
@@ -17,13 +19,29 @@ import { Button } from './ui/button';
  * contener un enlace, así que la alternativa era copiar las clases del botón en cada enlace y
  * que se desincronizasen al primer cambio de variante.
  *
- * **Los enlaces van a las rutas que ya existen.** `/menu`, `/login` y `/register` son reales:
- * el carrito sigue **deshabilitado** en vez de apuntar a un `/cart` (T-053) que todavía no
- * existe, porque un enlace a una ruta inexistente es un 404 con el logo de la web y es peor
- * que un botón que se ve desactivado. Ese botón es lo que cambia T-053.
+ * **Los enlaces van a las rutas que ya existen.** `/menu` funciona y el carrito sigue
+ * **deshabilitado** en vez de apuntar a un `/cart` (T-053) que todavía no existe, porque un
+ * enlace a una ruta inexistente es un 404 con el logo de la web y es peor que un botón que se ve
+ * desactivado. Ese botón es lo que cambia T-053.
+ *
+ * **El enlace de iniciar sesión es condicional (T-048).** Con sesión, lo sustituyen el email del
+ * usuario y el botón de cerrar sesión, que están en `UserMenu`. La condición se decide aquí y en
+ * `UserMenu` con el mismo criterio, para que no puedan contradecirse.
  */
 const Layout = () => {
   const { t } = useTranslation();
+
+  /**
+   * Decide si se pinta el enlace de iniciar sesión. **Es el mismo criterio que usa `UserMenu`**
+   * (`user` y `accessToken` los dos), y no un atajo: si los dos componentes decidieran distinto,
+   * aparecería "Iniciar sesión" al lado del email de quien ya está dentro.
+   *
+   * Lee el estado del store y no un `useIsAuthenticated` importado, porque en `Layout` hace falta
+   * además poder distinguir "sin sesión" de "con sesión" en el JSX.
+   */
+  const isAuthenticated = useAuthStore(
+    (state) => state.user !== null && state.accessToken !== null,
+  );
 
   return (
     <>
@@ -58,10 +76,19 @@ const Layout = () => {
                 El enlace a `/login` se habilitó en T-044, cuando la ruta ya existía. Va como
                 `Button asChild` con un `Link` dentro, igual que el del menú, para que hereden
                 las mismas clases y no se desincronicen al cambiar el `Button`.
+
+                **Solo se pinta sin sesión.** En T-048 este hueco pasó a ser condicional: con
+                sesión lo sustituyen el email del usuario y el botón de cerrar sesión, que están
+                en `UserMenu`. Mostrar "Iniciar sesión" junto al nombre de quien ya está dentro
+                sería contradictorio, y un usuario que ve su email ya sabe que tiene sesión.
               */}
-              <Button asChild variant="ghost" size="sm">
-                <Link to="/login">{t('nav.login')}</Link>
-              </Button>
+              {!isAuthenticated && (
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/login">{t('nav.login')}</Link>
+                </Button>
+              )}
+
+              <UserMenu />
 
               <span className="mx-1 hidden h-5 w-px bg-border sm:block" />
 
