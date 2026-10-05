@@ -168,6 +168,46 @@ sitio y los routers futuros no lo repiten. El primero es `health`; devuelve
 > Sección acumulativa. Cada decisión importante se documenta una vez
 > y se referencia desde las entradas de tareas.
 
+### 2026-10-05 — Toda petición del cliente pasa por `apiRequest`, y los 401 se distinguen por `code`
+**Contexto:** T-046 tenía que añadir `Authorization` y `Accept-Language` a las llamadas del
+frontend, renovar el access cuando caducara y cerrar sesión si eso tampoco funcionaba. El
+proyecto ya tenía `api/http.ts` con el `fetch` común y el `ApiError`, pero sin nada de sesión:
+los módulos de `api/` pasaban `Accept-Language` a mano y ninguno mandaba token.
+
+**Decisión:** `client/src/api/client.ts` es **el único `fetch` del cliente**, y todos los
+módulos de `api/` pasan por `apiRequest`. Envuelve a `requestJson` (que sigue siendo el que
+sabe leer el cuerpo y sacar el `code` del error) y añade lo que es de sesión. El 401 que dispara
+la renovación es **`code === 'UNAUTHORIZED'`**, y solo si la petición llevaba `Authorization`.
+
+**Por qué por `code` y no por `status`:** la API tiene **tres** 401 distintos y con el mismo
+status: `UNAUTHORIZED` (el access no valió, el único renovable), `INVALID_CREDENTIALS` (login
+fallido) e `INVALID_REFRESH_TOKEN` (refresh caducado o manipulado). Comprobar el status haría
+que **una contraseña incorrecta intentara renovar la sesión**, que no encontraría nada que
+renovar, cerraría la sesión del usuario y lo devolvería al login: un bucle de recarga por
+teclear mal la contraseña. Es la razón por la que T-042 unifica a propósito los fallos del
+refresh (el cliente no puede distinguirlos, y no debe intentarlo).
+
+**Por qué un wrapper explícito y no parchear `window.fetch`:** parchear el global es invisible.
+Nadie lee el fichero y ve que las peticiones llevan token, y un `fetch` llamado desde un módulo
+que no debería, o desde las herramientas de desarrollo del navegador, también lo llevaría. Con
+un wrapper, la ruta de una petición se lee en el sitio que la escribe.
+
+**Consecuencias:**
+- **Los módulos de `api/` que vengan (T-051 a T-055, y los del panel del chef) deben usar
+  `apiRequest`.** Usar `requestJson` es un error silencioso: la petición sale sin token y sin
+  renovación, y solo falla cuando la ruta protegida responde 401.
+- **T-093 (vitest) tiene su primer caso bueno aquí:** access caducado → 401 → renovación → la
+  petición sale bien sin que el llamador haga nada. Necesita dos peticiones encadenadas, que es
+  justo lo que `renderToStaticMarkup` no cubre.
+- **La renovación se comparte entre llamadas simultáneas** mediante una promesa a nivel de
+  módulo, porque el refresh token no se renueva: sin eso, tres 401 simultáneos harían tres
+  renovaciones válidas escribiendo tres access distintos en el store.
+- **El reintento es uno solo**, para que un backend con la hora desfasada no entre en bucle de
+  renovaciones.
+- **`dishes.ts` sigue pasando `Accept-Language` como parámetro** aunque el wrapper lo ponga: el
+  idioma va también en la `queryKey` de TanStack Query, y si solo lo leyera el wrapper, clave y
+  cabecera podrían tomar decisiones distintas y la caché devolvería otra traducción.
+
 ### 2026-10-05 — Las imágenes se alojan en la VPS, y en la BD se guarda la ruta relativa
 **Contexto:** TASKLIST tenía abierta la pregunta de dónde alojar las imágenes de los platos
 (VPS local frente a un servicio externo). El dueño decidió **VPS local**, y pidió que cambiar
@@ -3746,6 +3786,116 @@ anotado.
 - **`UPLOADS_DIR` es una ruta relativa al `cwd`, no al `.env`.** Con `UPLOADS_DIR=./uploads` en
   desarrollo, la carpeta sale donde se ejecutó el proceso: al arrancar desde `server/` es
   `server/uploads`, y desde la raíz es `<raíz>/uploads`. Comprobado.
+
+---
+
+### 2026-10-05 — T-046 Wrapper de `fetch` con `Authorization`, idioma y renovación
+**Estado:** completada
+
+**Qué se hizo:**
+- `client/src/api/client.ts`: `apiRequest`, el `fetch` único del cliente. Añade
+  `Authorization: Bearer <accessToken>` cuando hay sesión, `Accept-Language` con el idioma de
+  `i18n`, y renueva el access cuando la API responde 401 `UNAUTHORIZED`, reintentando **una
+  sola vez**. Si la renovación falla, limpia la sesión y lleva a `/login`.
+- `api/dishes.ts` y `api/auth.ts` pasan por `apiRequest`. `api/http.ts` queda como la capa que
+  sabe leer el cuerpo y traducir un fallo a `ApiError` con su `code`.
+
+**Por qué se hizo así:**
+- **Un wrapper explícito en vez de parchear `window.fetch`.** Parchear el global es invisible:
+  nadie lee el fichero y ve que las peticiones llevan token, y un `fetch` llamado desde un
+  módulo que no debería (o desde las herramientas de desarrollo del navegador) también lo
+  llevaría. Con un wrapper, la ruta de una petición se lee en el sitio que la escribe.
+- **Envuelve a `requestJson` y no lo sustituye.** Lo que sabe de sesión y lo que sabe leer el
+  cuerpo y sacar el `code` son dos cosas distintas; en un solo fichero, todo lo que no tiene que
+  ver con tokens arrastraría la lógica de renovarlos.
+- **El 401 se decide por `code === 'UNAUTHORIZED'`, no por el status**, y no es un detalle: hay
+  **tres** 401 distintos en la API y con el mismo status. `UNAUTHORIZED` es el access que no
+  valió, `INVALID_CREDENTIALS` es un login fallido y `INVALID_REFRESH_TOKEN` es un refresh
+  caducado o manipulado. Si se comprobara el status, **una contraseña incorrecta dispararía la
+  renovación**, que no encontraría sesión que renovar, cerraría la del usuario y lo devolvería al
+  login: un bucle de recarga por teclear mal la contraseña. Es la razón de que T-042 unifique a
+  propósito los fallos del refresh (quien llega tarde lo leerá como que el status bastaba).
+- **Solo se renueva si la petición llevaba `Authorization`.** Un 401 sin token no es una sesión
+  caducada: es que la petición no iba autenticada, como el login.
+- **El reintento es exactamente uno.** Si la petición renovada volviera a dar 401, el error se
+  propaga sin renovar otra vez. Sin ese límite, un backend con la hora desfasada entraría en
+  bucle de renovaciones.
+- **La renovación se pide con `requestJson`, por debajo del wrapper**, para que un 401 del
+  refresh no pueda disparar otro refresh.
+- **Las renovaciones simultáneas se comparten con una promesa a nivel de módulo.** Tres queries
+  que salen a la vez y fallan con 401 harían tres renovaciones; como el refresh token **no se
+  renueva** (decisión de T-041/T-042), las tres valdrían y las tres escribirían un access
+  distinto en el store. La que llegue última gana, y las peticiones reintentadas con tokens
+  distintos pueden acabar usando uno que ya no es el del store.
+- **`window.location` y no `useNavigate`** para el redirect: el wrapper no es un componente de
+  React y el store vive fuera del árbol. La recarga tiene un efecto secundario que conviene:
+  vacía la caché de TanStack Query, así que no quedan datos de la sesión anterior en memoria. No
+  se redirige si ya se está en `/login`, para no recargar el login en bucle.
+- **El reintento propaga el error original, no el de la renovación.** Quien llama ya está
+  esperando el fallo de su petición; el `ApiError` del refresh se leería como un error ajeno.
+  Antes sí se limpia la sesión y se redirige, que es lo que la deja coherente.
+- **`Accept-Language` lo pone el wrapper leyendo `i18n`, pero `dishes.ts` lo sigue pasando como
+  parámetro.** El idioma va también en la `queryKey` de TanStack Query (T-031), y si el wrapper
+  lo leyera solo de `i18n` la clave y la cabecera podrían tomar decisiones distintas y la caché
+  devolvería la traducción de otro idioma. Lo que gana es la cabecera del llamador, así que las
+  dos se pueden fijar en los tests.
+- **El store se relee después del `await` de la renovación** y se compara el refresh token con el
+  usado: si mientras tanto el usuario cerró sesión, guardar el access nuevo resucitaría una
+  sesión ya terminada. Entre el `await` y el `setSession` cabe un clic en "salir".
+
+**Cómo se hizo:**
+- Creado `client/src/api/client.ts`. Modificados `api/dishes.ts` y `api/auth.ts` (importan el
+  wrapper) y `api/http.ts` (solo un comentario que decía que esto estaba pendiente).
+- Sin dependencias nuevas. Se usa `useAuthStore.getState()` desde fuera de React, que es
+  exactamente para lo que T-045 lo dejó preparado.
+
+**Verificación:**
+- `typecheck`, `lint`, `prettier` y `build` limpios.
+- **El criterio se comprobó contra el servidor de verdad, con un access caducado de verdad**:
+  firmado con el `JWT_SECRET` del proyecto y `expiresIn: '-1m'`, no simulando el 401. La misma
+  petición da 401 sin el wrapper y 400 `IMAGE_REQUIRED` con él (el 401 se renueva y el reintento
+  llega al final), con una sola llamada a `/api/auth/refresh`. El token que queda en el store es
+  distinto del caducado, tiene `type: 'access'` y el mismo `sub`/`role`, y el servidor lo acepta.
+- **Tres peticiones protegidas simultáneas hacen UNA sola renovación.** Tres lecturas públicas
+  hacen cero, que es lo correcto: no hay 401 que renovar.
+- Con refresh token inválido: propaga `401 UNAUTHORIZED`, deja store y `localStorage` con los
+  tres campos a `null`, y redirige a `/login`.
+- Con login y contraseña incorrecta: `401 INVALID_CREDENTIALS`, **no** redirige y **no** borra la
+  sesión. Es el caso que motivó decidir por `code`.
+- `Accept-Language` sigue a `i18n`: con `ru`, `en` y `es` salen `ru`, `en` y `es`.
+- Se usó `POST /api/dishes/:id/image` sin fichero como ruta protegida de prueba: pasa
+  `requireAdmin` y muere en el 400 de multer **sin escribir nada**. La BD quedó sin cambios y
+  `integrity_check` en `ok`.
+
+**Impacto en otras tareas:**
+- **`api/orders.ts` y los módulos de `api/` que vengan (T-051 a T-055) tienen que usar
+  `apiRequest`, no `requestJson`**, o se quedan sin token y sin renovación. Es el contrato que
+  fija esta tarea, y la razón de que el módulo se llamara `client.ts` y no `interceptor.ts`.
+- **T-093 (vitest) tiene aquí su primer caso bueno:** un 401 con el access caducado se renueva y
+  la petición sale bien sin que el llamador haga nada. Es justo lo que `renderToStaticMarkup`
+  no puede cubrir (gotcha de T-031), porque necesita dos peticiones encadenadas.
+- El 403 `FORBIDDEN` (rol insuficiente) **no** dispara renovación, y no debería: el token es
+  válido, lo que falta es permiso.
+
+**Pendientes / deuda técnica:**
+- **Cerrar sesión sigue sin sitio en la interfaz.** El wrapper limpia la sesión cuando no puede
+  renovar, pero el botón de "salir" del navbar (`nav.logout` existe desde T-030) no está. Sigue
+  sin tarea que lo haga: es cosa de T-092 o de la página que lo use.
+- **La renovación no se cancela.** Si tarda y el usuario navega o recarga, la respuesta llega
+  igual: el `signal` de TanStack Query no se propaga a la petición de refresh. Afecta sobre todo
+  a una recarga de página en mitad de una renovación.
+- **Una renovación fallida por red (sin respuesta) cierra la sesión**, porque el wrapper no
+  distingue "el refresh caducó" de "no hubo red". Con el backend caído, un usuario con sesión
+  válida pierde la sesión. Es un fallo a favor de la seguridad, pero no del usuario.
+
+**Gotchas descubiertos en esta tarea:**
+- **Un 401 se decide por `code`, nunca por `status`.** Ya está en la decisión de T-042 y en
+  varios sitios de este archivo, pero T-046 es donde se paga de verdad: hay tres 401 con el mismo
+  status y solo uno es renovable.
+- **Node no resuelve rutas relativas en `fetch`**, como el navegador. Al verificar el wrapper
+  fuera de un navegador hay que anteponer el origen, o todo falla con `Invalid URL`. No es un
+  problema del código de producción (que solo corre en el navegador), pero sí de cualquier
+  prueba que lo ejecute en Node.
 
 ---
 

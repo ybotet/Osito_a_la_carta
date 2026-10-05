@@ -7,9 +7,10 @@
  * `api/dishes.ts`, que no dice nada de auth: la dependencia apunta al revés y un día alguien
  * tocaría el módulo de platos sin sospechar que el login se rompía.
  *
- * Lo que sí es de T-046: este `requestJson` **no** añade `Authorization` ni intenta renovar el
- * token. T-046 lo envuelve (o lo sustituye) y hace que todas las funciones de `api/` pasen
- * por ahí; hasta entonces cada módulo llama a `fetch` por su cuenta.
+ * Lo que vive en `api/client.ts` desde T-046 y **no aquí**: el `Authorization`, el
+ * `Accept-Language` y la renovación del access cuando llega un 401. Este módulo sigue siendo el
+ * que sabe leer el cuerpo y traducir un fallo a `ApiError` con su `code`, que no depende de la
+ * sesión. Quien llama desde `api/` usa `apiRequest`, no esta función.
  */
 
 /**

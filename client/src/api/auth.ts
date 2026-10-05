@@ -1,4 +1,4 @@
-import { requestJson } from './http';
+import { apiRequest } from './client';
 import type {
   ApiAuthUser,
   ApiLoginResponse,
@@ -29,7 +29,7 @@ type RegisterRequest = {
  * en `shared/schemas.ts` y el formulario las aplica antes de enviar.
  */
 const registerUser = async (body: RegisterRequest): Promise<ApiAuthUser> =>
-  (await requestJson('/api/auth/register', {
+  (await apiRequest('/api/auth/register', {
     method: 'POST',
     body,
   })) as ApiAuthUser;
@@ -41,12 +41,18 @@ const registerUser = async (body: RegisterRequest): Promise<ApiAuthUser> =>
  * quien llama los mete en el store. La respuesta no se revalida con Zod porque el servidor ya
  * ejecuta `loginResponseSchema.parse(...)` sobre lo que va a enviar; ver el criterio en
  * `api/http.ts`.
+ *
+ * **Pasa por `api/client.ts` como las demás, y aquí no hay nada que renovar.** El wrapper solo
+ * intenta renovar un 401 que venga con `Authorization` en la petición, y un login nunca la
+ * lleva. Esa comprobación es lo que evita que una contraseña incorrecta (`INVALID_CREDENTIALS`,
+ * que también es 401) dispare la renovación, cierre la sesión del usuario y lo devuelva al
+ * login en bucle. Ver `api/client.ts`.
  */
 const loginUser = async (body: {
   email: string;
   password: string;
 }): Promise<ApiLoginResponse> =>
-  (await requestJson('/api/auth/login', {
+  (await apiRequest('/api/auth/login', {
     method: 'POST',
     body,
   })) as ApiLoginResponse;

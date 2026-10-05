@@ -261,7 +261,7 @@
     devuelve `false` aunque haya sesión rehidratada, porque `useSyncExternalStore` usa
     `getInitialState()` como snapshot de servidor. En el navegador no pasa: el store se
     rehidrata al cargar el módulo, antes del primer render. Ver "Notas de progreso".
-- [ ] **T-046**: Interceptor de fetch que añade `Authorization` y maneja 401
+- [x] **T-046**: Interceptor de fetch que añade `Authorization` y maneja 401
   - Criterio: si el access expira, hace refresh automático.
 - [x] **T-047**: Imágenes de platos en la VPS + `POST /api/dishes/:id/image`
   - Criterio: un admin sube una imagen, se guarda en disco con nombre UUID, la ruta se guarda en
@@ -2195,6 +2195,83 @@
 - **Pendiente / deuda:** no hay limpieza de ficheros huérfanos (si un `UPDATE` falla tras
   escribir, el fichero se queda), ni miniaturas ni recompresión, ni formulario de subida en el
   panel del chef.
+
+---
+
+### 2026-10-05 — T-046 (interceptor de `fetch`)
+- Archivo creado: `client/src/api/client.ts`.
+  Modificados: `client/src/api/dishes.ts`, `client/src/api/auth.ts` (los dos usan ahora el
+  wrapper) y `client/src/api/http.ts` (solo el comentario, que decía que esto estaba pendiente).
+- **Decisiones tomadas:**
+  1. **El 401 se decide por `code === 'UNAUTHORIZED'`, no por el status.** Hay tres 401 en la
+     API y solo uno es un access caducado: `INVALID_CREDENTIALS` (login) e
+     `INVALID_REFRESH_TOKEN` (refresh) también son 401. Comprobar el status haría que una
+     contraseña incorrecta intentara renovar, y como no hay sesión que renovar cerraría la del
+     usuario y lo devolvería al login: un bucle de recarga por teclear mal la contraseña.
+  2. **Solo se renueva si la petición llevaba `Authorization`.** Un 401 sin token no es una
+     sesión caducada: es que la petición no iba autenticada.
+  3. **El reintento es exactamente uno.** Si la petición renovada volviera a dar 401, el error
+     se propaga sin renovar otra vez; sin ese límite, un backend con la hora desfasada entraría
+     en bucle de renovaciones.
+  4. **La renovación se pide con `requestJson`, por debajo del wrapper**, para que un 401 del
+     refresh no pueda disparar otro refresh.
+  5. **Las renovaciones simultáneas se comparten con una promesa a nivel de módulo.** Tres
+     queries que salen a la vez y fallan con 401 harían tres renovaciones; como el refresh token
+     no se renueva (decisión de T-041/T-042), las tres valdrían y las tres escribirían un access
+     distinto en el store, y la que llegue última manda.
+  6. **Wrapper explícito y no parchear `window.fetch`.** Parchear el global es invisible: nadie
+     ve que las peticiones llevan token, y un `fetch` de las herramientas de desarrollo del
+     navegador también lo llevaría.
+  7. **El reintento propaga el error original, no el de la renovación**, porque quien llama ya
+     está esperando el fallo de su petición. Antes sí se limpia la sesión y se redirige.
+  8. **`window.location` y no `useNavigate`** para el redirect: el wrapper no es un componente.
+     La recarga tiene el efecto secundario de vaciar la caché de TanStack Query, así que no
+     quedan datos de la sesión anterior en memoria. No se redirige si ya se está en `/login`.
+  9. **`Accept-Language` lo pone el wrapper leyendo `i18n`, pero `dishes.ts` lo sigue pasando
+     como parámetro.** El idioma va también en la `queryKey` de TanStack Query (T-031), y si el
+     wrapper lo leyera solo de `i18n` la clave y la cabecera podrían tomar decisiones distintas y
+     la caché devolvería la traducción de otro idioma. Lo que gana es la cabecera del llamador,
+     así que las dos cosas se pueden fijar en los tests.
+  10. **El store se relee después del `await` de la renovación** y se compara el refresh token con
+      el usado: si mientras tanto el usuario cerró sesión, guardar el access nuevo resucitaría
+      una sesión ya terminada.
+- **Verificación:** `typecheck`, `lint`, `prettier` y `build` limpios. El criterio se comprobó
+  **contra el servidor de verdad y con un access token caducado de verdad** (firmado con el
+  `JWT_SECRET` del proyecto y `expiresIn: '-1m'`), no simulando el 401:
+  - La misma petición da **401 sin el wrapper** y **400 `IMAGE_REQUIRED` con él**: el 401 se
+    renueva y el reintento llega al final. Una sola llamada a `/api/auth/refresh`.
+  - El token que queda en el store es distinto del caducado, tiene `type: 'access'` y el mismo
+    `sub`/`role`, y el servidor lo acepta (400 en vez de 401) mientras el caducado sigue dando 401.
+  - **Tres peticiones protegidas simultáneas hacen UNA sola renovación** y las tres terminan
+    bien. Tres lecturas públicas hacen cero, que es lo correcto: no hay 401 que renovar.
+  - Con refresh token inválido: propaga `401 UNAUTHORIZED`, deja el store y el `localStorage`
+    con los tres campos a `null`, y redirige a `/login`.
+  - Con login y contraseña incorrecta: `401 INVALID_CREDENTIALS`, **no** redirige y **no** borra
+    la sesión.
+  - Con sesión: manda `Authorization: Bearer ...` y `Accept-Language`. Sin sesión: no manda
+    `Authorization` y sí `Accept-Language`.
+  - `Accept-Language` sigue a `i18n`: con `ru`, `en` y `es` salen `ru`, `en` y `es`.
+- **Gotcha relacionado:** la renovación **se devuelve, no se lanza** desde un callback, por
+  el mismo motivo que anotó T-047 con `errorHandler`: fuera del `try/catch` que envuelve al
+  middleware, una excepción sin manejar tumba el proceso.
+- **Base de datos:** sin cambios. Se usó `POST /api/dishes/:id/image` sin fichero como ruta
+  protegida de prueba, que pasa `requireAdmin` y muere en el 400 de multer sin escribir nada.
+  `integrity_check` en `ok` y sin ficheros en `uploads/`.
+- **Impacto en otras tareas:**
+  - **`api/orders.ts` y los demás módulos de `api/` que vengan (T-051 a T-055) tienen que usar
+    `apiRequest`**, no `requestJson`, o no tendrán token ni renovación. Es el contrato que fija
+    esta tarea.
+  - **T-093 (vitest) tiene aquí su primer caso bueno:** un 401 con un access caducado se
+    renueva y la petición sale bien sin que el llamador haga nada. Es exactamente el escenario
+    que `renderToStaticMarkup` no puede cubrir.
+- **Pendiente / deuda:**
+  - **Cerrar sesión sigue sin sitio en la interfaz.** El wrapper limpia la sesión cuando no puede
+    renovar, pero el botón de "salir" del navbar (`nav.logout` existe desde T-030) no está: sigue
+    siendo cosa de T-092 o de la página que lo use.
+  - **La carrera "el usuario cierra sesión mientras se renueva" está cubierta** (se relee el
+    store), pero **no hay cancelación**: si la renovación tarda y el usuario navega, la
+    respuesta llega igual y con `signal` no se aborta. Afecta sobre todo a una recarga de la
+    página en mitad de una renovación.
 
 ---
 

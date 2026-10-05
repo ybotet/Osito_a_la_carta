@@ -1,16 +1,18 @@
-import { requestJson } from './http';
+import { apiRequest } from './client';
 import type { ApiDishesResponse, ApiDishResponse } from './dishes.types.js';
 
 /**
  * El error de la API y el `fetch` común viven en `api/http.ts` desde T-044, cuando el login
  * necesita lo mismo que los platos (leer el cuerpo y traducir el fallo a `ApiError` con su
- * `code`). Este módulo ya no los declara; solo habla de platos.
+ * `code`). Desde T-046 las llamadas pasan por `api/client.ts`, que es el que añade
+ * `Authorization`, el `Accept-Language` y la renovación del access. Este módulo ya no declara
+ * nada de eso; solo habla de platos.
  *
- * **Las llamadas pasan `Accept-Language` como cabecera y no como parámetro suelto** porque el
- * idioma lo decide quien llama: el de la interfaz (`i18n.language`) y el del contenido tienen
- * que ser el mismo, o el usuario ve la pantalla en ruso con los platos en español.
- *
- * `requestJson` no añade `Authorization` todavía: eso es T-046.
+ * **El `acceptLanguage` sigue siendo un parámetro y no lo pone el wrapper**, porque el idioma
+ * va también en la `queryKey` de TanStack Query (T-031): si el wrapper lo leyera solo de `i18n`,
+ * la clave y la cabecera podrían acabar tomando decisiones distintas y la caché devolvería la
+ * traducción de otro idioma. Pasándolo explícito, quien pide es quien dice qué idioma quiere, y
+ * la clave y la petición no pueden separarse.
  */
 
 /**
@@ -23,7 +25,7 @@ export const fetchDishes = async (
   acceptLanguage: string,
   signal?: AbortSignal,
 ): Promise<ApiDishesResponse> =>
-  (await requestJson('/api/dishes', {
+  (await apiRequest('/api/dishes', {
     headers: { 'Accept-Language': acceptLanguage },
     signal,
   })) as ApiDishesResponse;
@@ -42,7 +44,7 @@ export const fetchDishById = async (
   acceptLanguage: string,
   signal?: AbortSignal,
 ): Promise<ApiDishResponse> =>
-  (await requestJson(`/api/dishes/${id}`, {
+  (await apiRequest(`/api/dishes/${id}`, {
     headers: { 'Accept-Language': acceptLanguage },
     signal,
   })) as ApiDishResponse;
