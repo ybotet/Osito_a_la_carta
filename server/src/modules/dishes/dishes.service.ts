@@ -23,6 +23,7 @@ import type {
   UpdateDishBody,
 } from './dishes.schema.js';
 import { resolveLanguage } from '../../shared/language.js';
+import { toAbsoluteImageUrl } from './dishes.uploads.js';
 
 const localize = (row: DishRow, language: Language) => {
   switch (language) {
@@ -50,12 +51,21 @@ const localize = (row: DishRow, language: Language) => {
   }
 };
 
+/**
+ * `imageUrl` sale de la respuesta ya **absoluta**. Lo que hay en la fila puede ser relativo
+ * (`/uploads/dishes/x.jpg`, lo que escribe este módulo) o absoluto (los `placehold.co` del
+ * seed de T-015), y `toAbsoluteImageUrl` solo antepone `PUBLIC_ORIGIN` a los primeros.
+ *
+ * Se compone aquí y no en el cliente a propósito: el `PUBLIC_ORIGIN` es una variable del
+ * servidor y centralizarla en un único punto evita que cada pantalla tenga que saber de dónde
+ * sale el dominio.
+ */
 const toResponse = (row: DishRow, language: Language) => {
   const localized = localize(row, language);
 
   return {
     id: row.id,
-    imageUrl: row.imageUrl,
+    imageUrl: toAbsoluteImageUrl(row.imageUrl),
     price: row.price,
     name: localized.name,
     description: localized.description,
@@ -182,6 +192,35 @@ const setDishAvailability = (
 };
 
 /**
+ * Fija la imagen de un plato y devuelve el plato ya localizado, con la URL absoluta.
+ *
+ * Va por `applyDishUpdate` y no por un `UPDATE` propio para que el campo se escriba con las
+ * mismas reglas que el `PUT`, y por `findDishById` (que no filtra por disponibilidad) para
+ * poder poner imagen también a un plato deshabilitado: si filtrara, un plato borrado no
+ * admitiría corrección de su foto, que es justo cuando más hace falta.
+ */
+const setDishImage = (
+  id: number,
+  imageUrl: string,
+  acceptLanguage: string | undefined,
+) => {
+  if (findDishById(id) === undefined) {
+    throw new NotFoundError('Dish not found', 'DISH_NOT_FOUND', { id });
+  }
+
+  applyDishUpdate(id, { imageUrl });
+
+  const language = resolveLanguage(acceptLanguage);
+  const updated = findDishById(id);
+
+  if (updated === undefined) {
+    throw new NotFoundError('Dish not found', 'DISH_NOT_FOUND', { id });
+  }
+
+  return { language, dish: dishSchema.parse(toResponse(updated, language)) };
+};
+
+/**
  * Purga física: borra la fila y el plato deja de existir. Solo para platos ya
  * deshabilitados y sin historial, por los dos 409 de aquí. Devuelve void porque la ruta
  * responde 204.
@@ -221,6 +260,7 @@ export {
   listDishes,
   purgeDish,
   setDishAvailability,
+  setDishImage,
   updateDish,
 };
 
@@ -228,4 +268,5 @@ export type CreateDishResult = ReturnType<typeof createDish>;
 export type GetDishResult = ReturnType<typeof getDish>;
 export type ListDishesResult = ReturnType<typeof listDishes>;
 export type SetDishAvailabilityResult = ReturnType<typeof setDishAvailability>;
+export type SetDishImageResult = ReturnType<typeof setDishImage>;
 export type UpdateDishResult = ReturnType<typeof updateDish>;

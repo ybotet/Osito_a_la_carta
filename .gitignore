@@ -11,6 +11,7 @@ build/
 *.db-wal
 *.db-shm
 backups/
+uploads/
 
 logs/
 *.log

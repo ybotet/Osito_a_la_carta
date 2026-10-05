@@ -263,6 +263,12 @@
     rehidrata al cargar el módulo, antes del primer render. Ver "Notas de progreso".
 - [ ] **T-046**: Interceptor de fetch que añade `Authorization` y maneja 401
   - Criterio: si el access expira, hace refresh automático.
+- [x] **T-047**: Imágenes de platos en la VPS + `POST /api/dishes/:id/image`
+  - Criterio: un admin sube una imagen, se guarda en disco con nombre UUID, la ruta se guarda en
+    `dishes.image_url` y la API la devuelve como URL absoluta construida con `PUBLIC_ORIGIN`.
+  - **Nota:** tarea añadida por el dueño, fuera del enunciado original, para resolver la
+    decisión de "dónde alojar las imágenes" que estaba pendiente. Ver "Decisiones resueltas" y
+    "Notas de progreso".
 
 ---
 
@@ -347,7 +353,11 @@
 
 - ¿Polling o SSE para el panel del chef? → **T-081** (decisión al llegar a la tarea).
 - ¿Cuántos reintentos de notificación y con qué backoff? → **T-065**.
-- ¿Dónde alojar las imágenes de los platos? (VPS local vs. servicio externo) → decidir antes de **T-022**.
+- ~~¿Dónde alojar las imágenes de los platos?~~ → **Resuelto 2026-10-05**: el dueño decidió
+  **alojarlas en la propia VPS**, en un directorio fuera del repositorio
+  (`/var/www/osito/uploads`), con Nginx sirviéndolo por `alias`. En la BD se guarda la ruta
+  relativa y la URL absoluta se compone con `PUBLIC_ORIGIN`, para que cambiar de dominio no
+  obligue a reescribir datos. Implementado en **T-047**. Ver "Decisiones resueltas".
 - ¿Rate limiting en endpoints públicos? → evaluar en **T-092**.
 - ~~¿Cómo crear categorías al dar de alta un plato?~~ → **Resuelto 2026-10-01**: el
   dueño decidió un CRUD completo (`T-026`/`T-027`/`T-028`) en vez de un id fijo. Ver
@@ -2127,12 +2137,100 @@
   - **SPEC §7.2 paso 2** (actualizar `preferred_lang` al cambiar el idioma con sesión) sigue
     pendiente: no hay endpoint para eso y no se ha inventado.
 
+### 2026-10-05 — T-047 (imágenes en la VPS + subida)
+- Archivos creados: `server/src/modules/dishes/dishes.uploads.ts`.
+  Modificados: `dishes.schema.ts`, `dishes.service.ts`, `dishes.routes.ts`, `app.ts`,
+  `config/env.ts`, `.env.example`, `.gitignore`, `server/package.json` (dependencias).
+- **Dependencias añadidas:** `multer@2.4.0` y `@types/multer@2.0.0`, con autorización del
+  dueño. Se instalaron primero `2.0.2` y `npm audit` detectó ocho avisos de DoS de severidad alta
+  (limitación de tamaño evitable, agotamiento de recursos, nombres de campo anidados), así que
+  se subió a `2.4.0`, que los corrige. Quedan 4 avisos `moderate` de `esbuild`, que vienen de
+  `drizzle-kit` y son previos.
+- **Decisiones tomadas:**
+  1. **Ruta relativa en la BD, URL absoluta en la respuesta**, compuesta con `PUBLIC_ORIGIN`.
+     Es lo que pidió el dueño para que cambiar de dominio no toque datos.
+  2. **`imageUrl` acepta absoluta o relativa**, no solo URL como fijaba T-020. El seed de T-015
+     guarda `placehold.co` en filas que ya existen, y cerrarlo las invalidaría. Las relativas se
+     limitan a `/uploads/dishes/` para que la columna no pueda apuntar a rutas arbitrarias del
+     servidor.
+  3. **`UPLOADS_DIR` es obligatoria y sin default:** un default sería dentro del repo, y en la
+     VPS tiene que estar fuera para que un despliegue no borre las imágenes.
+  4. **Nombre UUID generado en el servidor**, nunca el que envía el cliente: multer no valida el
+     `mimetype` contra el contenido, y usar el nombre original abriría la puerta a `../`, a
+     choques y a extensiones ejecutables.
+  5. **5 MB y cuatro formatos** (jpeg, png, webp, avif), en lista explícita.
+  6. **`express.static` solo sirve en desarrollo.** En producción los ficheros los da Nginx con
+     un `alias`, y no pasan por Node.
+  7. **`setDishImage` busca con `findDishById`**, que no filtra por disponibilidad, para que un
+     plato deshabilitado también pueda corregir su imagen.
+- **Verificación:** `typecheck`, `lint` y `format:check` limpios; build de los dos workspaces.
+  Comprobado en ejecución con el servidor de desarrollo y con el compilado de `dist`:
+  subida 200 con la URL anteponiendo `PUBLIC_ORIGIN`, el fichero servido después con
+  `content-type: image/png` y los bytes idénticos, sin token 401, como cliente 403, plato
+  inexistente 404, tipo no permitido 400, más de 5 MB 400 `IMAGE_TOO_LARGE`, campo equivocado
+  400. El `PUT /api/dishes/:id` y el `POST /api/dishes` aceptan también rutas relativas, y
+  rechazan `/etc/passwd` y `/uploads/secreto.jpg`. Los ficheros en disco llevan nombre UUID y
+  ninguno conserva el nombre original. **El cambio de dominio se comprobó de verdad**: el mismo
+  servidor compilado con `PUBLIC_ORIGIN=https://osito-dist.example.com` devuelve esa URL y la
+  fila de la BD sigue siendo relativa.
+- **Gotcha encontrado (importante):** lanzar un error dentro del callback de multer **tumba el
+  proceso**. Ese callback corre de forma asíncrona, fuera del `try/catch` que Express pone
+  alrededor de la llamada al middleware, así que un `throw` es una excepción sin manejar: el
+  servidor moría y el cliente veía `ECONNRESET` en vez del 400. Por eso `toUploadError`
+  devuelve el error y la ruta lo pasa a `next(error)`. Además hay que llamar a `req.resume()`
+  antes de responder, porque al abortar quedan bytes sin leer en el socket.
+- **Base de datos:** se restauró el plato 1 a su valor de seed y se borraron los usuarios de
+  prueba. Queda solo el admin del seed, con `integrity_check` en `ok`. **Aviso:** al limpiar se
+  borró también `admin1@osito.com`, que T-041 había dejado a propósito y que el registro de
+  esa tarea sigue mencionando (TASKLIST.md, entrada de T-044). No se ha recreado porque su
+  contraseña solo se conocía en el entorno de pruebas de T-041; si hace falta, se recupera con
+  `db:seed:admin` y una cuenta nueva.
+- **Impacto en otras tareas:**
+  - **T-095 (Nginx) necesita `location /uploads/ { alias /var/www/osito/uploads/; }`** además
+    del proxy de `/api`. Sin él, en producción las imágenes dan 404 aunque el backend esté bien.
+  - **T-096 (backup) solo copia `osito.db`:** las imágenes quedan fuera del backup.
+  - **Los tests de T-020 sobre `imageUrl` hay que revisarlos**, porque la validación cambió.
+  - `DishCard`, `DishDetail`, el carrito y el detalle de pedido reciben la URL absoluta y no
+    necesitan cambios.
+- **Pendiente / deuda:** no hay limpieza de ficheros huérfanos (si un `UPDATE` falla tras
+  escribir, el fichero se queda), ni miniaturas ni recompresión, ni formulario de subida en el
+  panel del chef.
+
 ---
 
 ## Decisiones resueltas
 
 > Decisiones ya tomadas que no hay que volver a abrir. Se anotan para que un agente
 > que llegue tarde no vuelva a plantear la pregunta.
+
+### 2026-10-05 — Las imágenes se alojan en la VPS, no en un servicio externo
+**Origen:** la pregunta estaba abierta en "Decisiones pendientes" desde el principio, con la
+nota de decidirla antes de T-022 (que ya estaba hecha). El dueño la respondió el 2026-10-05:
+**VPS local**, y preguntó si lo correcto era alojarlas en el servidor, dentro de una carpeta
+de imágenes.
+
+**Decisión del dueño:** en la propia VPS, en un directorio **fuera del repositorio**
+(`/var/www/osito/uploads`), para que un despliegue no las borre y no se mezclen con el código.
+La opción de una carpeta dentro de `server/` se descartó por lo mismo, y `client/public/` por
+que `dist/` se borra en cada build. Añadió que la URL se compusiera con una variable de entorno
+con el dominio, y autorizó crear el endpoint de subida.
+
+**Decisiones técnicas derivadas:**
+- **En la BD se guarda la ruta relativa** (`/uploads/dishes/<uuid>.<ext>`) y **la respuesta
+  compone la URL absoluta** con `PUBLIC_ORIGIN`. Guardar la absoluta en la fila ataría cada
+  registro a un dominio, que es justo lo que el dueño pidió evitar.
+- **`imageUrl` acepta las dos formas.** El seed de T-015 guarda `placehold.co` en filas que ya
+  existen, así que cerrar el schema a solo relativa las invalidaría. Las relativas se limitan
+  a `/uploads/dishes/`.
+- **Nombres UUID generados en el servidor**, nunca el nombre que envía el cliente.
+- **En producción los ficheros los sirve Nginx con un `alias`, no Express.**
+
+**Consecuencias a tener en cuenta al implementar:**
+- **T-095 (Nginx) necesita `location /uploads/ { alias /var/www/osito/uploads/; }`** además
+  del proxy de `/api`.
+- **T-096 (backup) solo copia `osito.db`:** hay que añadir `UPLOADS_DIR`.
+- **T-080 a T-083 (panel del chef) no tienen subida de imagen.** El endpoint existe, pero
+  llamarlo es cosa de `curl` o Postman hasta que haya formulario.
 
 ### 2026-10-03 — shadcn/ui se termina por partes: `toast` y `dropdown-menu` van con T-092
 **Origen:** el bloqueo que registró **T-035** el 2026-10-02 (ver su entrada en "Notas de

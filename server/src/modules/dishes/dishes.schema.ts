@@ -22,9 +22,42 @@ const dishSchema = z.object({
 
 const dishesResponseSchema = z.array(dishSchema);
 
+/**
+ * `imageUrl` acepta **las dos formas** y no solo URLs, a diferencia de lo que fijaba la
+ * validación de T-020.
+ *
+ * Las imágenes se sirven desde la propia VPS, así que lo natural es guardar la ruta
+ * (`/uploads/dishes/x.jpg`) y componer la URL absoluta con `PUBLIC_ORIGIN` al responder.
+ * Guardar la absoluta en la fila ataría cada registro a un dominio, y cambiar de dominio
+ * obligaría a reescribirlas todas.
+ *
+ * La absoluta se sigue aceptando para no invalidar lo que ya hay: el seed de T-015 guarda
+ * `https://placehold.co/600x400/...` y esas filas existen en la base de datos actual. Quien
+ * trae una URL absoluta la recibe intacta; quien trae una relativa la convierte
+ * `toAbsoluteImageUrl` en la respuesta.
+ *
+ * `z.string().url()` solo, además, rechazaría una ruta relativa sin decir por qué.
+ */
+const imageUrlSchema = z
+  .string()
+  .trim()
+  .min(1, { message: 'Requerida' })
+  .refine(
+    (value) => {
+      if (value.startsWith('/')) {
+        // Relativa: solo bajo el prefijo de subidas, para que la columna no pueda apuntar a
+        // rutas arbitrarias del servidor (`/etc/passwd` o rutas fuera de la carpeta).
+        return value.startsWith('/uploads/dishes/');
+      }
+
+      return z.string().url().safeParse(value).success;
+    },
+    { message: 'Debe ser una URL absoluta o una ruta /uploads/dishes/...' },
+  );
+
 const createDishBodySchema = z.object({
   categoryId: z.coerce.number().int().positive(),
-  imageUrl: z.string().url(),
+  imageUrl: imageUrlSchema,
   price: z.number().positive(),
   nameEs: z.string().trim().min(1),
   nameRu: z.string().trim().min(1),
@@ -63,6 +96,7 @@ export {
   createDishBodySchema,
   dishSchema,
   dishesResponseSchema,
+  imageUrlSchema,
   updateDishBodySchema,
 };
 

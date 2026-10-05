@@ -2,7 +2,7 @@
 
 > Este archivo es la memoria del proyecto. Todo agente lo lee al empezar
 > y lo actualiza al terminar. Nunca se borra contenido: solo se agrega.
-> Última actualización: 2026-10-03
+> Última actualización: 2026-10-05
 
 ---
 
@@ -167,6 +167,39 @@ sitio y los routers futuros no lo repiten. El primero es `health`; devuelve
 
 > Sección acumulativa. Cada decisión importante se documenta una vez
 > y se referencia desde las entradas de tareas.
+
+### 2026-10-05 — Las imágenes se alojan en la VPS, y en la BD se guarda la ruta relativa
+**Contexto:** TASKLIST tenía abierta la pregunta de dónde alojar las imágenes de los platos
+(VPS local frente a un servicio externo). El dueño decidió **VPS local**, y pidió que cambiar
+de dominio no obligara a tocar datos.
+
+**Decisión:** las imágenes viven en el disco de la VPS, en `UPLOADS_DIR`, que en producción
+está **fuera del repositorio** (`/var/www/osito/uploads`). En la columna `dishes.image_url` se
+guarda la **ruta relativa** (`/uploads/dishes/<uuid>.<ext>`), y la respuesta de la API compone
+la **URL absoluta** anteponiendo `PUBLIC_ORIGIN`. Nginx sirve ese directorio con un `alias`;
+`express.static` solo interviene en desarrollo.
+
+**Por qué el dominio no se guarda en la fila:** es una variable de despliegue. Si la columna
+guardara `https://dominio/uploads/...`, cambiar de dominio obligaría a reescribir todos los
+registros. Con `PUBLIC_ORIGIN`, cambiar de dominio es cambiar una variable del `.env`, y así se
+comprobó: el mismo servidor compilado, con otro `PUBLIC_ORIGIN`, devuelve otra URL sin tocar
+la base de datos.
+
+**Por qué se aceptan las dos formas en el schema:** `imageUrl` pasó de `z.string().url()` a un
+esquema que acepta absoluta **o** relativa bajo `/uploads/dishes/`. Cambiar a solo relativa
+habría invalidado el seed de T-015, que guarda `https://placehold.co/600x400/...` en las filas
+que ya existen. Quien trae una absoluta la recibe intacta; quien trae una relativa la compone.
+Las relativas se limitan a `/uploads/dishes/` para que la columna no pueda apuntar a rutas
+arbitrarias del servidor.
+
+**Consecuencias:**
+- **T-095 (Nginx) necesita `location /uploads/ { alias /var/www/osito/uploads/; }`** además
+  del proxy de `/api`. Sin él, en producción las imágenes dan 404 aunque el backend esté bien.
+- **T-096 (backup) solo copia `osito.db`:** las imágenes quedan fuera del backup y hay que
+  añadir `UPLOADS_DIR`.
+- **La validación de T-020 sobre `imageUrl` cambia**; sus tests hay que revisarlos.
+- **Las URLs de imagen viajan ya absolutas** al cliente (`GET /api/dishes`, `/api/dishes/:id`),
+  así que `DishCard`, `DishDetail`, el carrito y el detalle de pedido no necesitan cambios.
 
 ### 2026-10-04 — Las reglas de validación compartidas viven en `shared/` y los mensajes no
 **Contexto:** T-044 tenía que validar el formulario de registro y login con las mismas reglas
@@ -3625,6 +3658,94 @@ anotado.
   sesión; una cookie `httpOnly` lo evitaría y sería un cambio de backend.
 - **No hay forma de invalidar el refresh token desde el cliente** (misma deuda de T-041/T-042):
   `clearSession` limpia el navegador, no el token.
+
+---
+
+### 2026-10-05 — T-047 Alojamiento de imágenes en la VPS + subida
+**Estado:** completada
+
+**Qué se hizo:**
+- Las imágenes de platos se alojan **en la propia VPS** (decisión del dueño, que cerró la
+  pregunta que TASKLIST tenía abierta). Los ficheros se escriben en `UPLOADS_DIR`, fuera del
+  repositorio en producción, y se sirven en `/uploads`.
+- `POST /api/dishes/:id/image` (solo admin): `multipart/form-data`, un fichero en el campo
+  `image`, escritura en disco con nombre UUID y actualización de `dishes.image_url`.
+- La columna guarda la **ruta relativa** (`/uploads/dishes/<uuid>.jpg`) y la respuesta compone
+  la **URL absoluta** con `PUBLIC_ORIGIN`.
+- `PUBLIC_ORIGIN` y `UPLOADS_DIR` añadidas a `config/env.ts` (con Zod) y a `.env.example`.
+- `express.static` monta `/uploads` **solo como comodidad de desarrollo**: en producción los
+  sirve Nginx con un `alias`.
+- Se instaló `multer@2.4.0` y `@types/multer@2.0.0`.
+
+**Por qué se hizo así:**
+- **Relativa en la BD y absoluta en la respuesta, en vez de absoluta en la BD.** El dominio es
+  una variable de despliegue. Guardando la URL absoluta en la fila, cambiar de dominio
+  obligaría a reescribir todos los registros; con `PUBLIC_ORIGIN` es cambiar una variable. Es
+  justo lo que pidió el dueño al elegir esta opción, y se comprobó levantando el servidor
+  compilado con `PUBLIC_ORIGIN=https://osito-dist.example.com`: la respuesta cambió y la fila
+  no.
+- **`UPLOADS_DIR` no tiene valor por defecto.** Un default sería algo dentro del repo, y en la
+  VPS las imágenes tienen que vivir fuera del árbol para que un despliegue no las borre.
+- **Nombres UUID, nunca el nombre que envía el cliente.** `multer` no valida el `mimetype`
+  contra el contenido: usar el nombre original abriría la puerta a `../`, a choques y a
+  extensiones ejecutables.
+- **Límite de 5 MB y cuatro formatos (jpeg, png, webp, avif), lista explícita.** Sin
+  `limits.fileSize`, multer acepta lo que le manden y el único límite queda en Nginx, que
+  responde más tarde.
+- **En producción los ficheros no pasan por Node.** Nginx los sirve con un `alias`; el
+  `express.static` del código es para desarrollo, donde no hay Nginx delante.
+
+**Cómo se hizo:**
+- Creado `server/src/modules/dishes/dishes.uploads.ts`: configuración de multer, filtro de
+  tipo, `toAbsoluteImageUrl`, `toStoredImageUrl` y traducción de errores de multer.
+- Modificados `dishes.schema.ts` (nuevo `imageUrlSchema`), `dishes.service.ts` (URL absoluta
+  en `toResponse`, nuevo `setDishImage`), `dishes.routes.ts` (la ruta nueva),
+  `app.ts` (el `express.static`), `config/env.ts`, `.env.example` y `.gitignore` (`uploads/`).
+
+**Impacto en otras tareas:**
+- **T-095 (Nginx) necesita un `location` más**, aparte del proxy de `/api`:
+  `location /uploads/ { alias /var/www/osito/uploads/; }`. Sin él, en producción las imágenes
+  dan 404 aunque el backend esté bien.
+- **T-096 (backup) solo copia `osito.db` y se queda corto**: las imágenes quedan fuera del
+  backup. Hay que añadir `UPLOADS_DIR` al script o las fotos no se respaldan.
+- **La validación de `imageUrl` de T-020 cambió.** De `z.string().url()` (solo absoluta) a un
+  esquema que acepta las dos formas. Los tests que verificaban "imageUrl no URL → 400" hay que
+  revisarlos; ahora `/etc/passwd` y `/uploads/secreto.jpg` siguen dando 400, pero
+  `/uploads/dishes/x.jpg` ya no.
+- **T-053 y T-055 (carrito y detalle de pedido) copian la `imageUrl` del plato.** Les sirve
+  tal cual, así que reciben la URL absoluta y no necesitan cambios.
+
+**Pendientes / deuda técnica:**
+- **No hay limpieza de ficheros huérfanos.** Si un chef sube una imagen y luego el `UPDATE`
+  falla, el fichero queda en disco sin referencia. Igual con el purgado de un plato: la fila
+  desaparece pero su imagen se queda.
+- **No hay miniaturas ni recompresión.** Una foto de móvil de 4 MB se guarda tal cual. Cuando
+  el número de platos crezca, `sharp` para generar una versión pequeña es el siguiente paso.
+- **No hay formulario de subida en el panel del chef.** El endpoint existe pero hay que
+  llamarlo por `curl` o Postman hasta que haya UI (el panel del chef es T-080 a T-083, que hoy
+  son solo de pedidos).
+- **El `fileFilter` no puede distinguir "no hay fichero" de "tipo no permitido"**: en los dos
+  casos multer termina sin error y sin `req.file`. Se resolvió con un mensaje y un `code` que
+  cubren ambos, no con dos respuestas distintas.
+
+**Gotchas descubiertos en esta tarea:**
+- **Lanzar un error dentro del callback de multer tumba el proceso entero.** El `callback` que
+  multer invoca corre de forma asíncrona, cuando `diskStorage` ha terminado de escribir y
+  decide abortar, y **fuera** del `try/catch` que Express pone alrededor de la llamada al
+  middleware. Un `throw` ahí es una excepción sin manejar: el servidor moría y el cliente veía
+  un `ECONNRESET` en vez del 400. Por eso `toUploadError` **devuelve** el error y la ruta lo
+  pasa a `next(error)`, que sí llega al `errorHandler`. Los `throw` de los handlers normales
+  (el 404, el 400) no tienen ese problema porque corren dentro del `try/catch` de Express.
+- **`multer@2.0.2` tiene 8 avisos de DoS de severidad alta** (limitación de tamaño de fichero
+  evitable, agotamiento de recursos, nombres de campo anidados). Instalada por error la
+  primera vez; `npm audit` lo detectó y se subió a `2.4.0`, que los resuelve. Quedan 4 avisos
+  `moderate` de `esbuild`, que vienen de `drizzle-kit` y son previos a esta tarea.
+- **`req.resume()` antes de responder es necesario cuando multer aborta.** Al cortar el stream
+  quedan bytes sin leer en el socket y, sin vaciarlos, Node cierra la conexión en vez de enviar
+  la respuesta.
+- **`UPLOADS_DIR` es una ruta relativa al `cwd`, no al `.env`.** Con `UPLOADS_DIR=./uploads` en
+  desarrollo, la carpeta sale donde se ejecutó el proceso: al arrancar desde `server/` es
+  `server/uploads`, y desde la raíz es `<raíz>/uploads`. Comprobado.
 
 ---
 

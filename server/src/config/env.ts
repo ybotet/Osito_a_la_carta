@@ -104,6 +104,34 @@ const envSchema = z.object({
     .string({ required_error: REQUIRED })
     .min(1, { message: REQUIRED })
     .refine(rejectPlaceholder, { message: PLACEHOLDER_MESSAGE }),
+
+  /**
+   * Origen público del sitio, sin barra final. Es lo que convierte la ruta relativa que se
+   * guarda en `dishes.image_url` (`/uploads/dishes/x.jpg`) en la URL absoluta que se
+   * devuelve al cliente, de modo que cambiar de dominio es cambiar esta variable y no
+   * reescribir filas.
+   */
+  PUBLIC_ORIGIN: z
+    .string({ required_error: REQUIRED })
+    .url({
+      message: 'Debe ser una URL absoluta, p. ej. https://osito.tudominio.com',
+    })
+    .refine((value) => !value.endsWith('/'), {
+      message: 'Sin barra final',
+    }),
+
+  /**
+   * Directorio donde se escriben las imágenes subidas.
+   *
+   * **No tiene default a propósito.** El valor por defecto sería algo dentro del repo, y en
+   * la VPS las imágenes tienen que vivir fuera del árbol del proyecto (`/var/www/osito/uploads`)
+   * para que un despliegue no las borre y para que no se mezclen con el código. Obligar a
+   * declararlo deja esa decisión explícita en el `.env` en vez de deducirla de dónde se
+   * ejecuta el proceso.
+   */
+  UPLOADS_DIR: z.string({ required_error: REQUIRED }).min(1, {
+    message: 'Requerida: directorio donde se guardan las imagenes',
+  }),
 });
 
 const formatIssues = (error: z.ZodError): string =>
