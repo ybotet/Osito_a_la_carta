@@ -274,7 +274,7 @@
 
 ## Fase 5 — Carrito y pedidos
 
-- [ ] **T-050**: Store de carrito con Zustand persistido en `localStorage`
+- [x] **T-050**: Store de carrito con Zustand persistido en `localStorage`
   - Criterio: agregar, quitar y modificar cantidades funciona tras recargar.
 - [ ] **T-051**: `POST /api/orders` con validación Zod y transacción
   - Criterio: crea `Order` + `OrderItem` atómicamente.
@@ -2272,6 +2272,79 @@
     store), pero **no hay cancelación**: si la renovación tarda y el usuario navega, la
     respuesta llega igual y con `signal` no se aborta. Afecta sobre todo a una recarga de la
     página en mitad de una renovación.
+
+---
+
+### 2026-10-05 — T-050 (store de carrito)
+- Archivo creado: `client/src/store/cart.ts`.
+  Modificados: `client/src/components/DishCard.tsx` y `client/src/pages/DishDetail.tsx` (los
+  botones que T-032 dejó sin `onClick` a propósito).
+- **Decisiones tomadas:**
+  1. **`addItem` recibe el plato entero y no un `dishId`, y una línea por plato.** El enunciado lo
+     pide así. Con solo el `dishId`, T-053 tendría que pedir cada plato para poder pintar "Sopa x2"
+     y su precio, y serían N peticiones para N líneas. Al reañadir se refrescan `name`, `price`
+     e `imageUrl` con los del plato que llega, para que un carrito construido en español pase a
+     enseñar los nombres en ruso al cambiar de idioma.
+  2. **`updateQuantity(dishId, 0)` quita la línea en vez de guardarla con 0.** T-051 pide
+     `quantity: number min 1`, así que la cantidad mínima se hace **representable** en el tipo en
+     vez de dejar que cada consumidor filtre antes de mandar el pedido. Los controles de T-053
+     generan justo esta llamada al bajar de 1.
+  3. **`removeItem` y `updateQuantity` se quedan los dos.** Llegan al mismo sitio y los van a usar
+     dos sitios distintos: el "quitar" de la página del carrito y el "bajar a cero" de los
+     controles de cantidad.
+  4. **`totalItems` y `totalPrice` son selectores, no campos del estado.** Mismo criterio que
+     `useIsAuthenticated` (T-045): guardados habría que sincronizarlos a mano en cada `set`, y se
+     quedarían viejos al rehidratar desde un `localStorage` de una versión anterior. Devuelven
+     primitivos a propósito: un selector que devolviera array daría referencia nueva en cada
+     render y re-renderizaría en bucle.
+  5. **`totalPrice` redondea a céntimos.** El precio viene de SQLite por `real`: sin redondear,
+     3 x 11,90 daría 35.700000000000003 en pantalla.
+  6. **`price` guardado es solo para pintar.** El precio que se cobra lo recalcula T-051 con los
+     precios actuales, y el pedido solo manda `{ dishId, quantity }`.
+  7. **El botón enseña la cantidad del plato y cambia a `outline` cuando ya está en el carrito.**
+     La página `/cart` (T-053) no existe todavía, así que **el número al lado del botón es la
+     única señal de que el clic hizo algo**. Con `aria-label` porque un número dentro de un
+     `<button>` no se anuncia con contexto.
+  8. **Los hooks de `DishDetail` van arriba del todo**, no junto al botón: la página tiene tres
+     salidas tempranas y un hook debajo de un `return` no se ejecuta en el primer render y sí en
+     los siguientes.
+- **Verificación:** `typecheck`, `lint`, `prettier` y `build` limpios.
+  - **El criterio (persistir tras recargar) comprobado por rehidratación real**: se escribió en
+    `localStorage`, se vació el store en memoria, y un **módulo nuevo del store** reconstruyó el
+    mismo carrito sin llamar a `rehydrate()` a mano, que es lo que pasa al cargar la página. Coincide
+    exacto con lo que había, incluidos los nombres en cirílico.
+  - `addItem` del mismo plato suma cantidad en vez de crear línea: 1, 2 y 1 otra vez deja **2 líneas**
+    y `totalItems` 3 (unidades, no líneas).
+  - `updateQuantity(1, 4)` deja 4; `updateQuantity(1, 0)` quita la línea; `updateQuantity(99, 5)`
+    **no inventa** una línea para un `dishId` que no está.
+  - `removeItem` quita la línea; `clearCart` vacía y los totales dan **0, no `NaN`**.
+  - Se persiste solo `items` (`partialize`), no las acciones.
+  - El selector que usan las dos tarjetas se comprobó contra estado real: 0 vacío, 1, 3 con tres
+    unidades, y dos platos independientes no se pisan.
+  - El botón sale traducido en los tres idiomas (`cart.add` ya existía).
+- **Gotcha de verificación (no del código):** **`renderToStaticMarkup` no puede comprobar el badge
+  de cantidad**, porque React usa `getInitialState()` como snapshot de servidor y devuelve el
+  estado inicial del store, no el rehidratado. Es el mismo gotcha de T-045, y el botón sale
+  idéntico con 0 y con 3 unidades. Se comprobó el selector contra `getState()` en su lugar.
+- **Base de datos:** no se toca. T-050 es solo cliente.
+- **Impacto en otras tareas:**
+  - **T-051** ya tiene el contrato: solo se manda `{ dishId, quantity }`, y `quantity >= 1` está
+    garantizado por el tipo, no por un filtro en la página.
+  - **T-053 (página `/cart`)** tiene todo: `items`, `removeItem`, `updateQuantity`, `clearCart` y
+    los dos selectores. Y el `nav.cart` del navbar, hoy **deshabilitado**, es lo que esa tarea
+    habilita.
+  - **El `clearCart` va después de confirmar el pedido, no antes**: si el `POST /api/orders` falla,
+    el carrito tiene que seguir lleno para poder reintentar.
+- **Pendiente / deuda:**
+  - **Los nombres del carrito son los del idioma en que se añadió el plato.** Aceptable y
+    documentado en el store, pero es lo que contestar si alguien se queja de que "el carrito sale
+    en español" después de cambiar a ruso.
+  - **No hayFusionado por `imageUrl` ni nada parecido:** dos platos con la misma foto son dos
+    líneas, que es lo correcto.
+  - **El carrito no se vacía al cerrar sesión.** Con `persist` y una clave distinta de
+    `osito-auth`, compartir navegador entre dos cuentas dejaría el carrito de una a la vista de la
+    otra. No es grave (el pedido es del usuario que confirma), pero es una decisión implícita que
+    T-053 debería tener en cuenta.
 
 ---
 

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ApiError } from '../api/http';
 import { fetchDishById } from '../api/dishes';
 import { formatPrice } from '../lib/format';
+import { useCartStore } from '../store/cart';
 import { Button } from '../components/ui/button';
 
 /**
@@ -106,6 +107,21 @@ const DishDetail = () => {
   const dishId = Number(id);
 
   /**
+   * El botón de añadir se conecta al store en T-050. Los hooks van aquí arriba y no junto al
+   * botón, porque la página tiene tres salidas tempranas (`isPending`, `isError` y el `dish`
+   * indefinido) y un hook debajo de un `return` no se ejecutaría en el primer render y sí en
+   * los siguientes: es la forma de romper las reglas de los hooks sin que salte ningún aviso.
+   *
+   * La cantidad sale de `dishId`, que ya está resuelto a número aquí, así que en la ruta
+   * inválida la línea del carrito que se busca no existe y sale 0, que es lo que toca.
+   */
+  const addItem = useCartStore((state) => state.addItem);
+  const quantity = useCartStore(
+    (state) =>
+      state.items.find((item) => item.dishId === dishId)?.quantity ?? 0,
+  );
+
+  /**
    * El `id` de la ruta es una cadena y puede ser cualquier cosa: `/menu/abc` no es un plato. Se
    * descarta antes de preguntar en vez de mandar `NaN` al backend y enseñarle al usuario el
    * error de la API por una URL que ya se sabe inválida. Es la misma regla que aplica
@@ -194,7 +210,34 @@ const DishDetail = () => {
             {formatPrice(dish.price, language)}
           </p>
 
-          <Button className="w-full sm:w-auto">{t('cart.add')}</Button>
+          {/*
+            Igual que en `DishCard`: `outline` cuando el plato ya está en el carrito, el número
+            dentro del botón (para que no cambie de ancho) y el `aria-label` para que el lector
+            de pantalla anuncie la cantidad. El botón es de ancho completo en móvil porque es el
+            que queda debajo de todo el texto del plato.
+          */}
+          <Button
+            className="w-full sm:w-auto"
+            variant={quantity > 0 ? 'outline' : 'default'}
+            onClick={() => {
+              if (dish !== undefined) {
+                addItem(dish);
+              }
+            }}
+            aria-label={
+              quantity > 0 ? `${t('cart.add')} (${quantity})` : undefined
+            }
+          >
+            {t('cart.add')}
+            {quantity > 0 && (
+              <span
+                className="rounded bg-muted px-1.5 text-xs font-semibold text-muted-foreground"
+                aria-hidden="true"
+              >
+                {quantity}
+              </span>
+            )}
+          </Button>
         </div>
       </div>
     </main>

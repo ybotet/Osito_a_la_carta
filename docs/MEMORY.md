@@ -168,6 +168,44 @@ sitio y los routers futuros no lo repiten. El primero es `health`; devuelve
 > Sección acumulativa. Cada decisión importante se documenta una vez
 > y se referencia desde las entradas de tareas.
 
+### 2026-10-05 — El carrito guarda una copia del plato, y sus cantidades solo admiten valores válidos para T-051
+**Contexto:** T-050 tenía que crear el store de carrito (Zustand + `persist`) y conectarlo a los
+botones de `DishCard` y `DishDetail`, que T-032 había dejado sin `onClick` a propósito. El
+enunciado fijaba `items: Array<{ dishId, name, price, quantity, imageUrl }>` y cinco acciones.
+
+**Decisión:** el item guarda el nombre, el precio y la imagen **como copia del momento en que se
+añade**; hay **una línea por plato** (`addItem` sube la cantidad en vez de añadir línea) y
+`updateQuantity(dishId, 0)` **quita la línea** en lugar de guardarla con cero. `totalItems` y
+`totalPrice` son **selectores**, no campos del estado, y el total redondea a céntimos.
+
+**Por qué se guarda la copia del plato y no solo el `dishId`:** con solo el id, T-053 tendría que
+pedir cada plato para poder pintar "Sopa x2" y cuánto cuesta, y serían N peticiones para N líneas
+de un carrito que el usuario está mirando.
+
+**Por qué `quantity` no puede ser 0:** T-051 define el body del pedido como
+`items: Array<{ dishId: number, quantity: number min 1 }>`. Si el carrito admitiera 0, cada
+consumidor tendría que filtrar antes de mandar el pedido y ese filtro acabaría en la página. Haciendo
+que 0 quite la línea, la garantía la da el tipo. Los controles de cantidad de T-053 generan
+precisamente esa llamada cuando el usuario baja de 1, que es el momento en que la línea desaparece
+de la lista.
+
+**Por qué los totales son selectores:** es el mismo criterio que `useIsAuthenticated` (T-045).
+Guardados habría que mantenerlos sincronizados a mano en cada `set`, y se quedarían viejos al
+rehidratar desde un `localStorage` de una versión anterior. Además **devuelven primitivos** porque
+un selector que devolviera un array daría referencia nueva en cada render y re-renderizaría en
+bucle.
+
+**Consecuencias:**
+- **El precio del carrito es solo para pintar.** El que se cobra lo recalcula T-051 con los
+  precios actuales y el pedido solo manda `{ dishId, quantity }`. Si el chef cambia un precio entre
+  que el usuario añade y confirma, se cobra el nuevo.
+- **Los nombres del carrito son los del idioma en que se añadió.** Al reañadir se refrescan con
+  los del plato que llega, así que volver a añadir es lo que hace que un carrito en español pase a
+  ruso. Está anotado porque es lo que hay que contestar si alguien se queja.
+- **T-053 tiene todo lo que necesita** y habilita el `nav.cart` del navbar, hoy deshabilitado. Y
+  **`clearCart` va después de confirmar**, no antes: si el `POST /api/orders` falla, el carrito tiene
+  que seguir lleno para poder reintentar.
+
 ### 2026-10-05 — Toda petición del cliente pasa por `apiRequest`, y los 401 se distinguen por `code`
 **Contexto:** T-046 tenía que añadir `Authorization` y `Accept-Language` a las llamadas del
 frontend, renovar el access cuando caducara y cerrar sesión si eso tampoco funcionaba. El
@@ -3896,6 +3934,95 @@ anotado.
   fuera de un navegador hay que anteponer el origen, o todo falla con `Invalid URL`. No es un
   problema del código de producción (que solo corre en el navegador), pero sí de cualquier
   prueba que lo ejecute en Node.
+
+---
+
+### 2026-10-05 — T-050 Store de carrito con Zustand + persist
+**Estado:** completada
+
+**Qué se hizo:**
+- `client/src/store/cart.ts`: `items` persistido en `localStorage` bajo la clave `osito-cart`, con
+  `addItem`, `removeItem`, `updateQuantity`, `clearCart` y los selectores `selectTotalItems` y
+  `selectTotalPrice`.
+- Los botones de "añadir al carrito" de `DishCard` y `DishDetail`, que T-032 dejó sin `onClick` a
+  propósito, ya escriben en el store.
+
+**Por qué se hizo así:**
+- **El item guarda `name`, `price` e `imageUrl`, y no solo el `dishId`** (lo que pedía el
+  enunciado). Con solo el `dishId`, T-053 tendría que pedir cada plato para poder pintar "Sopa x2" y
+  su precio: N peticiones para N líneas.
+- **`updateQuantity(dishId, 0)` quita la línea en vez de guardarla con 0.** T-051 pide
+  `quantity: number min 1`, así que la cantidad mínima se hace **representable en el tipo**, no
+  un filtro que cada consumidor tenga que acordarse de poner. Los controles de cantidad de T-053
+  generan exactamente esta llamada cuando el usuario baja de 1, que es cuando la línea desaparece
+  de la lista.
+- **`removeItem` y `updateQuantity` se quedan los dos** aunque acaben en el mismo sitio: los usan
+  dos sitios distintos (el "quitar" de la página del carrito y el "bajar a cero" de los
+  controles).
+- **`totalItems` y `totalPrice` son selectores, no campos del estado**, por el mismo motivo que
+  `useIsAuthenticated` en T-045: guardados habría que sincronizarlos a mano en cada `set`, y se
+  quedarían viejos al rehidratar desde un `localStorage` de una versión anterior. **Devuelven
+  primitivos a propósito:** un selector que devolviera un array daría una referencia nueva en cada
+  render y el componente se re-renderizaría en bucle.
+- **`totalPrice` redondea a céntimos.** El precio viene de SQLite por `real`, así que es coma
+  flotante: sin redondear, 3 x 11,90 daría 35.700000000000003 en pantalla.
+- **`price` guardado es solo para pintar.** El precio que se cobra lo recalcula T-051 con los
+  precios actuales y el pedido solo manda `{ dishId, quantity }`; si el chef cambia un precio
+  entre que el usuario añade y confirma, se cobra el nuevo.
+- **Al reañadir un plato se refrescan `name`, `price` e `imageUrl`.** Reanadir es decir "quiero
+  este, ahora, como lo veo": si el nombre o el precio cambiaron, la línea se queda con lo viejo y
+  el carrito enseña algo que ya no existe.
+- **El botón enseña la cantidad del plato y cambia a `outline` si ya está en el carrito.** La
+  página `/cart` (T-053) no existe todavía, así que **el número al lado del botón es la única señal
+  de que el clic hizo algo**: un botón que reacciona sin cambiar nada en la pantalla deja al
+  usuario sin saber si falló.
+- **`aria-label` en el botón**, porque un número dentro de un `<button>` no se anuncia con
+  contexto: sin eso un usuario de lector oye "Añadir al carrito" y no oye que ya hay tres.
+- **Los hooks de `DishDetail` van arriba del todo**, no junto al botón: la página tiene tres
+  salidas tempranas, y un hook debajo de un `return` no se ejecuta en el primer render y sí en
+  los siguientes.
+
+**Cómo se hizo:**
+- Creado `client/src/store/cart.ts` con `create` + `persist`, `partialize` a solo `items` y
+  `initialItems()` como función (mismo criterio que el store de sesión).
+- Modificados `DishCard.tsx` y `DishDetail.tsx`: el selector de cantidad y el `onClick`.
+- Sin dependencias nuevas y sin claves i18n nuevas: `cart.add` ya existía desde T-030.
+
+**Verificación:**
+- `typecheck`, `lint`, `prettier` y `build` limpios.
+- **El criterio (mantener el carrito tras recargar) comprobado por rehidratación real**: se
+  escribió en `localStorage`, se vació el store en memoria, y un **módulo nuevo del store**
+  reconstruyó el mismo carrito **sin llamar a `rehydrate()` a mano**, que es lo que pasa al cargar
+  la página. Coincidencia exacta con lo que había, nombres en cirílico incluidos.
+- `addItem` del mismo plato suma cantidad: añadir 1, 2 y 1 deja 2 líneas y `totalItems` 3 (unidades,
+  no líneas). `updateQuantity(1, 0)` quita la línea; sobre un `dishId` inexistente no inventa nada.
+  `clearCart` deja los totales en 0, no `NaN`.
+- Se persiste solo `items`. El selector de las tarjetas se comprobó contra estado real.
+
+**Impacto en otras tareas:**
+- **T-051 ya tiene el contrato:** solo se manda `{ dishId, quantity }`, y `quantity >= 1` está
+  garantizado por el tipo del store, no por un filtro en la página.
+- **T-053 (página `/cart`) tiene todo**: `items`, `removeItem`, `updateQuantity`, `clearCart` y los
+  dos selectores. El `nav.cart` del navbar, hoy **deshabilitado**, es lo que esa tarea habilita.
+- **`clearCart` va después de confirmar el pedido, no antes**: si el `POST /api/orders` falla, el
+  carrito tiene que seguir lleno para poder reintentar sin rehacer el pedido a mano.
+
+**Pendientes / deuda técnica:**
+- **El carrito no se vacía al cerrar sesión.** Con `persist` y una clave distinta de `osito-auth`,
+  compartir navegador entre dos cuentas dejaría el carrito de una a la vista de la otra. No es
+  grave (el pedido es del usuario que confirma, y T-051 valida disponibilidad y precios), pero es
+  una decisión implícita que T-053 debería tener en cuenta si decide vaciarlo.
+- **Los nombres del carrito son los del idioma en que se añadió el plato.** Documentado en el
+  store: es lo que hay que contestar si alguien se queja de que "el carrito sale en español"
+  después de cambiar a ruso.
+
+**Gotchas descubiertos en esta tarea:**
+- **`renderToStaticMarkup` no puede comprobar nada que dependa de un store de Zustand con estado
+  rehidratado**, no solo del booleano de la sesión: React usa `getInitialState()` como snapshot de
+  servidor, así que un selector que lee `items` devuelve el estado inicial (carrito vacío) aunque
+  el store tenga líneas. **Un botón que pinta la cantidad sale idéntico con 0 y con 3 unidades**,
+  y parece un bug de `addItem` cuando el bug es del método de verificación. Es el gotcha de T-045
+  aplicado al carrito, y la forma de salir es comprobar el selector contra `getState()`.
 
 ---
 

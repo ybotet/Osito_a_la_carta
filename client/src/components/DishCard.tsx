@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import type { ApiDish } from '../api/dishes.types';
 import { useTranslation } from 'react-i18next';
 import { formatPrice } from '../lib/format';
+import { useCartStore } from '../store/cart';
 import { Button } from './ui/button';
 import {
   Card,
@@ -36,6 +37,13 @@ import {
  * se anudan elementos interactivos, y además dejarían de funcionar el teclado y el lector de
  * pantalla). Poner el enlace en la imagen y en el título agranda la zona pulsable sin inventarse
  * un `stretched-link`.
+ *
+ * **El botón de añadir se conecta al store en T-050** y pasa a enseñar cuántas unidades hay de
+ * ese plato. Antes no hacía nada y se dejó así a propósito (era el gancho que T-032 dejó
+ * preparado). La cantidad se lee del store en la propia tarjeta y no del carrito: la página del
+ * carrito (T-053) todavía no existe, así que **el número al lado del botón es la única señal de
+ * que el clic hizo algo**. Un botón que reacciona a un clic sin cambiar nada en la pantalla deja
+ * al usuario sin saber si falló o si no se registró.
  */
 type DishCardProps = {
   dish: ApiDish;
@@ -44,6 +52,11 @@ type DishCardProps = {
 
 const DishCard = ({ dish, language }: DishCardProps) => {
   const { t } = useTranslation();
+  const addItem = useCartStore((state) => state.addItem);
+  const quantity = useCartStore(
+    (state) =>
+      state.items.find((item) => item.dishId === dish.id)?.quantity ?? 0,
+  );
   const detailPath = `/menu/${dish.id}`;
 
   return (
@@ -98,7 +111,33 @@ const DishCard = ({ dish, language }: DishCardProps) => {
           <p className="text-xl font-bold">
             {formatPrice(dish.price, language)}
           </p>
-          <Button>{t('cart.add')}</Button>
+          {/*
+            `variant="outline"` cuando el plato ya está en el carrito: el botón cambia de
+            aspecto para marcar que es una acción de "añadir otra vez", no de "empezar a
+            añadir". El número va dentro del botón y no como texto al lado para que el botón no
+            cambie de ancho al pasar de 0 a 1, que haría bailar la fila del menú.
+
+            `aria-label` con la cantidad para el lector de pantalla: el número dentro de un
+            `<button>` no se anuncia con contexto, y sin esto un usuario de lector oye
+            "Añadir al carrito" y no oye que ya hay tres.
+          */}
+          <Button
+            variant={quantity > 0 ? 'outline' : 'default'}
+            onClick={() => addItem(dish)}
+            aria-label={
+              quantity > 0 ? `${t('cart.add')} (${quantity})` : undefined
+            }
+          >
+            {t('cart.add')}
+            {quantity > 0 && (
+              <span
+                className="rounded bg-muted px-1.5 text-xs font-semibold text-muted-foreground"
+                aria-hidden="true"
+              >
+                {quantity}
+              </span>
+            )}
+          </Button>
         </CardFooter>
       </Card>
     </article>
