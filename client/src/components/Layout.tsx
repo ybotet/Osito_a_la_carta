@@ -6,28 +6,27 @@ import { useAuthStore } from '../store/auth';
 import { Button } from './ui/button';
 
 /**
- * Envoltorio de todas las páginas: el navbar arriba y el hueco donde se pinta la ruta
- * activa (T-033, con el navbar terminado en T-035).
- *
- * **Va como ruta padre en `main.tsx` y no envolviendo `<Routes>` a mano**, con `<Outlet />`
- * dentro y sin props. Es el patrón de `react-router` para un layout compartido: cada página
- * deja de decidir qué chrome lleva encima, y añadir una ruta nueva es añadir un `<Route>`
- * dentro y nada más.
- *
- * **Los enlaces del navbar son `Button` con `asChild` y un `Link` dentro**, no `Link` con
- * clases de botón a mano. Es la forma que `asChild` existe para: un `<button>` no puede
- * contener un enlace, así que la alternativa era copiar las clases del botón en cada enlace y
- * que se desincronizasen al primer cambio de variante.
- *
- * **Los enlaces van a las rutas que ya existen.** `/menu` funciona y el carrito sigue
- * **deshabilitado** en vez de apuntar a un `/cart` (T-053) que todavía no existe, porque un
- * enlace a una ruta inexistente es un 404 con el logo de la web y es peor que un botón que se ve
- * desactivado. Ese botón es lo que cambia T-053.
- *
- * **El enlace de iniciar sesión es condicional (T-048).** Con sesión, lo sustituyen el email del
- * usuario y el botón de cerrar sesión, que están en `UserMenu`. La condición se decide aquí y en
- * `UserMenu` con el mismo criterio, para que no puedan contradecirse.
- */
+   * Envoltorio de todas las páginas: el navbar arriba y el hueco donde se pinta la ruta
+   * activa (T-033, con el navbar terminado en T-035).
+   *
+   * **Va como ruta padre en `main.tsx` y no envolviendo `<Routes>` a mano**, con `<Outlet />`
+   * dentro y sin props. Es el patrón de `react-router` para un layout compartido: cada página
+   * deja de decidir qué chrome lleva encima, y añadir una ruta nueva es añadir un `<Route>`
+   * dentro y nada más.
+   *
+   * **Los enlaces del navbar son `Button` con `asChild` y un `Link` dentro**, no `Link` con
+   * clases de botón a mano. Es la forma que `asChild` existe para: un `<button>` no puede
+   * contener un enlace, así que la alternativa era copiar las clases del botón en cada enlace y
+   * que se desincronizasen al primer cambio de variante.
+   *
+   * **El botón del carrito se habilitó en T-053**: `/cart` ya existe y funciona, así que el
+   * enlace ya no lleva `disabled`. El de órdenes (`/orders`) es nuevo y va al historial de
+   * pedidos (T-054).
+   *
+   * **El enlace de iniciar sesión es condicional (T-048).** Con sesión, lo sustituyen el email del
+   * usuario y el botón de cerrar sesión, que están en `UserMenu`. La condición se decide aquí y en
+   * `UserMenu` con el mismo criterio, para que no puedan contradecirse.
+   */
 const Layout = () => {
   const { t } = useTranslation();
 
@@ -68,8 +67,12 @@ const Layout = () => {
                 <Link to="/menu">{t('nav.menu')}</Link>
               </Button>
 
-              <Button variant="ghost" size="sm" disabled>
-                {t('nav.cart')}
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/cart">{t('nav.cart')}</Link>
+              </Button>
+
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/orders">{t('nav.orders')}</Link>
               </Button>
 
               {/*

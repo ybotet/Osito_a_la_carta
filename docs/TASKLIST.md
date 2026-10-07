@@ -313,6 +313,12 @@
     autenticado redirige a `/login`. En éxito limpia el carrito y redirige a `/orders/:id`.
     Los textos usan las claves de `locales/cart` en es/ru/en. Verificado compilación y build
     del cliente. El flujo HTTP del pedido ya estaba verificado en T-051/T-052.
+  - **Notas de progreso (2026-10-07, navbar):** el botón del carrito en el navbar estaba
+    `disabled` porque T-053 aún no estaba terminado. Ahora que `/cart` funciona, se quitó el
+    `disabled` y se pasó a `Button asChild` con un `Link` dentro, igual que los demás enlaces.
+    Además se añadió un botón nuevo "Mis pedidos" (`nav.orders`) que enlaza a `/orders`
+    (T-054). Ambos cambios están en `client/src/components/Layout.tsx` y las claves
+    `nav.orders` en es/ru/en. Verificado en el build de producción.
 - [x] **T-054**: Página `/orders` con historial de pedidos
   - Criterio: muestra estado, fecha y total de cada pedido.
   - **Notas de progreso (2026-10-07):** creada `client/src/pages/Orders.tsx` que consume

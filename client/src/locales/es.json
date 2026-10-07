@@ -5,8 +5,9 @@
   "nav": {
     "menu": "Menú",
     "cart": "Carrito",
+    "orders": "Mis pedidos",
     "login": "Iniciar sesión",
-    "logout": "Cerrar sesión",
+    "logout": "Salir",
     "main": "Navegación principal",
     "backToMenu": "Volver al menú"
   },

@@ -5,6 +5,7 @@
   "nav": {
     "menu": "Menu",
     "cart": "Cart",
+    "orders": "My orders",
     "login": "Sign in",
     "logout": "Sign out",
     "main": "Main navigation",

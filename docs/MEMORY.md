@@ -1465,6 +1465,37 @@ no son intercambiables.
 
 ## Historial de entradas
 
+### 2026-10-07 — Navbar: se habilita el botón del carrito y se añade el de órdenes
+**Estado:** completada
+
+**Qué se hizo:**
+- En `client/src/components/Layout.tsx`: el botón del carrito dejó de ir `disabled` y se
+  convirtió en `Button asChild` con un `Link` a `/cart`, igual que el del menú. Se añadió
+  un botón nuevo `Button asChild` con un `Link` a `/orders` y la clave `nav.orders`.
+- Claves i18n nuevas en los tres idiomas: `nav.orders` (`"Mis pedidos"` / `"Заказы"` /
+  `"My orders"`).
+
+**Por qué se hizo así:**
+- **El `disabled` era un workaround, no una decisión permanente.** El comentario original
+  decía que el botón iba deshabilitado porque `/cart` (T-053) todavía no existía, y un
+  enlace a una ruta inexistente es peor que un botón desactivado. Ahora que T-053 está
+  completada, el workaround ya no aplica.
+- **`Button asChild` y no `Button` con texto suelto:** los demás enlaces del navbar usan
+  esa combinación, así que el del carrito y el de órdenes heredan las mismas clases y no
+  se desincronizan al cambiar el `Button` de shadcn.
+
+**Impacto en otras tareas:**
+- **T-053 y T-054** ya tienen rutas activas en el navbar, así que un usuario autenticado
+  puede navegar a `/cart` y `/orders` sin pasar por `/menu`.
+- **T-048 (UserMenu)**: el botón de iniciar seguirá siendo condicional (solo sin sesión),
+  igual que antes. Los tres botones nuevos van antes de él, en el mismo orden que en el
+  código.
+
+**Pendientes / deuda técnica:**
+- Ninguno. Es un cambio puramente de presentación, sin lógica de negocio nueva.
+
+> Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
+
 ### 2026-10-07 — T-055 Página `/orders/:id` con detalle del pedido
 **Estado:** completada
 
