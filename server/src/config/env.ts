@@ -91,10 +91,27 @@ const envSchema = z.object({
     (value) => rejectPlaceholder(value.raw),
     { message: PLACEHOLDER_MESSAGE },
   ),
+  /**
+   * Destinatarios del chef. Puede ser un solo email o una lista separada por
+   * coma, para que el producto pueda notificar a más de una persona sin
+   * cambiar el schema (el dueño pidió que el correo del chef fuera
+   * yaiselbotet@gmail.com y que hubiera al menos otro). Se normaliza quitando
+   * espacios y se descartan los vacíos.
+   */
   CHEF_EMAIL: z
     .string({ required_error: REQUIRED })
-    .email({ message: 'Debe ser un email valido' })
-    .refine(rejectPlaceholder, { message: PLACEHOLDER_MESSAGE }),
+    .transform((value) =>
+      value
+        .split(',')
+        .map((email) => email.trim())
+        .filter((email) => email.length > 0),
+    )
+    .refine(
+      (emails) =>
+        emails.length > 0 &&
+        emails.every((email) => z.string().email().safeParse(email).success),
+      { message: 'Debe ser al menos un email valido' },
+    ),
 
   TELEGRAM_BOT_TOKEN: z
     .string({ required_error: REQUIRED })

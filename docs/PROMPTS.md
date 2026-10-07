@@ -43,11 +43,11 @@ Si no tienes acceso a estos archivos, pídemelos antes de continuar.
 7. Si MEMORY.md contradice TASKLIST.md o SPEC.md, DETENTE y pregúntame.
 8. Implementa SOLO lo necesario para cumplir el criterio de aceptación.
 9. Verifica el criterio antes de declarar la tarea terminada.
-10. Actualiza docs/TASKLIST.md: marca [x], anota decisiones en "Notas de progreso".
+10. Actualiza docs/TASKLIST.md: marca [x].
 11. Agrega una entrada nueva en docs/MEMORY.md con el formato establecido.
-    - Si descubriste un "gotcha", agrégalo a la sección superior.
+    - Si descubriste un "gotcha", agrégalo a la sección que corresponde.
     - Si tomaste una decisión arquitectónica que afecta a más de un módulo, 
-      promuévela a la sección "Decisiones arquitectónicas clave".
+      promuévela a la sección "Decisiones de arquitectura clave".
     - NUNCA borres ni edites entradas anteriores. Solo agrega.
 
 ## REGLAS ESTRICTAS
@@ -99,7 +99,7 @@ Al terminar, responde con:
 ### T-001 — Crear estructura de carpetas
 
 ```
-[Prompt base]
+
 
 T-001: Crear la estructura de carpetas del proyecto en la raíz:
 
@@ -121,7 +121,7 @@ No instales dependencias todavía.
 ### T-002 — Inicializar `server/` con TypeScript estricto
 
 ```
-[Prompt base]
+
 
 T-002: Inicializar el backend en server/ con:
 - package.json con "type": "module"
@@ -141,7 +141,7 @@ Criterio:
 ### T-003 — Inicializar `client/` con Vite + React + TS
 
 ```
-[Prompt base]
+
 
 T-003: Inicializar el frontend en client/ con Vite + React + TypeScript.
 
@@ -160,7 +160,7 @@ Criterio: `npm run dev` levanta la app en http://localhost:5173 y muestra el tex
 ### T-004 — Proxy de Vite hacia Express
 
 ```
-[Prompt base]
+
 
 T-004: Configurar el proxy de Vite en client/vite.config.ts para que 
 todas las peticiones a /api/* se redirijan a http://localhost:3000.
@@ -179,7 +179,7 @@ Criterio:
 ### T-005 — Tailwind CSS en `client/`
 
 ```
-[Prompt base]
+
 
 T-005: Instalar y configurar Tailwind CSS en client/:
 - tailwindcss, postcss, autoprefixer
@@ -197,7 +197,7 @@ Criterio: el texto se ve grande, en negrita y centrado.
 ### T-006 — ESLint + Prettier en ambos proyectos
 
 ```
-[Prompt base]
+
 
 T-006: Configurar ESLint + Prettier en server/ y client/.
 
@@ -221,7 +221,7 @@ Criterio: `npm run lint` desde la raíz pasa sin errores.
 ### T-007 — Logger con pino
 
 ```
-[Prompt base]
+
 
 T-007: Configurar pino como logger en server/src/logger.ts.
 
@@ -241,7 +241,7 @@ Criterio: al arrancar el server, se ve un log formateado y legible.
 ### T-008 — Validación de env con Zod
 
 ```
-[Prompt base]
+
 
 T-008: Crear server/src/config/env.ts que valide las variables de entorno con Zod.
 
@@ -271,7 +271,7 @@ Criterio:
 ### T-009 — Endpoint `GET /api/health`
 
 ```
-[Prompt base]
+
 
 T-009: Implementar GET /api/health en server/src/modules/health/.
 
@@ -298,7 +298,7 @@ Criterio: `curl http://localhost:3000/api/health` devuelve el JSON correcto.
 ### T-010 — Schema Drizzle
 
 ```
-[Prompt base]
+
 
 T-010: Crear el schema Drizzle en server/src/db/schema.ts con las tablas:
 
@@ -320,7 +320,7 @@ Criterio: `npx drizzle-kit generate` produce una migración SQL válida en src/d
 ### T-011 — Aplicar migración inicial
 
 ```
-[Prompt base]
+
 
 T-011: Aplicar la migración generada en T-010.
 
@@ -339,7 +339,7 @@ Criterio:
 ### T-012 — Seed de platos
 
 ```
-[Prompt base]
+
 
 T-012: Crear server/src/db/seed/dishes.ts que inserte 5 platos de ejemplo.
 
@@ -361,7 +361,7 @@ Criterio: tras `npm run db:seed`, un SELECT devuelve 5 filas con datos en los 3 
 ### T-013 — Seed de usuario admin
 
 ```
-[Prompt base]
+
 
 T-013: Crear server/src/db/seed/admin.ts que inserte un usuario admin:
 
@@ -383,7 +383,7 @@ Criterio: tras ejecutarlo, un SELECT en users devuelve 1 fila con role='admin'.
 ### T-020 — `GET /api/dishes` con localización
 
 ```
-[Prompt base]
+
 
 T-020: Implementar GET /api/dishes en server/src/modules/dishes/.
 
@@ -408,7 +408,7 @@ Criterio:
 ### T-021 — `GET /api/dishes/:id`
 
 ```
-[Prompt base]
+
 
 T-021: Implementar GET /api/dishes/:id con la misma localización que T-020.
 
@@ -423,7 +423,7 @@ Criterio: devuelve 200 con el plato correcto o 404 si no existe.
 ### T-022 — `POST /api/dishes` (admin)
 
 ```
-[Prompt base]
+
 
 T-022: Implementar POST /api/dishes.
 
@@ -450,7 +450,7 @@ Criterio: `curl -X POST` con body válido crea el plato; con body inválido devu
 ### T-023 — `PUT /api/dishes/:id` (admin)
 
 ```
-[Prompt base]
+
 
 T-023: Implementar PUT /api/dishes/:id.
 
@@ -466,7 +466,7 @@ Criterio: actualizar solo el precio funciona; actualizar un plato inexistente de
 ### T-024 — `DELETE /api/dishes/:id` (admin)
 
 ```
-[Prompt base]
+
 
 T-024: Implementar DELETE /api/dishes/:id como borrado lógico:
 - No elimina la fila, actualiza isAvailable = 0.
@@ -483,7 +483,7 @@ Criterio: tras DELETE, GET /api/dishes ya no incluye ese plato, pero sigue en la
 ### T-030 — Configurar react-i18next
 
 ```
-[Prompt base]
+
 
 T-030: Configurar react-i18next en client/.
 
@@ -505,7 +505,7 @@ cambia los textos visibles sin recargar.
 ### T-031 — Página `/menu`
 
 ```
-[Prompt base]
+
 
 T-031: Crear la página /menu en client/src/pages/Menu.tsx.
 
@@ -524,7 +524,7 @@ Criterio: al abrir http://localhost:5173/menu, se ven los 5 platos del seed.
 ### T-032 — Componente `DishCard`
 
 ```
-[Prompt base]
+
 
 T-032: Crear client/src/components/DishCard.tsx.
 
@@ -546,7 +546,7 @@ Criterio: en móvil se ve 1 columna; en desktop, 3 columnas.
 ### T-033 — Selector de idioma en navbar
 
 ```
-[Prompt base]
+
 
 T-033: Crear client/src/components/LanguageSwitcher.tsx.
 
@@ -566,7 +566,7 @@ Criterio: al recargar la página, mantiene el idioma elegido.
 ### T-034 — Página `/menu/:id`
 
 ```
-[Prompt base]
+
 
 T-034: Crear client/src/pages/DishDetail.tsx.
 
@@ -584,7 +584,7 @@ Criterio: click en un plato del menú navega al detalle y muestra los datos corr
 ### T-035 — Estilos base con shadcn/ui
 
 ```
-[Prompt base]
+
 
 T-035: Instalar y configurar shadcn/ui en client/.
 
@@ -604,7 +604,7 @@ Criterio: la UI se ve coherente, con espaciado consistente y responsive.
 ### T-040 — `POST /api/auth/register`
 
 ```
-[Prompt base]
+
 
 T-040: Implementar POST /api/auth/register en server/src/modules/auth/.
 
@@ -624,7 +624,7 @@ Criterio: registro con email nuevo funciona; con email duplicado devuelve 409.
 ### T-041 — `POST /api/auth/login`
 
 ```
-[Prompt base]
+
 
 T-041: Implementar POST /api/auth/login.
 
@@ -644,7 +644,7 @@ Criterio: login correcto devuelve ambos tokens; incorrecto devuelve 401.
 ### T-042 — `POST /api/auth/refresh`
 
 ```
-[Prompt base]
+
 
 T-042: Implementar POST /api/auth/refresh.
 
@@ -662,7 +662,7 @@ Criterio: con refresh válido devuelve nuevo access; con inválido devuelve 401.
 ### T-043 — Middleware `requireAuth` y `requireAdmin`
 
 ```
-[Prompt base]
+
 
 T-043: Crear server/src/middleware/auth.ts.
 
@@ -686,7 +686,7 @@ Criterio:
 ### T-044 — Páginas `/login` y `/register`
 
 ```
-[Prompt base]
+
 
 T-044: Crear client/src/pages/Login.tsx y Register.tsx.
 
@@ -706,7 +706,7 @@ Criterio:
 ### T-045 — Store de sesión con Zustand
 
 ```
-[Prompt base]
+
 
 T-045: Crear client/src/store/auth.ts con Zustand (instalar zustand).
 
@@ -730,7 +730,7 @@ Criterio: tras login, recargar la página mantiene la sesión.
 ### T-046 — Interceptor de fetch con refresh automático
 
 ```
-[Prompt base]
+
 
 T-046: Crear client/src/api/client.ts.
 
@@ -751,7 +751,7 @@ Criterio: si el access expira, la siguiente petición se renueva sin que el usua
 ### T-050 — Store de carrito
 
 ```
-[Prompt base]
+
 
 T-050: Crear client/src/store/cart.ts con Zustand + persist.
 
@@ -775,7 +775,7 @@ Criterio: agregar platos, recargar la página y ver que el carrito se mantiene.
 ### T-051 — `POST /api/orders`
 
 ```
-[Prompt base]
+
 
 T-051: Implementar POST /api/orders en server/src/modules/orders/.
 
@@ -803,7 +803,7 @@ Criterio: crear pedido devuelve 201 con items y total correctos.
 ### T-052 — `GET /api/orders`
 
 ```
-[Prompt base]
+
 
 T-052: Implementar GET /api/orders.
 
@@ -820,7 +820,7 @@ Criterio: un usuario ve solo sus pedidos, no los de otros.
 ### T-053 — Página `/cart`
 
 ```
-[Prompt base]
+
 
 T-053: Crear client/src/pages/Cart.tsx.
 
@@ -840,7 +840,7 @@ Criterio: flujo completo desde carrito hasta pedido creado funciona.
 ### T-054 — Página `/orders`
 
 ```
-[Prompt base]
+
 
 T-054: Crear client/src/pages/Orders.tsx.
 
@@ -858,7 +858,7 @@ Criterio: aparecen todos los pedidos del usuario ordenados por fecha.
 ### T-055 — Página `/orders/:id`
 
 ```
-[Prompt base]
+
 
 T-055: Crear client/src/pages/OrderDetail.tsx.
 
@@ -877,7 +877,7 @@ Criterio: se ve el detalle completo del pedido.
 ### T-060 — Servicio de correo con Mailgun
 
 ```
-[Prompt base]
+
 
 T-060: Crear server/src/modules/notifications/email.service.ts.
 
@@ -898,7 +898,7 @@ Criterio: `npx tsx src/scripts/test-email.ts` envía un correo real al chef.
 ### T-061 — Servicio de Telegram
 
 ```
-[Prompt base]
+
 
 T-061: Crear server/src/modules/notifications/telegram.service.ts.
 
@@ -925,7 +925,7 @@ Criterio: `npx tsx src/scripts/test-telegram.ts` envía un mensaje real al chef.
 ### T-062 — Plantilla HTML del correo
 
 ```
-[Prompt base]
+
 
 T-062: Crear server/src/modules/notifications/templates/order-email.ts.
 
@@ -945,7 +945,7 @@ Criterio: el correo de prueba se ve bien en Gmail y Outlook web.
 ### T-063 — Disparar notificaciones en paralelo
 
 ```
-[Prompt base]
+
 
 T-063: En el servicio de órdenes (orders.service.ts), después de crear 
 el pedido en la transacción, dispara en paralelo:
@@ -967,7 +967,7 @@ la otra se envía igual y el usuario recibe 201.
 ### T-064 — Registrar en NotificationLog
 
 ```
-[Prompt base]
+
 
 T-064: Crear server/src/modules/notifications/notifications.repository.ts.
 
@@ -985,7 +985,7 @@ Criterio: tras crear un pedido, hay 2 filas en notification_logs
 ### T-065 — Reintento automático
 
 ```
-[Prompt base]
+
 
 T-065: Implementar reintento en orders.service.ts.
 
@@ -1005,7 +1005,7 @@ solo se registra el resultado final como 'sent'.
 ### T-070 — `POST /api/stats/pageview`
 
 ```
-[Prompt base]
+
 
 T-070: Implementar POST /api/stats/pageview.
 
@@ -1024,7 +1024,7 @@ Criterio: visitar un plato crea una fila en page_views.
 ### T-071 — `GET /api/stats/me`
 
 ```
-[Prompt base]
+
 
 T-071: Implementar GET /api/stats/me.
 
@@ -1049,7 +1049,7 @@ Criterio: devuelve datos coherentes tras varias visitas y pedidos.
 ### T-072 — Página `/stats`
 
 ```
-[Prompt base]
+
 
 T-072: Crear client/src/pages/Stats.tsx.
 
@@ -1071,7 +1071,7 @@ Criterio: se ven los gráficos con datos reales del usuario.
 ### T-080 — `GET /api/admin/orders`
 
 ```
-[Prompt base]
+
 
 T-080: Implementar GET /api/admin/orders.
 
@@ -1088,7 +1088,7 @@ Criterio: solo admin accede; devuelve todos los pedidos.
 ### T-081 — Página `/admin/orders`
 
 ```
-[Prompt base]
+
 
 T-081: Crear client/src/pages/admin/Orders.tsx.
 
@@ -1106,7 +1106,7 @@ Criterio: los pedidos nuevos aparecen sin recargar la página.
 ### T-082 — `PATCH /api/admin/orders/:id/status`
 
 ```
-[Prompt base]
+
 
 T-082: Implementar PATCH /api/admin/orders/:id/status.
 
@@ -1129,7 +1129,7 @@ Criterio: cambiar pending → sent devuelve 400; pending → preparing funciona.
 ### T-083 — Vista de detalle para el chef
 
 ```
-[Prompt base]
+
 
 T-083: Crear client/src/pages/admin/OrderDetail.tsx.
 
@@ -1148,7 +1148,7 @@ Criterio: el chef puede ver el detalle completo y cambiar el estado.
 ### T-090 — PWA
 
 ```
-[Prompt base]
+
 
 T-090: Configurar vite-plugin-pwa en client/.
 
@@ -1168,7 +1168,7 @@ Criterio:
 ### T-091 — Responsive completo
 
 ```
-[Prompt base]
+
 
 T-091: Auditar y ajustar todas las páginas para móvil (360px), tablet (768px) y desktop (1280px+).
 
@@ -1186,7 +1186,7 @@ Criterio: todas las páginas son usables desde un móvil real (o DevTools).
 ### T-092 — Manejo global de errores
 
 ```
-[Prompt base]
+
 
 T-092: Implementar manejo global de errores.
 
@@ -1208,7 +1208,7 @@ Criterio: un error de red muestra mensaje claro, no pantalla blanca.
 ### T-093 — Tests básicos
 
 ```
-[Prompt base]
+
 
 T-093: Instalar vitest en server/.
 
@@ -1228,7 +1228,7 @@ Criterio: `npm run test` pasa con al menos 10 assertions.
 ### T-094 — PM2 en el VPS
 
 ```
-[Prompt base]
+
 
 T-094: Crear scripts de despliegue.
 
@@ -1257,7 +1257,7 @@ Criterio: la app arranca con PM2 y sobrevive a un reinicio del VPS.
 ### T-095 — Nginx + Let's Encrypt
 
 ```
-[Prompt base]
+
 
 T-095: Documentar en docs/DEPLOY.md la configuración de Nginx.
 
@@ -1277,7 +1277,7 @@ Criterio: la app responde por HTTPS con certificado válido.
 ### T-096 — Backup diario de SQLite
 
 ```
-[Prompt base]
+
 
 T-096: Documentar y crear script en docs/DEPLOY.md + server/scripts/backup.sh.
 

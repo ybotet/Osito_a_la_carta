@@ -14,14 +14,17 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed/dishes.ts",
-    "db:seed:admin": "tsx src/db/seed/admin.ts"
+    "db:seed:admin": "tsx src/db/seed/admin.ts",
+    "test:email": "tsx src/scripts/test-email.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.3",
     "express": "^5.1.0",
+    "form-data": "^4.0.6",
     "jsonwebtoken": "^9.0.3",
+    "mailgun.js": "^14.0.2",
     "multer": "^2.4.0",
     "pino": "^9.6.0",
     "zod": "^3.24.1"
@@ -30,6 +33,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^9.6.0",
     "@types/express": "^5.0.0",
+    "@types/form-data": "^2.2.1",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.0.0",
     "@types/node": "^22.10.5",
