@@ -4026,6 +4026,58 @@ anotado.
 
 ---
 
+### 2026-10-07 — T-052 `GET /api/orders` (historial del usuario autenticado)
+**Estado:** completada
+
+**Qué se hizo:**
+- `orders.repository.ts`: añadida `findOrdersByUserId(userId)` que trae los pedidos del
+  usuario con sus líneas y los nombres de los platos (`nameEs`, `nameRu`, `nameEn`) en un
+  `innerJoin` a `dishes`, ordenados por `created_at DESC`.
+- `orders.service.ts`: añadida `listOrders(userId, acceptLanguage)` que resuelve el idioma,
+  mapea cada pedido por `toResponse` (misma función que usa `createOrder`) y devuelve el
+  envoltorio `{ language, orders }`.
+- `orders.schema.ts`: añadidos `ordersListEnvelopeSchema` y el tipo `OrdersListEnvelope`.
+- `orders.routes.ts`: añadida ruta `GET /api/orders` protegida con `requireAuth`. Sin
+  sesión devuelve 401 `UNAUTHORIZED`.
+
+**Por qué se hizo así:**
+- **El `userId` sale del token, nunca del body ni de los params.** El ownership lo resuelve
+  el repositorio con `WHERE orders.user_id = ?`, no el servicio: así no hay forma de que un
+  cambio en la consulta devuelva pedidos de otro usuario sin que el servicio se entere.
+- **El envoltorio es `{ language, orders }`, no un array pelado.** Es la misma convención
+  que fijó T-020 para `GET /api/dishes` y que T-051 adoptó para `POST /api/orders`: los
+  nombres de los platos dependen del idioma de la petición, y sin decir cuál se resolvió
+  el cliente no puede saber si lo que tiene delante es la traducción o el original.
+- **`toResponse` es compartido entre `createOrder` y `listOrders`.** Evita que el listado y
+  el detalle de un pedido devuelvan estructuras distintas para lo mismo (un `item` con
+  `dishId`, `name`, `quantity`, `unitPrice`). Si T-055 cambia la forma del item, solo hay
+  un sitio que tocar.
+
+**Verificación:**
+- `typecheck`, `lint` y formato en verde.
+- Verificado contra el servidor en marcha (`:3000`):
+  - Usuario A (admin) crea 2 pedidos → `GET /api/orders` devuelve 2.
+  - Usuario B recién registrado → `GET /api/orders` devuelve 0 (aislamiento correcto).
+  - Sin token → 401 `UNAUTHORIZED`.
+  - `Accept-Language: ru` → `Паста с томатами`; `en` → `Tomato pasta`.
+
+**Impacto en otras tareas:**
+- **T-054 y T-055 ya tienen el endpoint que necesitan.** El listado y el detalle del
+  historial consumen `GET /api/orders`; T-054 pinta la lista y T-055 el detalle de un
+  pedido concreto, que ya está en `orderEnvelopeSchema`.
+- **El cliente (`api/orders.ts`) tiene que usar `apiRequest`** (decisión de T-046), no
+  `requestJson`, o se queda sin token y sin renovación.
+
+**Pendientes / deuda técnica:**
+- Falta el frontend (`T-054` y `T-055`).
+- No hay paginación: si un usuario acumula muchos pedidos, la respuesta crece sin límite.
+  Aceptable para el MVP, pero conviene añadirla cuando el historial crezca.
+
+**Gotchas descubiertos en esta tarea:**
+- Ninguno nuevo.
+
+---
+
 ## Convenciones de este archivo
 
 - Una entrada por tarea completada, bloqueada o parcialmente completada.

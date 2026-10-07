@@ -276,10 +276,34 @@
 
 - [x] **T-050**: Store de carrito con Zustand persistido en `localStorage`
   - Criterio: agregar, quitar y modificar cantidades funciona tras recargar.
-- [ ] **T-051**: `POST /api/orders` con validación Zod y transacción
+- [x] **T-051**: `POST /api/orders` con validación Zod y transacción
   - Criterio: crea `Order` + `OrderItem` atómicamente.
-- [ ] **T-052**: `GET /api/orders` (historial del usuario autenticado)
+  - **Notas de progreso (2026-10-05):** módulo `orders` con los cuatro archivos de
+    AGENTE.md §2.2 (`orders.routes.ts`, `orders.service.ts`, `orders.repository.ts`,
+    `orders.schema.ts`). Ruta protegida con `requireAuth` y el `userId` sale del token,
+    nunca del body. El body ignora `status`, `total`, `userId` y `id` (Zod sin
+    `.strict()`), y el `status` lo fija el repositorio a `pending`. `items` rechaza
+    duplicados con un `refine` y la cantidad mínima es 1 (sin `coerce`, así `true`
+    falla y no se convierte en 1). Platos no existentes o deshabilitados devuelven
+    `400 DISH_UNAVAILABLE` con la lista de ids faltantes, no un 404, para que el cliente
+    sepa cuál quitar del carrito. El total se calcula con los precios actuales en una
+    sola consulta y se redondea a céntimos, igual que el total del carrito (T-050).
+    La escritura entera va en `db.transaction`: o entran el pedido y todas sus líneas, o
+    no entra nada. La respuesta es `{ language, order }` con el pedido leído de la base
+    y los nombres localizados por `Accept-Language`. Notificaciones pendientes de T-063.
+    Verificado contra una base de prueba (`server/probe-orders.db`): 201 con el total
+    correcto (3 x 11,9 = 35,7), líneas en es/ru/en, nota de 500 chars aceptada y
+    espacios vacíos guardados como `NULL`, 400 en todos los casos de validación, 401 sin
+    token y con refresh token, y el 400 de plato deshabilitado no escribe nada.
+- [x] **T-052**: `GET /api/orders` (historial del usuario autenticado)
   - Criterio: solo devuelve pedidos del propio usuario.
+  - **Notas de progreso (2026-10-07):** ruta `GET /api/orders` protegida con `requireAuth`.
+    El `userId` sale del token, nunca del body ni de los params. La respuesta es `{ language,
+    orders }`, el mismo envoltorio que usa `POST /api/orders` para la respuesta de un pedido
+    concreto, así que la API no tiene dos convenciones para contenido localizable. Los items
+    incluyen `dishId`, `name` (localizado por `Accept-Language`), `quantity` y `unitPrice`.
+    El orden es `created_at DESC`. Verificado con peticiones reales: un usuario ve solo sus
+    pedidos, no los de otros; la localización responde en es/ru/en; sin token devuelve 401.
 - [ ] **T-053**: Página `/cart` con resumen y botón "confirmar pedido"
   - Criterio: redirige a `/orders/:id` tras confirmar.
 - [ ] **T-054**: Página `/orders` con historial de pedidos
