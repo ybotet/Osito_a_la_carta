@@ -9,6 +9,7 @@ import Login from './pages/Login.tsx';
 import Register from './pages/Register.tsx';
 import Cart from './pages/Cart.tsx';
 import Orders from './pages/Orders.tsx';
+import OrderDetail from './pages/OrderDetail.tsx';
 import Layout from './components/Layout.tsx';
 import './lib/i18n.ts';
 import './index.css';
@@ -60,6 +61,7 @@ createRoot(rootElement).render(
             <Route path="/register" element={<Register />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/orders" element={<Orders />} />
+            <Route path="/orders/:id" element={<OrderDetail />} />
           </Route>
         </Routes>
       </BrowserRouter>

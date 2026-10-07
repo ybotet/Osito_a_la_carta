@@ -144,6 +144,38 @@ const findOrderWithItems = (id: number) => {
 };
 
 /**
+ * Devuelve un pedido con sus líneas **solo si pertenece al usuario**.
+ *
+ * **El ownership lo resuelve el repositorio**, no el servicio: el `WHERE` combina
+ * `orders.id = ?` y `orders.user_id = ?`, así que no hay forma de que un cambio en la
+ * consulta devuelva un pedido de otro usuario sin que el servicio se entere.
+ *
+ * Si el pedido no existe o no es del usuario, devuelve `undefined`: el servicio lo
+ * traduce a 404 para no revelar si el pedido existe o no.
+ */
+const findOrderWithItemsForUser = (orderId: number, userId: number) => {
+  const order = db
+    .select(orderProjection)
+    .from(orders)
+    .where(and(eq(orders.id, orderId), eq(orders.userId, userId)))
+    .get();
+
+  if (order === undefined) {
+    return undefined;
+  }
+
+  const items = db
+    .select(orderItemProjection)
+    .from(orderItems)
+    .innerJoin(dishes, eq(orderItems.dishId, dishes.id))
+    .where(eq(orderItems.orderId, orderId))
+    .orderBy(asc(orderItems.id))
+    .all();
+
+  return { order, items };
+};
+
+/**
  * Lista los pedidos de un usuario con sus líneas y los nombres de los platos,
  * ordenados por `created_at` descendente.
  *
@@ -181,7 +213,7 @@ const findOrdersByUserId = (userId: number) => {
   }));
 };
 
-export { findOrderWithItems, findOrderableDishesByIds, insertOrderWithItems, findOrdersByUserId };
+export { findOrderWithItems, findOrderWithItemsForUser, findOrderableDishesByIds, insertOrderWithItems, findOrdersByUserId };
 
 export type OrderableDishRow = ReturnType<
   typeof findOrderableDishesByIds

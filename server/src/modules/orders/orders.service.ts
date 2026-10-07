@@ -1,5 +1,6 @@
 import {
   findOrderWithItems,
+  findOrderWithItemsForUser,
   findOrderableDishesByIds,
   findOrdersByUserId,
   insertOrderWithItems,
@@ -111,6 +112,35 @@ const listOrders = (userId: number, acceptLanguage: string | undefined) => {
   });
 };
 
+/**
+ * Devuelve un pedido concreto del usuario autenticado.
+ *
+ * **El ownership lo resuelve el repositorio con `WHERE orders.id = ? AND orders.user_id = ?`,
+ * no el servicio.** Así no hay forma de que un cambio en la consulta devuelva un pedido de
+ * otro usuario sin que el servicio se entere.
+ *
+ * Si el pedido no existe o no es del usuario, devuelve `undefined` y la ruta responde 404:
+ * no se revela si el pedido existe o no, igual que hace T-021 con `GET /api/dishes/:id`.
+ *
+ * Devuelve `{ language, order }`, el mismo envoltorio que `createOrder` para la respuesta
+ * de un pedido concreto. Los nombres de los platos se resuelven con la misma función
+ * `localize` y el mismo idioma de la petición.
+ */
+const getOrderById = (userId: number, orderId: number, acceptLanguage: string | undefined) => {
+  const reloaded = findOrderWithItemsForUser(orderId, userId);
+
+  if (reloaded === undefined) {
+    return undefined;
+  }
+
+  const language = resolveLanguage(acceptLanguage);
+
+  return orderEnvelopeSchema.parse({
+    language,
+    order: toResponse(reloaded.order, reloaded.items, language),
+  });
+};
+
 const createOrder = (
   userId: number,
   body: CreateOrderBody,
@@ -177,7 +207,8 @@ const createOrder = (
   });
 };
 
-export { createOrder, listOrders };
+export { createOrder, listOrders, getOrderById };
 
 export type CreateOrderResult = ReturnType<typeof createOrder>;
 export type ListOrdersResult = ReturnType<typeof listOrders>;
+export type GetOrderByIdResult = ReturnType<typeof getOrderById>;

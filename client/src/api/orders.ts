@@ -28,3 +28,14 @@ export const createOrder = async (
  */
 export const listOrders = async (): Promise<ApiOrdersListEnvelope> =>
   (await apiRequest('/api/orders')) as ApiOrdersListEnvelope;
+
+/**
+ * Devuelve el detalle de un pedido concreto del usuario autenticado.
+ *
+ * El backend responde 404 si el pedido no existe o no pertenece al usuario del token,
+ * sin revelar cuál de los dos es.
+ */
+export const fetchOrderById = async (
+  orderId: number,
+): Promise<ApiOrderEnvelope> =>
+  (await apiRequest(`/api/orders/${orderId}`)) as ApiOrderEnvelope;

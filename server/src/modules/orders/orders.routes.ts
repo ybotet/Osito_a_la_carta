@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { requireAuth } from '../../middleware/auth.js';
-import { UnauthorizedError } from '../../shared/errors.js';
+import { UnauthorizedError, NotFoundError, BadRequestError } from '../../shared/errors.js';
 import { readAcceptLanguage } from '../../shared/http.js';
-import { createOrder, listOrders } from './orders.service.js';
+import { createOrder, getOrderById, listOrders } from './orders.service.js';
 import { createOrderBodySchema } from './orders.schema.js';
 
 const ordersRouter = Router();
@@ -66,6 +66,46 @@ ordersRouter.get('/orders', requireAuth, (req, res) => {
   }
 
   res.status(200).json(listOrders(user.id, readAcceptLanguage(req)));
+});
+
+/**
+ * Detalle de un pedido concreto. **Protegida con `requireAuth`** y, además, el pedido
+ * debe pertenecer al usuario del token: el `userId` sale de `req.user`, nunca del body.
+ *
+ * **404 si el pedido no existe o no es del usuario**, sin revelar cuál de los dos es:
+ * es la misma decisión de T-021 de no distinguir "no existe" de "no te pertenece".
+ *
+ * **200 con `{ language, order }`**, el mismo envoltorio que el POST para la respuesta de
+ * un pedido concreto. Los nombres de los platos se resuelven por `Accept-Language`.
+ */
+ordersRouter.get('/orders/:id', requireAuth, (req, res) => {
+  const user = req.user;
+  const rawId = req.params.id;
+  const orderId = Number(rawId);
+
+  if (user === undefined) {
+    throw new UnauthorizedError(
+      'Se requiere un access token valido',
+      'UNAUTHORIZED',
+    );
+  }
+
+  if (!Number.isInteger(orderId) || orderId <= 0) {
+    throw new BadRequestError(
+      'El id del pedido debe ser un entero positivo',
+      'VALIDATION_ERROR',
+    );
+  }
+
+  const order = getOrderById(user.id, orderId, readAcceptLanguage(req));
+
+  if (order === undefined) {
+    throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND', {
+      id: orderId,
+    });
+  }
+
+  res.status(200).json(order);
 });
 
 export { ordersRouter };

@@ -1465,6 +1465,36 @@ no son intercambiables.
 
 ## Historial de entradas
 
+### 2026-10-07 — T-055 Página `/orders/:id` con detalle del pedido
+**Estado:** completada
+
+**Qué se hizo:**
+- `client/src/pages/OrderDetail.tsx` creada y ajustada para cumplir con el criterio de aceptación.
+- El endpoint `GET /api/orders/:id` ya existía (creado en T-052/T-051), así que no fue necesario crearlo.
+- La página consume `fetchOrderById` (en `client/src/api/orders.ts`) y muestra estado (badge con color), fecha, nota del cliente, lista de items con cantidades y totales por línea, y total general.
+- Requiere autenticación: sin/redirige a `/login` mediante `useNavigate` (igual que `Orders.tsx`).
+- Estados de carga y error con `t('orders.loading')` y `t('orders.error')`.
+
+**Cómo se hizo:**
+- **Corregido el redirect:** la versión inicial usaba `window.location.assign('/login')`, que causaba una recarga completa de la página y era inconsistente con `Orders.tsx`, que usa `useNavigate`. Se cambió a `navigate('/login', { replace: true })`.
+- **Corregido el manejo de errores:** la versión inicial no capturaba errores del backend (404 del endpoint quedaba como error no capturado). Se añadió un estado `error` y un bloque `catch` que usa `t('orders.error')`.
+- **Corregida la regla ESLint `react-hooks/set-state-in-effect`:** el primer intento de unificar los dos `useEffect` en uno solo causaba un error porque se llamaba `setError` directamente en el cuerpo del effect. Se separaron en dos effects: uno para el redirect y otro para el loading.
+- **Se eliminó el check innecesario de `id === undefined`:** React Router garantiza que `:id` esté presente, así que no hace falta esarama.
+
+**Por qué se hizo así:**
+- **`useNavigate` en vez de `window.location.assign`:** el primero es la forma React Router de redirigir, no recarga la página y permite que el historial muestre la ruta correcta. El segundo rompe el SPA y hace que el usuario vea un flash de la página anterior.
+- **Dos effects en vez de uno:** unificarlos en un solo effect con un `if` al principio y un `return` después de llamar a `setState` desencadena `react-hooks/set-state-in-effect`, que prohíbe llamar a `setState` directamente en el cuerpo de un effect. La solución es separar el redirect (un effect que solo llama a `navigate`) del loading (otro effect que llama a `setOrder`/`setError`/`setIsLoading`).
+- **`id === undefined` innecesario:** React Router tipifica los params como `string` cuando la ruta tiene `:id`, así que `id` siempre es un string. El `Number(id)` puede dar `NaN` si la ruta no coincide, pero el backend responde 400 con `VALIDATION_ERROR` en ese caso.
+
+**Impacto en otras tareas:**
+- **T-054 (`Orders.tsx`)** ya tiene los botones que navegan a `/orders/:id`, así que esta página es el destino de esos enlaces.
+- **T-083 (vista de detalle de pedido para el chef)** puede reutilizar la misma lógica de presentación, aunque el backend tendrá otro endpoint (`GET /api/admin/orders/:id`).
+- **T-092 (ErrorBoundary + toasts)**: esta página usa un mensaje de error plano en lugar de un toast, por la misma razón que `Orders.tsx` y las páginas de auth: el toast es de T-092.
+
+**Pendientes / deuda técnica:**
+- **La página no usa TanStack Query.** Usa un `useEffect` con `useState` directamente, igual que `Orders.tsx`. No es un error, pero significa que no tiene caché ni reintentos automáticos. Si algún día se quiere, es un cambio localizado.
+- **Los errores del backend no se traducen por `code`.** Se usa `t('orders.error')` genérico. Si el backend añade un `code` específico (por ejemplo `ORDER_NOT_FOUND`), convendría mapearlo como hacen las páginas de auth.
+
 > Las entradas se agregan aquí en orden cronológico inverso (la más reciente arriba).
 
 ### 2026-10-04 — T-044 Páginas `/login` y `/register`

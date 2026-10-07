@@ -320,8 +320,19 @@
     fecha, estado (badge con color), total y número de artículos por pedido. Click navega a
     `/orders/:id`. Estado vacío con mensaje "Aún no has hecho pedidos". Estados intermedios
     de carga y error. Textos en es/ru/en. Verificado typecheck, lint y build del cliente.
-- [ ] **T-055**: Página `/orders/:id` con detalle del pedido
+- [x] **T-055**: Página `/orders/:id` con detalle del pedido
   - Criterio: muestra platos, cantidades y total.
+  - **Notas de progreso (2026-10-07):** `client/src/pages/OrderDetail.tsx` creada y ajustada. El
+    endpoint `GET /api/orders/:id` ya existía (creado en T-052/T-051). La página consume
+    `fetchOrderById` (en `client/src/api/orders.ts`) y muestra estado (badge con color), fecha,
+    nota del cliente, lista de items con cantidades y totales por línea, y total general. Requiere
+    autenticación: sin/redirige a `/login` mediante `useNavigate` (igual que `Orders.tsx`), no con
+    `window.location.assign` que causaba recarga completa. Estados de carga y error con
+    `t('orders.loading')` y `t('orders.error')`. Textos en es/ru/en usando claves de `locales/orders`
+    y `locales/cart`. Corregido: el redirect usaba `window.location.assign` (inconsistente con el
+    resto de páginas y causaba recarga) y no manejaba errores del backend. Verificado con petición
+    real: 200 con el pedido completo, 404 `ORDER_NOT_FOUND` para pedidos inexistentes o de otro
+    usuario, 401 sin token. Lint, typecheck y build en verde.
 
 ---
 
