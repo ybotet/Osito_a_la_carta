@@ -31,6 +31,23 @@
     "error": "No se pudo confirmar el pedido.",
     "successRedirect": "Redirigiendo a tu pedido..."
   },
+  "orders": {
+    "title": "Mis pedidos",
+    "loading": "Cargando tus pedidos…",
+    "empty": "Aún no has hecho pedidos.",
+    "error": "No se han podido cargar tus pedidos. Inténtalo de nuevo en unos minutos.",
+    "date": "Fecha",
+    "status": "Estado",
+    "total": "Total",
+    "items": "Artículos",
+    "statuses": {
+      "pending": "Pendiente",
+      "preparing": "Preparando",
+      "sent": "Enviado",
+      "delivered": "Entregado",
+      "cancelled": "Cancelado"
+    }
+  },
   "language": {
     "label": "Idioma de la interfaz",
     "es": "Español",

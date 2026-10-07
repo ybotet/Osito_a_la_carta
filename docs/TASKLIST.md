@@ -313,8 +313,13 @@
     autenticado redirige a `/login`. En éxito limpia el carrito y redirige a `/orders/:id`.
     Los textos usan las claves de `locales/cart` en es/ru/en. Verificado compilación y build
     del cliente. El flujo HTTP del pedido ya estaba verificado en T-051/T-052.
-- [ ] **T-054**: Página `/orders` con historial de pedidos
+- [x] **T-054**: Página `/orders` con historial de pedidos
   - Criterio: muestra estado, fecha y total de cada pedido.
+  - **Notas de progreso (2026-10-07):** creada `client/src/pages/Orders.tsx` que consume
+    `GET /api/orders` (T-052). Requiere autenticación: sin sesión redirige a `/login`. Muestra
+    fecha, estado (badge con color), total y número de artículos por pedido. Click navega a
+    `/orders/:id`. Estado vacío con mensaje "Aún no has hecho pedidos". Estados intermedios
+    de carga y error. Textos en es/ru/en. Verificado typecheck, lint y build del cliente.
 - [ ] **T-055**: Página `/orders/:id` con detalle del pedido
   - Criterio: muestra platos, cantidades y total.
 

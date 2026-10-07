@@ -31,6 +31,23 @@
     "error": "We could not place the order.",
     "successRedirect": "Redirecting to your order..."
   },
+  "orders": {
+    "title": "My orders",
+    "loading": "Loading your orders…",
+    "empty": "You have not placed any orders yet.",
+    "error": "We could not load your orders. Please try again in a few minutes.",
+    "date": "Date",
+    "status": "Status",
+    "total": "Total",
+    "items": "Items",
+    "statuses": {
+      "pending": "Pending",
+      "preparing": "Preparing",
+      "sent": "Sent",
+      "delivered": "Delivered",
+      "cancelled": "Cancelled"
+    }
+  },
   "language": {
     "label": "Interface language",
     "es": "Español",

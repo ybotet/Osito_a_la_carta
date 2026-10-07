@@ -4133,6 +4133,46 @@ anotado.
 
 ---
 
+### 2026-10-07 — T-054 Página `/orders` con historial de pedidos
+**Estado:** completada
+
+**Qué se hizo:**
+- Creado `client/src/pages/Orders.tsx`: lista los pedidos del usuario autenticado con fecha,
+  estado (badge con color), total y número de artículos. Click navega a `/orders/:id`. Estado
+  vacío, carga y error están cubiertos.
+- Actualizados `client/src/locales/*.json` con las claves de `orders` en es/ru/en.
+- Actualizado `client/src/main.tsx` con la ruta `/orders`.
+
+**Por qué se hizo así:**
+- **La página consume `listOrders`** (decisión de T-053/T-052), que ya devuelve el envoltorio
+  `{ language, orders }` con los items localizados. No se volvió a pedir nada al backend.
+- **El estado vacío es un mensaje, no un link.** El enunciado pedía "Aún no has hecho pedidos"
+  como mensaje de vacío, no como llamada a la acción.
+- **Los badges usan clases de Tailwind, no un componente nuevo.** No hay `badge` en
+  `components/ui`, y no se instaló nada nuevo: un `<span>` con clases de color basta para
+  los cinco estados.
+- **La fecha se formatea con `toLocaleDateString`** usando el idioma de `i18n`. El backend
+  guarda `created_at` como `unixepoch()` (segundos), así que se multiplica por 1000 antes de
+  crear el `Date`.
+
+**Verificación:**
+- `typecheck`, `lint` y `build` del cliente en verde.
+- Servidor en `:3000` verificado: `GET /api/orders` devuelve el historial del usuario con
+  orden `created_at DESC` (T-052). La página consume exactamente ese endpoint.
+
+**Impacto en otras tareas:**
+- **T-055 (detalle del pedido) ya tiene la ruta padre:** esta página navega a `/orders/:id`,
+  que es lo que T-055 tiene que implementar.
+- **El navbar habilita `nav.orders`** cuando esta ruta existe.
+
+**Pendientes / deuda técnica:**
+- Falta el detalle del pedido (`T-055`).
+
+**Gotchas descubiertos en esta tarea:**
+- Ninguno nuevo.
+
+---
+
 ## Convenciones de este archivo
 
 - Una entrada por tarea completada, bloqueada o parcialmente completada.
