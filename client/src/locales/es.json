@@ -20,7 +20,16 @@
     "add": "Añadir al carrito",
     "remove": "Quitar del carrito",
     "total": "Total",
-    "checkout": "Finalizar pedido"
+    "checkout": "Confirmar pedido",
+    "title": "Carrito",
+    "empty": "Tu carrito está vacío.",
+    "note": "Nota para el chef (opcional)",
+    "subtotal": "Subtotal",
+    "totalItems": "Total artículos",
+    "totalPrice": "Total a pagar",
+    "checkingOut": "Confirmando...",
+    "error": "No se pudo confirmar el pedido.",
+    "successRedirect": "Redirigiendo a tu pedido..."
   },
   "language": {
     "label": "Idioma de la interfaz",

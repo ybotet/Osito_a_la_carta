@@ -4078,6 +4078,61 @@ anotado.
 
 ---
 
+### 2026-10-07 — T-053 Página `/cart` con resumen y botón "confirmar pedido"
+**Estado:** completada
+
+**Qué se hizo:**
+- Creado `client/src/pages/Cart.tsx`: lista los items del carrito con imagen, nombre,
+  precio unitario, cantidad editable, subtotal y botón de eliminar. Muestra el resumen de
+  total de items y total a pagar, un campo de nota opcional para el chef y el botón
+  "Confirmar pedido".
+- Creado `client/src/api/orders.ts`: `createOrder` envía `{ items, customerNote }` a
+  `POST /api/orders` usando `apiRequest`, y `listOrders` consume `GET /api/orders`.
+- Creado `client/src/api/orders.types.ts`: `ApiOrder`, `ApiOrderItem`, `ApiOrderEnvelope`
+  y `ApiOrdersListEnvelope`.
+- Actualizados `client/src/locales/*.json` con las claves de `cart` para la página.
+- Actualizado `client/src/main.tsx` con la ruta `/cart`.
+
+**Por qué se hizo así:**
+- **La página no inventa estado propio para el carrito:** usa `useCartStore` (T-050),
+  que ya persistía en `localStorage` y exponía `removeItem`, `updateQuantity` y
+  `clearCart`. El único dato nuevo que necesita es la `note`, que es específica del
+  checkout.
+- **El POST lo hace `createOrder` con `apiRequest`** (decisión de T-046): así la
+  petición lleva `Authorization`, `Accept-Language` y la renovación automática del access.
+- **El botón de confirmar está deshabilitado cuando no hay items o está enviando.**
+  `isSubmitting` evita dobles envíos si el usuario pulsa dos veces.
+- **El error se muestra en la página, no en consola.** Un `catch` en el handler guarda
+  el mensaje en estado y lo pinta con `role="alert"`. No se usa `console.log` y no se
+  importa `toast` porque no existía en el proyecto.
+- **La redirección usa `replace: true` en `/login`** cuando no hay sesión, para no dejar
+  el carrito en el historial de quien acaba de iniciar sesión.
+
+**Verificación:**
+- `typecheck`, `lint` y `build` del cliente en verde.
+- Servidor en `:3000` verificado: `POST /api/orders` devuelve 201 con el pedido
+  correctamente, y `GET /api/orders` devuelve el historial del usuario (T-051/T-052).
+  El flujo HTTP del pedido ya estaba comprobado; esta tarea añade la interfaz que lo
+  dispara.
+- El componente `Cart.tsx` se compila y se incluye en el build de producción.
+
+**Impacto en otras tareas:**
+- **T-054 y T-055 consumen el mismo endpoint que esta página.** El historial y el detalle
+  ya están en `GET /api/orders` y `orderEnvelopeSchema`; esta tarea solo añade quién los
+  llama desde el navegador.
+- **El navbar habilita `nav.cart` en T-035**; esta página es la ruta de ese enlace.
+
+**Pendientes / deuda técnica:**
+- Falta el historial (`T-054`) y el detalle del pedido (`T-055`).
+- No hay validación visual del formulario más allá de lo que Zod ya hace en el backend:
+  si la nota supera los 500 caracteres el backend devuelve 400, pero la página no lo
+  impide antes de enviar.
+
+**Gotchas descubiertos en esta tarea:**
+- Ninguno nuevo.
+
+---
+
 ## Convenciones de este archivo
 
 - Una entrada por tarea completada, bloqueada o parcialmente completada.

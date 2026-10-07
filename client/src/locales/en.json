@@ -20,7 +20,16 @@
     "add": "Add to cart",
     "remove": "Remove from cart",
     "total": "Total",
-    "checkout": "Place order"
+    "checkout": "Place order",
+    "title": "Cart",
+    "empty": "Your cart is empty.",
+    "note": "Note for the chef (optional)",
+    "subtotal": "Subtotal",
+    "totalItems": "Total items",
+    "totalPrice": "Total to pay",
+    "checkingOut": "Placing order...",
+    "error": "We could not place the order.",
+    "successRedirect": "Redirecting to your order..."
   },
   "language": {
     "label": "Interface language",

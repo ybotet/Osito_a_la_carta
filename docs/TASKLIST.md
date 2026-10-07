@@ -304,8 +304,15 @@
     incluyen `dishId`, `name` (localizado por `Accept-Language`), `quantity` y `unitPrice`.
     El orden es `created_at DESC`. Verificado con peticiones reales: un usuario ve solo sus
     pedidos, no los de otros; la localización responde en es/ru/en; sin token devuelve 401.
-- [ ] **T-053**: Página `/cart` con resumen y botón "confirmar pedido"
+- [x] **T-053**: Página `/cart` con resumen y botón "confirmar pedido"
   - Criterio: redirige a `/orders/:id` tras confirmar.
+  - **Notas de progreso (2026-10-07):** creada `client/src/pages/Cart.tsx` con la lista de
+    items del carrito (imagen, nombre, precio unitario, cantidad editable, subtotal), botón
+    de eliminar por item, resumen de total de items y total a pagar, campo de nota opcional
+    para el chef y botón "Confirmar pedido" que llama a `POST /api/orders`. Si no está
+    autenticado redirige a `/login`. En éxito limpia el carrito y redirige a `/orders/:id`.
+    Los textos usan las claves de `locales/cart` en es/ru/en. Verificado compilación y build
+    del cliente. El flujo HTTP del pedido ya estaba verificado en T-051/T-052.
 - [ ] **T-054**: Página `/orders` con historial de pedidos
   - Criterio: muestra estado, fecha y total de cada pedido.
 - [ ] **T-055**: Página `/orders/:id` con detalle del pedido
