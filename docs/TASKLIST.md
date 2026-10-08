@@ -138,10 +138,12 @@
 - [x] **T-062**: Plantilla HTML del pedido para el correo
   - Criterio: incluye platos, cantidades, total y nota del cliente.
   - **Notas de progreso (2026-10-08):** creado `server/src/modules/notifications/templates/order-email.ts` con funciones `buildOrderEmailHtml` y `buildOrderEmailText`. HTML con estilos inline compatible con Gmail/Outlook, incluye logo textual "Osito a la carta", número de pedido, fecha, datos del cliente, tabla de items, total y nota. Actualizado `email.service.ts` para usar la plantilla y recibir `customerEmail`. Actualizado `test-email.ts` con email de prueba. Typecheck, lint y build en verde.
-- [ ] **T-063**: Disparar ambas notificaciones en paralelo al crear pedido
+- [x] **T-063**: Disparar ambas notificaciones en paralelo al crear pedido
   - Criterio: un fallo en un canal no bloquea el otro.
-- [ ] **T-064**: Registrar resultado en `NotificationLog`
+  - **Notas de progreso (2026-10-08):** actualizado `orders.service.ts` para disparar `sendOrderEmail` y `sendOrderTelegram` en paralelo con `Promise.allSettled` tras crear el pedido. Creado `notifications.repository.ts` con `insertNotificationLog`. Los resultados se registran en `NotificationLog` (T-064) dentro de cada promesa resuelta. El endpoint responde 201 inmediatamente sin esperar las notificaciones. Typecheck, lint y build en verde.
+- [x] **T-064**: Registrar resultado en `NotificationLog`
   - Criterio: cada envío (éxito o fallo) queda registrado.
+  - **Notas de progreso (2026-10-08):** integrado en T-063. Cada notificación (email/telegram) registra su resultado (sent/failed) con errorMessage si falla, usando `insertNotificationLog` en `notifications.repository.ts`.
 - [ ] **T-065**: Reintento automático una vez si falla el envío
   - Criterio: si el primer intento falla, se reintenta y se registra el resultado final.
 

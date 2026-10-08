@@ -11,6 +11,10 @@ import type { Language } from '../../shared/language.js';
 import { resolveLanguage } from '../../shared/language.js';
 import { orderEnvelopeSchema, ordersListEnvelopeSchema } from './orders.schema.js';
 import type { CreateOrderBody } from './orders.schema.js';
+import { sendOrderEmail } from '../notifications/email.service.js';
+import { sendOrderTelegram } from '../notifications/telegram.service.js';
+import { insertNotificationLog } from '../notifications/notifications.repository.js';
+import type { LocalizedOrderItem } from '../notifications/templates/order-email.js';
 
 /**
  * Redondea a céntimos. El precio viene de SQLite por `real`, así que es coma flotante:
@@ -145,6 +149,7 @@ const createOrder = (
   userId: number,
   body: CreateOrderBody,
   acceptLanguage: string | undefined,
+  customerEmail: string,
 ) => {
   const requestedIds = body.items.map((item) => item.dishId);
   const available = findOrderableDishesByIds(requestedIds);
@@ -201,10 +206,55 @@ const createOrder = (
 
   const language = resolveLanguage(acceptLanguage);
 
-  return orderEnvelopeSchema.parse({
+  const response = orderEnvelopeSchema.parse({
     language,
     order: toResponse(reloaded.order, reloaded.items, language),
   });
+
+  // Disparar notificaciones en paralelo (T-063 / T-064)
+  // Usamos Promise.allSettled para que un fallo en un canal no bloquee el otro
+  const localizedItems: LocalizedOrderItem[] = reloaded.items.map((item) => ({
+    dishId: item.dishId,
+    name: localize(item, language),
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+  }));
+
+  const notifications = Promise.allSettled([
+    sendOrderEmail(reloaded.order, localizedItems, customerEmail).then(
+      () => ({ channel: 'email' as const, status: 'sent' as const, error: null }),
+      (err) => ({ channel: 'email' as const, status: 'failed' as const, error: String(err) }),
+    ),
+    sendOrderTelegram(reloaded.order, localizedItems).then(
+      () => ({ channel: 'telegram' as const, status: 'sent' as const, error: null }),
+      (err) => ({ channel: 'telegram' as const, status: 'failed' as const, error: String(err) }),
+    ),
+  ]);
+
+  // No await aquí: las notificaciones se disparan en background
+  // El registro en NotificationLog se hace dentro de cada then/catch arriba
+  notifications.then((results) => {
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        insertNotificationLog(
+          reloaded.order.id,
+          result.value.channel,
+          result.value.status,
+          result.value.error,
+        );
+      } else {
+        // Promise.allSettled no debería llegar aquí, pero por si acaso
+        insertNotificationLog(
+          reloaded.order.id,
+          'email',
+          'failed',
+          String(result.reason),
+        );
+      }
+    }
+  });
+
+  return response;
 };
 
 export { createOrder, listOrders, getOrderById };

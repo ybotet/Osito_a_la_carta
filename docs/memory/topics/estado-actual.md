@@ -38,7 +38,7 @@ osito_a_la_carta/
 │           ├── categories/   # CRUD categorías (público lectura, admin escritura)
 │           ├── auth/         # register, login, refresh, requireAuth, requireAdmin
 │           ├── orders/       # POST, GET (lista), GET :id (detalle)
-│           └── notifications/  # email.service.ts, telegram.service.ts, templates/order-email.ts, test-email.ts, test-telegram.ts (T-060, T-061, T-062)
+│           └── notifications/  # email.service.ts, telegram.service.ts, notifications.repository.ts, templates/order-email.ts, test-email.ts, test-telegram.ts (T-060–T-064)
 ├── client/
 │   ├── package.json          # dev/build/preview/typecheck, React 19
 │   ├── tsconfig.json         # project references → app + node

@@ -39,7 +39,7 @@ ordersRouter.post('/orders', requireAuth, (req, res) => {
     );
   }
 
-  res.status(201).json(createOrder(user.id, body, readAcceptLanguage(req)));
+  res.status(201).json(createOrder(user.id, body, readAcceptLanguage(req), user.email));
 });
 
 /**

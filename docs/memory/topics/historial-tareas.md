@@ -60,6 +60,15 @@
 
 ---
 
+## 2026-10-08 — T-063 / T-064: Orquestador de notificaciones + NotificationLog
+
+**Qué:** `createOrder` en `orders.service.ts` dispara email y Telegram en paralelo con `Promise.allSettled`; resultados en `NotificationLog`.  
+**Cómo:** `notifications.repository.ts` con `insertNotificationLog`. `createOrder` recibe `customerEmail`, convierte items a `LocalizedOrderItem` con idioma resuelto, lanza ambas notificaciones sin await (background), cada una registra su log en `then`/`catch`. Endpoint responde 201 inmediatamente.  
+**Impacto:** Flujo de pedido completo con notificaciones no bloqueantes. Base para T-065 (reintentos).  
+**Deuda/Notas:** Reintento automático pendiente (T-065); logs de notificación solo se insertan si la BD está disponible (try/catch silencioso).
+
+---
+
 ## 2026-10-08 — T-062: Plantilla HTML del pedido para el correo (order-email.ts)
 
 **Qué:** Template `order-email.ts` con `buildOrderEmailHtml` y `buildOrderEmailText` + integración en `email.service.ts`.  
