@@ -1,8 +1,10 @@
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { ApiError } from '../api/http';
 import { fetchDishById } from '../api/dishes';
+import { recordPageView } from '../api/stats';
 import { formatPrice } from '../lib/format';
 import { useCartStore } from '../store/cart';
 import { Button } from '../components/ui/button';
@@ -134,6 +136,19 @@ const DishDetail = () => {
     queryFn: ({ signal }) => fetchDishById(dishId, language, signal),
     enabled: isValidId,
   });
+
+  // Registrar pageview al cargar el plato (T-070)
+  // Se ejecuta solo cuando hay datos válidos; useEffect se llama en cada render
+  // pero el callback solo hace algo si `dish` existe
+  useEffect(() => {
+    const dish = data?.dish;
+    if (dish) {
+      recordPageView(dish.id, `/menu/${dish.id}`).catch((err) => {
+        // Silencioso: no bloquear la UI si falla el registro de estadísticas
+        console.debug('Pageview recording failed:', err);
+      });
+    }
+  }, [data?.dish]);
 
   if (!isValidId) {
     return <DishDetailError isNotFound />;

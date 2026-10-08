@@ -60,6 +60,24 @@
 
 ---
 
+## 2026-10-08 — T-070: POST /api/stats/pageview + frontend tracking
+
+**Qué:** Endpoint público `POST /api/stats/pageview` + llamada desde `DishDetail.tsx` al montar.  
+**Cómo:** Módulo `stats` (schema, repository, service, routes). Body `{ dishId?, path }`. Auth opcional: lee token si existe, extrae `userId` sin fallar si no hay. Inserta en `pageViews` con `viewedAt = unixepoch()`. Responde 204. Frontend: `api/stats.ts` con `recordPageView`, `useEffect` en `DishDetail` dispara tras carga exitosa.  
+**Impacto:** Base para analytics de usuario (T-071/T-072).  
+**Deuda/Notas:** Auth opcional inline en routes (podría extraerse a middleware `optionalAuth` si se reutiliza).
+
+---
+
+## 2026-10-08 — T-065: Reintento automático en notificaciones
+
+**Qué:** Utilidad `retry` genérica + `sendWithRetry` en `notifications.repository.ts`; integración en `orders.service.ts`.  
+**Cómo:** `retry.ts` exporta `retry(fn, attempts=2, delayMs=2000)`. `sendWithRetry` envuelve cada notificación, reintenta 1 vez tras 2s, registra cada intento en `NotificationLog` con attempt/totalAttempts. `createOrder` usa `sendWithRetry` para email y Telegram.  
+**Impacto:** Resiliencia ante fallos transitorios (red, rate limit temporal). Logs trazables por intento.  
+**Deuda/Notas:** Backoff exponencial no implementado (fijo 2s); reintentos solo en creación de pedido, no en otros flujos.
+
+---
+
 ## 2026-10-08 — T-063 / T-064: Orquestador de notificaciones + NotificationLog
 
 **Qué:** `createOrder` en `orders.service.ts` dispara email y Telegram en paralelo con `Promise.allSettled`; resultados en `NotificationLog`.  

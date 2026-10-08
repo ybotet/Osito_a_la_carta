@@ -38,7 +38,8 @@ osito_a_la_carta/
 │           ├── categories/   # CRUD categorías (público lectura, admin escritura)
 │           ├── auth/         # register, login, refresh, requireAuth, requireAdmin
 │           ├── orders/       # POST, GET (lista), GET :id (detalle)
-│           └── notifications/  # email.service.ts, telegram.service.ts, notifications.repository.ts, templates/order-email.ts, test-email.ts, test-telegram.ts (T-060–T-064)
+│           └── notifications/  # email.service.ts, telegram.service.ts, notifications.repository.ts, retry.ts, templates/order-email.ts, test-email.ts, test-telegram.ts (T-060–T-065)
+│           └── stats/          # stats.service.ts, stats.repository.ts, stats.schema.ts, stats.routes.ts (T-070)
 ├── client/
 │   ├── package.json          # dev/build/preview/typecheck, React 19
 │   ├── tsconfig.json         # project references → app + node
@@ -65,7 +66,8 @@ osito_a_la_carta/
 │       │   ├── client.ts     # apiRequest (único fetch: auth + refresh + Accept-Language)
 │       │   ├── auth.ts       # registerUser, loginUser
 │       │   ├── dishes.ts     # fetchDishes, fetchDishById
-│       │   └── orders.ts     # createOrder, fetchOrders, fetchOrderById
+│       │   ├── orders.ts     # createOrder, fetchOrders, fetchOrderById
+│       │   └── stats.ts      # recordPageView (T-070)
 │       ├── components/
 │       │   ├── ui/           # button, card, input, label (shadcn)
 │       │   ├── DishCard.tsx
@@ -194,7 +196,7 @@ osito_a_la_carta/
 | POST | `/api/orders` | user | Crea pedido + items (transacción) |
 | GET | `/api/orders` | user | Historial del usuario autenticado |
 | GET | `/api/orders/:id` | user | Detalle de un pedido propio |
-| GET | `/api/stats/pageview` | — | (pendiente T-070) |
+| POST | `/api/stats/pageview` | público | Registra pageview (T-070) |
 | GET | `/api/stats/me` | — | (pendiente T-071) |
 | GET | `/api/admin/orders` | — | (pendiente T-080) |
 | PATCH | `/api/admin/orders/:id/status` | — | (pendiente T-082) |

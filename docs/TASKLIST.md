@@ -144,15 +144,17 @@
 - [x] **T-064**: Registrar resultado en `NotificationLog`
   - Criterio: cada envío (éxito o fallo) queda registrado.
   - **Notas de progreso (2026-10-08):** integrado en T-063. Cada notificación (email/telegram) registra su resultado (sent/failed) con errorMessage si falla, usando `insertNotificationLog` en `notifications.repository.ts`.
-- [ ] **T-065**: Reintento automático una vez si falla el envío
+- [x] **T-065**: Reintento automático una vez si falla el envío
   - Criterio: si el primer intento falla, se reintenta y se registra el resultado final.
+  - **Notas de progreso (2026-10-08):** creado `server/src/modules/notifications/retry.ts` con utilidad genérica `retry(fn, attempts, delayMs)`. Actualizado `notifications.repository.ts` con `sendWithRetry` que ejecuta la notificación con reintentos (2 intentos, 2s delay) y registra cada intento en `NotificationLog`. Actualizado `orders.service.ts` para usar `sendWithRetry` en ambos canales. Typecheck, lint y build en verde.
 
 ---
 
 ## Fase 7 — Estadísticas del usuario
 
-- [ ] **T-070**: `POST /api/stats/pageview` al visitar detalle de plato
+- [x] **T-070**: `POST /api/stats/pageview` al visitar detalle de plato
   - Criterio: registra `userId` (si hay sesión) y `dishId`.
+  - **Notas de progreso (2026-10-08):** creado módulo `stats` con `stats.schema.ts`, `stats.repository.ts`, `stats.service.ts`, `stats.routes.ts`. Endpoint público POST `/api/stats/pageview` acepta `{ dishId?, path }`, usa `userId` del token si hay sesión válida (sin lanzar 401), inserta en `pageViews` con `viewedAt = Date.now()`, responde 204. Frontend: creado `client/src/api/stats.ts` y `useEffect` en `DishDetail.tsx` que llama a `recordPageView(dish.id, path)` al cargar el plato. Typecheck, lint y build en verde.
 - [ ] **T-071**: `GET /api/stats/me` con agregados del usuario
   - Criterio: devuelve platos más vistos, más pedidos y total gastado.
 - [ ] **T-072**: Página `/stats` con gráficos (Recharts)

@@ -1,4 +1,5 @@
 import type { OrderRow } from '../../orders/orders.repository.js';
+import { env } from '../../../config/index.js';
 
 export type LocalizedOrderItem = {
   dishId: number;
@@ -35,6 +36,9 @@ const buildItemRows = (items: LocalizedOrderItem[]): string =>
     )
     .join('');
 
+// URL absoluta del logo (servido por Nginx en producción, por Express en dev)
+const logoUrl = `${env.PUBLIC_ORIGIN}/images/osito.jpg`;
+
 export const buildOrderEmailHtml = (
   order: OrderRow,
   items: LocalizedOrderItem[],
@@ -53,7 +57,7 @@ export const buildOrderEmailHtml = (
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nuevo pedido #${order.id} - Osito a la carta</title> <img src="osito.jpg" alt="Osito a la carta" style="max-width: 100px; height: auto;" />
+  <title>Nuevo pedido #${order.id} - Osito a la carta</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6; line-height: 1.5;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; padding: 24px 16px;">
@@ -63,8 +67,17 @@ export const buildOrderEmailHtml = (
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
           <tr>
             <td style="padding: 24px; background: linear-gradient(135deg, #1f2937 0%, #374151 100%);">
-              <h1 style="margin: 0; font-size: 24px; font-weight: 700; color: #ffffff; letter-spacing: -0.02em;">Osito a la carta</h1>
-              <p style="margin: 8px 0 0; font-size: 14px; color: #d1d5db;">Nuevo pedido recibido</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="vertical-align: middle; width: 56px;">
+                    <img src="${logoUrl}" alt="Osito a la carta" style="width: 48px; height: 48px; border-radius: 8px; display: block;" />
+                  </td>
+                  <td style="vertical-align: middle;">
+                    <h1 style="margin: 0; font-size: 24px; font-weight: 700; color: #ffffff; letter-spacing: -0.02em;">Osito a la carta</h1>
+                    <p style="margin: 8px 0 0; font-size: 14px; color: #d1d5db;">Nuevo pedido recibido</p>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
 

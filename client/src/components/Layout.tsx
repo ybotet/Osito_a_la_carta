@@ -47,13 +47,17 @@ const Layout = () => {
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 p-4">
           {/*
-            El "logo" es el nombre de la app enlazado a la portada. **No se inventa un logotipo de
-            imagen**: el proyecto no tiene ningún asset de marca y descargable sería inventar la
-            identidad visual, que es justo lo que se decide con el diseño, no aquí. Cuando exista
-            el asset, este `Link` es el sitio donde va.
+            Logo de la app: imagen + nombre. Enlazado a la portada ("/").
+            La imagen está en /public/images/osito.jpg.
           */}
-          <Link to="/" className="text-lg font-bold">
-            {t('app.title')}
+          <Link to="/" className="flex items-center gap-2 text-lg font-bold" aria-label={t('app.title')}>
+            <img
+              src="/images/osito.jpg"
+              alt=""
+              className="h-8 w-8 rounded-lg object-cover"
+              aria-hidden="true"
+            />
+            <span>{t('app.title')}</span>
           </Link>
 
           <nav aria-label={t('nav.main')}>

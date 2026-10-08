@@ -52,7 +52,10 @@ const Menu = () => {
   if (isPending) {
     return (
       <main className="mx-auto max-w-5xl p-4">
-        <h1 className="mb-4 text-3xl font-bold">{t('menu.title')}</h1>
+        <div className="mb-4 flex items-center gap-2">
+          <img src="/images/osito.jpg" alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
+          <h1 className="text-3xl font-bold">{t('menu.title')}</h1>
+        </div>
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: DISH_SKELETONS }, (_, index) => (
             <DishSkeleton key={index} />
@@ -68,12 +71,10 @@ const Menu = () => {
   if (isError) {
     return (
       <main className="mx-auto max-w-5xl p-4">
-        <h1 className="mb-4 text-3xl font-bold">{t('menu.title')}</h1>
-        {/*
-          `role="alert"` y el borde destructivo en lugar de rojo a pelo: el aviso de error es el
-          único sitio donde se usa `--destructive`, así que el color significa algo y no es
-          decoración.
-        */}
+        <div className="mb-4 flex items-center gap-2">
+          <img src="/images/osito.jpg" alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
+          <h1 className="text-3xl font-bold">{t('menu.title')}</h1>
+        </div>
         <p
           role="alert"
           className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive"
@@ -92,7 +93,10 @@ const Menu = () => {
   if (dishes.length === 0) {
     return (
       <main className="mx-auto max-w-5xl p-4">
-        <h1 className="mb-4 text-3xl font-bold">{t('menu.title')}</h1>
+        <div className="mb-4 flex items-center gap-2">
+          <img src="/images/osito.jpg" alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
+          <h1 className="text-3xl font-bold">{t('menu.title')}</h1>
+        </div>
         <p className="text-muted-foreground">{t('menu.empty')}</p>
       </main>
     );
@@ -100,16 +104,10 @@ const Menu = () => {
 
   return (
     <main className="mx-auto max-w-5xl p-4">
-      <h1 className="mb-4 text-3xl font-bold">{t('menu.title')}</h1>
-      {/*
-        Una columna en móvil y tres en desktop, que es el criterio de T-032. `sm:` se deja
-        para la zona intermedia (tablet), donde se ve a dos columnas: es lo que espera quien
-        usa esa pantalla y forzar a una o a tres solo haría huecos innecesarios.
-
-        `items-stretch` (el valor por defecto en grid) es lo que hace que todas las tarjetas
-        tengan la misma altura dentro de su fila, que es justo lo que pide `h-full` en
-        `DishCard`.
-      */}
+      <div className="mb-4 flex items-center gap-2">
+        <img src="/images/osito.jpg" alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
+        <h1 className="text-3xl font-bold">{t('menu.title')}</h1>
+      </div>
       <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {dishes.map((dish) => (
           <li key={dish.id} className="h-full">
