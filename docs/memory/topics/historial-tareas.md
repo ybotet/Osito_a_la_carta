@@ -60,6 +60,15 @@
 
 ---
 
+## 2026-10-08 — T-062: Plantilla HTML del pedido para el correo (order-email.ts)
+
+**Qué:** Template `order-email.ts` con `buildOrderEmailHtml` y `buildOrderEmailText` + integración en `email.service.ts`.  
+**Cómo:** HTML con estilos inline (compatible Gmail/Outlook): logo "Osito a la carta", #pedido, fecha, cliente, tabla items (cant, nombre, precio unit, subtotal), total, nota. Texto plano como fallback. `sendOrderEmail` ahora recibe `customerEmail`.  
+**Impacto:** Correo de prueba visualmente profesional. Base para T-063 (orquestador).  
+**Deuda/Notas:** Test visual real en Gmail/Outlook pendiente (requiere credenciales Mailgun reales).
+
+---
+
 ## 2026-10-08 — T-061: Módulo notifications - telegram.service.ts (node-telegram-bot-api)
 
 **Qué:** Servicio `sendOrderTelegram(order, items)` con node-telegram-bot-api v2 + script de prueba `test-telegram.ts`.  

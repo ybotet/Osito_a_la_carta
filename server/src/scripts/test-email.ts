@@ -39,8 +39,10 @@ const main = async () => {
     },
   ] as Parameters<typeof sendOrderEmail>[1];
 
+  const customerEmail = 'cliente.prueba@osito.local';
+
   logger.info({ to: env.CHEF_EMAIL, from: env.MAILGUN_FROM.raw }, 'Enviando correo de prueba');
-  await sendOrderEmail(fakeOrder, fakeItems);
+  await sendOrderEmail(fakeOrder, fakeItems, customerEmail);
   logger.info('Correo de prueba enviado correctamente');
 };
 
