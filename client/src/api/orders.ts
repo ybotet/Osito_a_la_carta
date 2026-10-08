@@ -2,6 +2,7 @@ import { apiRequest } from './client';
 import type {
   ApiOrderEnvelope,
   ApiOrdersListEnvelope,
+  ApiAdminOrder,
 } from './orders.types.js';
 
 /**
@@ -39,3 +40,18 @@ export const fetchOrderById = async (
   orderId: number,
 ): Promise<ApiOrderEnvelope> =>
   (await apiRequest(`/api/orders/${orderId}`)) as ApiOrderEnvelope;
+
+/**
+ * Lista todos los pedidos (solo admin).
+ *
+ * Query opcional: `?status=pending|preparing|sent|delivered|cancelled`
+ * Devuelve array de `ApiAdminOrder` (con userEmail, sin envoltorio language).
+ */
+export const listAdminOrders = async (
+  status?: string,
+): Promise<ApiAdminOrder[]> => {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  const query = params.toString() ? `?${params.toString()}` : '';
+  return (await apiRequest(`/api/admin/orders${query}`)) as ApiAdminOrder[];
+};

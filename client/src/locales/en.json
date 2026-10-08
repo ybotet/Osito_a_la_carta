@@ -10,7 +10,8 @@
     "logout": "Sign out",
     "main": "Main navigation",
     "backToMenu": "Back to the menu",
-    "stats": "My statistics"
+    "stats": "My statistics",
+    "admin": "Chef panel"
   },
   "menu": {
     "title": "Menu",
@@ -48,6 +49,33 @@
       "sent": "Sent",
       "delivered": "Delivered",
       "cancelled": "Cancelled"
+    }
+  },
+  "admin": {
+    "orders": {
+      "title": "Chef panel — Orders",
+      "listTitle": "All orders",
+      "loading": "Loading orders…",
+      "empty": "No orders.",
+      "error": "We could not load orders. Please try again in a few minutes.",
+      "retry": "Retry",
+      "refresh": "Refresh",
+      "lastUpdate": "Last updated: {{time}}",
+      "filterAll": "All statuses",
+      "colId": "#",
+      "colClient": "Client",
+      "colDate": "Date",
+      "colStatus": "Status",
+      "colTotal": "Total",
+      "colActions": "Actions",
+      "view": "View",
+      "statuses": {
+        "pending": "Pending",
+        "preparing": "Preparing",
+        "sent": "Sent",
+        "delivered": "Delivered",
+        "cancelled": "Cancelled"
+      }
     }
   },
   "stats": {

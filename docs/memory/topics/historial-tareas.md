@@ -60,6 +60,15 @@
 
 ---
 
+## 2026-10-08 — T-081: Página /admin/orders con polling y filtro
+
+**Qué:** Página admin `/admin/orders` con tabla, polling 10s, filtro por estado.  
+**Cómo:** `Orders.tsx` usa `useQuery` con `refetchInterval: 10_000`. Tabla con columnas: #, cliente, fecha, estado (Badge), total, acciones. Filtro `Select` por estado. Click en fila navega a `/admin/orders/:id`. `requireAuth` + `role === 'admin'` en componente, redirige a `/menu` si no. Componentes `Select` y `Badge` nuevos (Radix + shadcn).  
+**Impacto:** Chef ve pedidos en tiempo real sin recargar.  
+**Deuda/Notas:** Detalle de pedido pendiente (T-083). Paginación no implementada.
+
+---
+
 ## 2026-10-08 — T-080: GET /api/admin/orders (panel del chef)
 
 **Qué:** Endpoint admin `GET /api/admin/orders` que lista todos los pedidos con info de usuario e items.  

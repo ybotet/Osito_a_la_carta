@@ -21,6 +21,8 @@ type AuthState = {
   user: ApiAuthUser | null;
   accessToken: string | null;
   refreshToken: string | null;
+  _hasHydrated: boolean;
+  setHasHydrated: (hasHydrated: boolean) => void;
   setSession: (
     user: ApiAuthUser,
     accessToken: string,
@@ -36,17 +38,25 @@ type AuthState = {
  */
 const initialState = (): Pick<
   AuthState,
-  'user' | 'accessToken' | 'refreshToken'
+  'user' | 'accessToken' | 'refreshToken' | '_hasHydrated'
 > => ({
   user: null,
   accessToken: null,
   refreshToken: null,
+  _hasHydrated: false,
 });
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       ...initialState(),
+
+      /**
+       * Marca que la rehidratación ha terminado.
+       */
+      setHasHydrated: (hasHydrated: boolean) => {
+        set({ _hasHydrated: hasHydrated });
+      },
 
       /**
        * Guarda una sesión completa de golpe y no campo a campo a propósito: los tres van
@@ -79,9 +89,23 @@ export const useAuthStore = create<AuthState>()(
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
       }),
+      /**
+       * Callback que se ejecuta cuando la rehidratación termina.
+       * Marca `_hasHydrated = true` para que la UI sepa que ya puede confiar en el estado.
+       */
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     },
   ),
 );
+
+/**
+ * Selector que indica si la rehidratación ya terminó.
+ * Útil para evitar flashes de contenido mientras el store se rehidrata de localStorage.
+ */
+export const useAuthHydrated = (): boolean =>
+  useAuthStore((state) => state._hasHydrated);
 
 /**
  * Si hay sesión: **derivado de `user` y `accessToken`, no un booleano en el estado.**

@@ -169,8 +169,9 @@
 - [x] **T-080**: `GET /api/admin/orders` (todos los pedidos, solo admin)
   - Criterio: rechaza con 403 si no es admin.
   - **Notas de progreso (2026-10-08):** creado endpoint `GET /api/admin/orders` en `orders/admin.routes.ts` con `requireAdmin` (requireAuth + adminOnly). Query opcional `?status=` para filtrar por estado. Repositorio `findAllOrdersForAdmin` con JOIN a `users` (email) y `order_items` + `dishes` (items con 3 idiomas). Servicio `listAdminOrders` localiza nombres por `Accept-Language`. Responde 200 con array de pedidos ordenados por createdAt DESC. Typecheck, lint y build en verde.
-- [ ] **T-081**: Página `/admin/orders` con actualización automática
+- [x] **T-081**: Página `/admin/orders` con actualización automática
   - Criterio: los pedidos nuevos aparecen sin recargar (polling cada 10s).
+  - **Notas de progreso (2026-10-08):** creado `client/src/pages/admin/Orders.tsx` con tabla de pedidos (#, cliente, fecha, estado, total, acciones). Polling cada 10s con `refetchInterval` de TanStack Query. Filtro por estado (dropdown Select). Click en fila navega a detalle. Requiere auth + role admin (redirige a /menu si no). Instalados `@radix-ui/react-select`, `lucide-react` y creados componentes `Select` y `Badge`. i18n keys en es/ru/en. Typecheck, lint y build en verde.
 - [ ] **T-082**: `PATCH /api/admin/orders/:id/status` para cambiar estado
   - Criterio: solo permite transiciones válidas (`pending → preparing → sent → delivered`).
 - [ ] **T-083**: Vista de detalle de pedido para el chef

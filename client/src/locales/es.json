@@ -10,7 +10,8 @@
     "logout": "Salir",
     "main": "Navegación principal",
     "backToMenu": "Volver al menú",
-    "stats": "Estadísticas"
+    "stats": "Estadísticas",
+    "admin": "Panel chef"
   },
   "menu": {
     "title": "Menú",
@@ -48,6 +49,33 @@
       "sent": "Enviado",
       "delivered": "Entregado",
       "cancelled": "Cancelado"
+    }
+  },
+  "admin": {
+    "orders": {
+      "title": "Panel del chef - Pedidos",
+      "listTitle": "Todos los pedidos",
+      "loading": "Cargando pedidos…",
+      "empty": "No hay pedidos.",
+      "error": "No se han podido cargar los pedidos. Inténtalo de nuevo en unos minutos.",
+      "retry": "Reintentar",
+      "refresh": "Actualizar",
+      "lastUpdate": "Última actualización: {{time}}",
+      "filterAll": "Todos los estados",
+      "colId": "#",
+      "colClient": "Cliente",
+      "colDate": "Fecha",
+      "colStatus": "Estado",
+      "colTotal": "Total",
+      "colActions": "Acciones",
+      "view": "Ver",
+      "statuses": {
+        "pending": "Pendiente",
+        "preparing": "Preparando",
+        "sent": "Enviado",
+        "delivered": "Entregado",
+        "cancelled": "Cancelado"
+      }
     }
   },
   "stats": {

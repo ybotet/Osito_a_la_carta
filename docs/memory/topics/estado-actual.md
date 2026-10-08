@@ -66,13 +66,13 @@ osito_a_la_carta/
 │       │   ├── client.ts     # apiRequest (único fetch: auth + refresh + Accept-Language)
 │       │   ├── auth.ts       # registerUser, loginUser
 │       │   ├── dishes.ts     # fetchDishes, fetchDishById
-│       │   ├── orders.ts     # createOrder, fetchOrders, fetchOrderById
+│       │   ├── orders.ts     # createOrder, fetchOrders, fetchOrderById, listAdminOrders
 │       │   └── stats.ts      # recordPageView (T-070)
 │       ├── components/
-│       │   ├── ui/           # button, card, input, label (shadcn)
+│       │   ├── ui/           # button, card, input, label, badge, select (shadcn)
 │       │   ├── DishCard.tsx
 │       │   ├── LanguageSwitcher.tsx
-│       │   └── Layout.tsx    # navbar con logo, enlaces, selector idioma, carrito, órdenes, stats
+│       │   └── Layout.tsx    # navbar con logo, enlaces, selector idioma, carrito, órdenes, stats, admin
 │       ├── pages/
 │       │   ├── Menu.tsx      # /menu - lista platos agrupados por categoría
 │       │   ├── DishDetail.tsx  # /menu/:id - detalle + add to cart
@@ -81,7 +81,9 @@ osito_a_la_carta/
 │       │   ├── OrderDetail.tsx # /orders/:id - detalle pedido
 │       │   ├── Stats.tsx     # /stats - estadísticas usuario (T-072)
 │       │   ├── Login.tsx     # /login
-│       │   └── Register.tsx  # /register
+│       │   ├── Register.tsx  # /register
+│       │   └── admin/
+│       │       └── Orders.tsx  # /admin/orders - panel chef (T-081)
 │       └── locales/
 │           ├── es.json, ru.json, en.json  # i18n keys (nav, menu, cart, orders, auth, etc.)
 ├── shared/
@@ -139,7 +141,7 @@ osito_a_la_carta/
 - Pino: 9.14.0 — pino-pretty 13.x (devDependency)
 - Zod: 3.25.76
 - Tailwind: 4.3.3 — @tailwindcss/vite 4.3.3
-- shadcn/ui: button, card, input, label (registrados en components.json)
+- shadcn/ui: button, card, input, label, badge, select (registrados en components.json)
 - TanStack Query: 5.x (configurado, usado en pages)
 - Zustand: 5.0.15
 - react-i18next: 15.x — i18next 25.x — i18next-browser-languagedetector 8.x
@@ -148,6 +150,8 @@ osito_a_la_carta/
 - mailgun.js: 14.x — form-data: 4.x — @types/form-data (dev)
 - node-telegram-bot-api: 2.x — @types/node-telegram-bot-api (dev)
 - recharts: 2.x — gráficos interactivos (T-072)
+- @radix-ui/react-select: 2.x — primitiva Select (T-081)
+- lucide-react: 0.4.x — iconos (T-081)
 - @types/node: 22.20.4
 
 ---

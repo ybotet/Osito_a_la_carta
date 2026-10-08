@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useAuthStore } from '../store/auth';
+import { useAuthStore, useAuthHydrated } from '../store/auth';
 import { Button } from './ui/button';
 
 /**
@@ -33,11 +33,17 @@ import { Button } from './ui/button';
 const UserMenu = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const isHydrated = useAuthHydrated();
+
   const isAuthenticated = useAuthStore(
     (state) => state.user !== null && state.accessToken !== null,
   );
   const email = useAuthStore((state) => state.user?.email);
   const clearSession = useAuthStore((state) => state.clearSession);
+
+  if (!isHydrated) {
+    return null;
+  }
 
   if (!isAuthenticated || email === undefined) {
     return null;
