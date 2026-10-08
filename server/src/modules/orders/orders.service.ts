@@ -13,7 +13,7 @@ import { orderEnvelopeSchema, ordersListEnvelopeSchema } from './orders.schema.j
 import type { CreateOrderBody } from './orders.schema.js';
 import { sendOrderEmail } from '../notifications/email.service.js';
 import { sendOrderTelegram } from '../notifications/telegram.service.js';
-import { insertNotificationLog } from '../notifications/notifications.repository.js';
+import { sendWithRetry, insertNotificationLog } from '../notifications/notifications.repository.js';
 import type { LocalizedOrderItem } from '../notifications/templates/order-email.js';
 
 /**
@@ -211,8 +211,9 @@ const createOrder = (
     order: toResponse(reloaded.order, reloaded.items, language),
   });
 
-  // Disparar notificaciones en paralelo (T-063 / T-064)
+  // Disparar notificaciones en paralelo con reintentos (T-063 / T-065)
   // Usamos Promise.allSettled para que un fallo en un canal no bloquee el otro
+  // sendWithRetry maneja internamente los reintentos (2 intentos, 2s delay) y registra en NotificationLog
   const localizedItems: LocalizedOrderItem[] = reloaded.items.map((item) => ({
     dishId: item.dishId,
     name: localize(item, language),
@@ -221,32 +222,44 @@ const createOrder = (
   }));
 
   const notifications = Promise.allSettled([
-    sendOrderEmail(reloaded.order, localizedItems, customerEmail).then(
-      () => ({ channel: 'email' as const, status: 'sent' as const, error: null }),
-      (err) => ({ channel: 'email' as const, status: 'failed' as const, error: String(err) }),
+    sendWithRetry(
+      reloaded.order.id,
+      'email',
+      () => sendOrderEmail(reloaded.order, localizedItems, customerEmail),
+      2,
+      2000,
+    ).then(
+      (success) => ({ channel: 'email' as const, success }),
+      (err) => ({ channel: 'email' as const, success: false, error: String(err) }),
     ),
-    sendOrderTelegram(reloaded.order, localizedItems).then(
-      () => ({ channel: 'telegram' as const, status: 'sent' as const, error: null }),
-      (err) => ({ channel: 'telegram' as const, status: 'failed' as const, error: String(err) }),
+    sendWithRetry(
+      reloaded.order.id,
+      'telegram',
+      () => sendOrderTelegram(reloaded.order, localizedItems),
+      2,
+      2000,
+    ).then(
+      (success) => ({ channel: 'telegram' as const, success }),
+      (err) => ({ channel: 'telegram' as const, success: false, error: String(err) }),
     ),
   ]);
 
   // No await aquí: las notificaciones se disparan en background
-  // El registro en NotificationLog se hace dentro de cada then/catch arriba
+  // El registro en NotificationLog se hace dentro de sendWithRetry
   notifications.then((results) => {
     for (const result of results) {
       if (result.status === 'fulfilled') {
-        insertNotificationLog(
-          reloaded.order.id,
-          result.value.channel,
-          result.value.status,
-          result.value.error,
-        );
+        // sendWithRetry ya registró los logs; aquí solo loggeamos resultado final si hace falta
+        if (!result.value.success) {
+          // Fallo final ya registrado por sendWithRetry
+        }
       } else {
         // Promise.allSettled no debería llegar aquí, pero por si acaso
         insertNotificationLog(
           reloaded.order.id,
           'email',
+          1,
+          2,
           'failed',
           String(result.reason),
         );

@@ -53,7 +53,7 @@ export const buildOrderEmailHtml = (
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nuevo pedido #${order.id} - Osito a la carta</title>
+  <title>Nuevo pedido #${order.id} - Osito a la carta</title> <img src="osito.jpg" alt="Osito a la carta" style="max-width: 100px; height: auto;" />
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6; line-height: 1.5;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; padding: 24px 16px;">

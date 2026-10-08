@@ -16,7 +16,7 @@ import { sendOrderEmail } from '../modules/notifications/email.service.js';
  */
 const main = async () => {
   const fakeOrder = {
-    id: 9999,
+    id: 9998,
     userId: 0,
     status: 'pending',
     total: 35.7,
@@ -41,7 +41,10 @@ const main = async () => {
 
   const customerEmail = 'cliente.prueba@osito.local';
 
-  logger.info({ to: env.CHEF_EMAIL, from: env.MAILGUN_FROM.raw }, 'Enviando correo de prueba');
+  logger.info(
+    { to: env.CHEF_EMAIL, from: env.MAILGUN_FROM.raw },
+    'Enviando correo de prueba',
+  );
   await sendOrderEmail(fakeOrder, fakeItems, customerEmail);
   logger.info('Correo de prueba enviado correctamente');
 };

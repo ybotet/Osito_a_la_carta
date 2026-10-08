@@ -6,6 +6,7 @@ import { dishesRouter } from './modules/dishes/dishes.routes.js';
 import { categoriesRouter } from './modules/categories/categories.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { ordersRouter } from './modules/orders/orders.routes.js';
+import { statsRouter } from './modules/stats/stats.routes.js';
 import { UPLOADS_URL_PREFIX } from './modules/dishes/dishes.uploads.js';
 import { errorHandler, notFoundHandler } from './shared/error.middleware.js';
 
@@ -38,6 +39,7 @@ app.use('/api', dishesRouter);
 app.use('/api', categoriesRouter);
 app.use('/api', authRouter);
 app.use('/api', ordersRouter);
+app.use('/api', statsRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
