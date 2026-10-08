@@ -9,7 +9,8 @@
     "login": "Sign in",
     "logout": "Sign out",
     "main": "Main navigation",
-    "backToMenu": "Back to the menu"
+    "backToMenu": "Back to the menu",
+    "stats": "My statistics"
   },
   "menu": {
     "title": "Menu",

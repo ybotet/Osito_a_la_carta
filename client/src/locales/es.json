@@ -9,7 +9,8 @@
     "login": "Iniciar sesión",
     "logout": "Salir",
     "main": "Navegación principal",
-    "backToMenu": "Volver al menú"
+    "backToMenu": "Volver al menú",
+    "stats": "Estadísticas"
   },
   "menu": {
     "title": "Menú",
