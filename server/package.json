@@ -15,9 +15,11 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed/dishes.ts",
     "db:seed:admin": "tsx src/db/seed/admin.ts",
-    "test:email": "tsx src/scripts/test-email.ts"
+    "test:email": "tsx src/scripts/test-email.ts",
+    "test:telegram": "tsx src/scripts/test-telegram.ts"
   },
   "dependencies": {
+    "@types/node-telegram-bot-api": "^0.64.15",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.3",
@@ -26,6 +28,7 @@
     "jsonwebtoken": "^9.0.3",
     "mailgun.js": "^14.0.2",
     "multer": "^2.4.0",
+    "node-telegram-bot-api": "^2.1.0",
     "pino": "^9.6.0",
     "zod": "^3.24.1"
   },

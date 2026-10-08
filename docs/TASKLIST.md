@@ -132,8 +132,9 @@
 - [x] **T-060**: Módulo `notifications` con servicio de correo (Mailgun)
   - Criterio: enviar correo de prueba desde un script.
   - **Notas de progreso (2026-10-07):** creado `server/src/modules/notifications/email.service.ts` con `sendOrderEmail(order, items)` usando Mailgun v14 API (`mailgun.js` + `form-data`). Creado script `server/src/scripts/test-email.ts` que envía correo de prueba con datos ficticios a `env.CHEF_EMAIL` (múltiples emails separados por coma). Instaladas dependencias `mailgun.js@14`, `form-data@4`, `@types/form-data`. Actualizado `.env` con `CHEF_EMAIL=yaiselbotet@gmail.com,backup@osito.local` y `env.ts` para aceptar lista de emails. Añadido script `test:email` a `package.json`. Typecheck y lint en verde. El script ejecuta correctamente (fallo 401 esperado por credenciales placeholder de Mailgun).
-- [ ] **T-061**: Módulo `notifications` con servicio de Telegram
+- [x] **T-061**: Módulo `notifications` con servicio de Telegram
   - Criterio: enviar mensaje de prueba desde un script.
+  - **Notas de progreso (2026-10-08):** creado `server/src/modules/notifications/telegram.service.ts` con `sendOrderTelegram(order, items)` usando `node-telegram-bot-api` v2 (clase `Bot`). Creado script `server/src/scripts/test-telegram.ts` que envía mensaje de prueba con formato Markdown a `env.TELEGRAM_CHAT_ID`. Instaladas dependencias `node-telegram-bot-api@2`, `@types/node-telegram-bot-api`. Añadido script `test:telegram` a `package.json`. Typecheck y lint en verde. El script ejecuta correctamente (fallo 401 esperado por token placeholder de Telegram).
 - [ ] **T-062**: Plantilla HTML del pedido para el correo
   - Criterio: incluye platos, cantidades, total y nota del cliente.
 - [ ] **T-063**: Disparar ambas notificaciones en paralelo al crear pedido

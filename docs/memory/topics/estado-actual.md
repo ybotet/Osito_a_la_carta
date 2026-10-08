@@ -38,7 +38,7 @@ osito_a_la_carta/
 │           ├── categories/   # CRUD categorías (público lectura, admin escritura)
 │           ├── auth/         # register, login, refresh, requireAuth, requireAdmin
 │           ├── orders/       # POST, GET (lista), GET :id (detalle)
-│           └── notifications/  # email.service.ts (Mailgun), test-email.ts (T-060)
+│           └── notifications/  # email.service.ts (Mailgun), telegram.service.ts, test-email.ts, test-telegram.ts (T-060, T-061)
 ├── client/
 │   ├── package.json          # dev/build/preview/typecheck, React 19
 │   ├── tsconfig.json         # project references → app + node
@@ -120,6 +120,7 @@ osito_a_la_carta/
 | `cd server && npm run db:seed` | Seed 5 platos 3 idiomas |
 | `cd server && npm run db:seed:admin` | Seed 1 admin (bcryptjs) |
 | `cd server && npm run test:email` | Envía correo de prueba al chef (T-060) |
+| `cd server && npm run test:telegram` | Envía mensaje de prueba por Telegram al chef (T-061) |
 | `cd server && npm start` | Ejecuta `dist/server/src/app.js` (compilado) |
 
 ---
@@ -142,6 +143,7 @@ osito_a_la_carta/
 - jsonwebtoken: 9.x — @types/jsonwebtoken (dev)
 - bcryptjs: 3.0.3 — @types/bcryptjs (dev)
 - mailgun.js: 14.x — form-data: 4.x — @types/form-data (dev)
+- node-telegram-bot-api: 2.x — @types/node-telegram-bot-api (dev)
 - @types/node: 22.20.4
 
 ---

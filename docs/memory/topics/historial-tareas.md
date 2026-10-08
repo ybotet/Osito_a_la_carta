@@ -60,6 +60,15 @@
 
 ---
 
+## 2026-10-08 — T-061: Módulo notifications - telegram.service.ts (node-telegram-bot-api)
+
+**Qué:** Servicio `sendOrderTelegram(order, items)` con node-telegram-bot-api v2 + script de prueba `test-telegram.ts`.  
+**Cómo:** Instaladas `node-telegram-bot-api@2`, `@types/node-telegram-bot-api`. Servicio usa `env.TELEGRAM_BOT_TOKEN` y `env.TELEGRAM_CHAT_ID`; mensaje en Markdown con platos, totales y fecha. Script en `src/scripts/test-telegram.ts` con datos ficticios.  
+**Impacto:** Mensaje Telegram de prueba funcional (ejecuta sin errores TS; 401 por token placeholder). Base para T-063 (orquestador).  
+**Deuda/Notas:** Token y chat_id reales pendientes; registro en NotificationLog en T-064.
+
+---
+
 ## 2026-10-07 — T-060: Módulo notifications - email.service.ts (Mailgun)
 
 **Qué:** Servicio `sendOrderEmail(order, items)` con Mailgun v14 + script de prueba `test-email.ts`.  
