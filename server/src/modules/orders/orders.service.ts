@@ -3,6 +3,7 @@ import {
   findOrderWithItemsForUser,
   findOrderableDishesByIds,
   findOrdersByUserId,
+  findAllOrdersForAdmin,
   insertOrderWithItems,
 } from './orders.repository.js';
 import type { OrderItemRow, OrderRow } from './orders.repository.js';
@@ -270,8 +271,22 @@ const createOrder = (
   return response;
 };
 
-export { createOrder, listOrders, getOrderById };
+export { createOrder, listOrders, getOrderById, listAdminOrders };
 
 export type CreateOrderResult = ReturnType<typeof createOrder>;
 export type ListOrdersResult = ReturnType<typeof listOrders>;
 export type GetOrderByIdResult = ReturnType<typeof getOrderById>;
+export type ListAdminOrdersResult = ReturnType<typeof listAdminOrders>;
+
+const listAdminOrders = (
+  acceptLanguage: string | undefined,
+  status?: string,
+) => {
+  const language = resolveLanguage(acceptLanguage);
+  const ordersData = findAllOrdersForAdmin(status);
+
+  return ordersData.map(({ order, items }) => ({
+    ...toResponse(order, items, language),
+    userEmail: order.userEmail,
+  }));
+};

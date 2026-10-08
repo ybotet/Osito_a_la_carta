@@ -37,7 +37,7 @@ osito_a_la_carta/
 │           ├── dishes/       # CRUD platos + availability + permanent delete + image upload
 │           ├── categories/   # CRUD categorías (público lectura, admin escritura)
 │           ├── auth/         # register, login, refresh, requireAuth, requireAdmin
-│           ├── orders/       # POST, GET (lista), GET :id (detalle)
+│           ├── orders/       # POST, GET (lista), GET :id (detalle), admin.routes.ts (T-080)
 │           └── notifications/  # email.service.ts, telegram.service.ts, notifications.repository.ts, retry.ts, templates/order-email.ts, test-email.ts, test-telegram.ts (T-060–T-065)
 │           └── stats/          # stats.service.ts, stats.repository.ts, stats.schema.ts, stats.routes.ts (T-070)
 ├── client/
@@ -200,7 +200,7 @@ osito_a_la_carta/
 | GET | `/api/orders/:id` | user | Detalle de un pedido propio |
 | POST | `/api/stats/pageview` | público | Registra pageview (T-070) |
 | GET | `/api/stats/me` | user | Estadísticas agregadas usuario (T-071) |
-| GET | `/api/admin/orders` | — | (pendiente T-080) |
+| GET | `/api/admin/orders` | admin | Lista todos los pedidos + items + userEmail (T-080) |
 | PATCH | `/api/admin/orders/:id/status` | — | (pendiente T-082) |
 
 ---

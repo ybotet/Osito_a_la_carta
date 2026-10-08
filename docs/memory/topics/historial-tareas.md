@@ -60,6 +60,15 @@
 
 ---
 
+## 2026-10-08 — T-080: GET /api/admin/orders (panel del chef)
+
+**Qué:** Endpoint admin `GET /api/admin/orders` que lista todos los pedidos con info de usuario e items.  
+**Cómo:** `admin.routes.ts` con `requireAdmin`. Query opcional `?status=`. `findAllOrdersForAdmin` en repositorio: JOIN a `users` (email), JOIN a `order_items` + `dishes` (items con 3 idiomas). `listAdminOrders` en servicio localiza por `Accept-Language`. Respuesta 200 con array ordenado por createdAt DESC.  
+**Impacto:** Base para panel del chef (T-081/T-082/T-083).  
+**Deuda/Notas:** Filtro status valida contra enum; no hay paginación aún.
+
+---
+
 ## 2026-10-08 — T-072: Página /stats con gráficos (Recharts)
 
 **Qué:** Página `/stats` protegida con resumen numérico y dos gráficos de barras horizontales.  

@@ -166,8 +166,9 @@
 
 ## Fase 8 — Panel del chef
 
-- [ ] **T-080**: `GET /api/admin/orders` (todos los pedidos, solo admin)
+- [x] **T-080**: `GET /api/admin/orders` (todos los pedidos, solo admin)
   - Criterio: rechaza con 403 si no es admin.
+  - **Notas de progreso (2026-10-08):** creado endpoint `GET /api/admin/orders` en `orders/admin.routes.ts` con `requireAdmin` (requireAuth + adminOnly). Query opcional `?status=` para filtrar por estado. Repositorio `findAllOrdersForAdmin` con JOIN a `users` (email) y `order_items` + `dishes` (items con 3 idiomas). Servicio `listAdminOrders` localiza nombres por `Accept-Language`. Responde 200 con array de pedidos ordenados por createdAt DESC. Typecheck, lint y build en verde.
 - [ ] **T-081**: Página `/admin/orders` con actualización automática
   - Criterio: los pedidos nuevos aparecen sin recargar (polling cada 10s).
 - [ ] **T-082**: `PATCH /api/admin/orders/:id/status` para cambiar estado

@@ -30,3 +30,11 @@ export type ApiOrdersListEnvelope = {
   language: string;
   orders: ApiOrder[];
 };
+
+/**
+ * Pedido en la respuesta de admin (GET /api/admin/orders).
+ * Incluye userEmail y no viene envuelto en { language, orders }.
+ */
+export type ApiAdminOrder = ApiOrder & {
+  userEmail: string;
+};

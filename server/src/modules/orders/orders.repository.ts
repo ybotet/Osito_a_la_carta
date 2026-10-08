@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../db/client.js';
-import { dishes, orderItems, orders } from '../../db/schema.js';
+import { dishes, orderItems, orders, users } from '../../db/schema.js';
 
 /**
  * Lo que el servicio necesita de cada plato pedido: **el precio actual** (que es lo que se
@@ -213,7 +213,49 @@ const findOrdersByUserId = (userId: number) => {
   }));
 };
 
-export { findOrderWithItems, findOrderWithItemsForUser, findOrderableDishesByIds, insertOrderWithItems, findOrdersByUserId };
+/**
+ * Obtiene todos los pedidos para el panel de admin, con info del usuario e items.
+ *
+ * Opcionalmente filtra por status. Ordenados por createdAt DESC.
+ *
+ * **Incluye JOIN a `users` para el email** y JOIN a `order_items` + `dishes` para los items.
+ * Los nombres de platos vienen en los 3 idiomas igual que en `findOrdersByUserId`.
+ */
+const findAllOrdersForAdmin = (status?: string) => {
+  const whereClause =
+    status !== undefined ? and(eq(orders.status, status as 'pending' | 'preparing' | 'sent' | 'delivered' | 'cancelled')) : undefined;
+
+  const allOrders = db
+    .select({
+      ...orderProjection,
+      userEmail: users.email,
+    })
+    .from(orders)
+    .innerJoin(users, eq(orders.userId, users.id))
+    .where(whereClause)
+    .orderBy(desc(orders.createdAt))
+    .all();
+
+  if (allOrders.length === 0) {
+    return [];
+  }
+
+  const orderIds = allOrders.map((o) => o.id);
+  const items = db
+    .select(orderItemProjection)
+    .from(orderItems)
+    .innerJoin(dishes, eq(orderItems.dishId, dishes.id))
+    .where(inArray(orderItems.orderId, orderIds))
+    .orderBy(asc(orderItems.id))
+    .all();
+
+  return allOrders.map((order) => ({
+    order,
+    items: items.filter((item) => item.orderId === order.id),
+  }));
+};
+
+export { findOrderWithItems, findOrderWithItemsForUser, findOrderableDishesByIds, insertOrderWithItems, findOrdersByUserId, findAllOrdersForAdmin };
 
 export type OrderableDishRow = ReturnType<
   typeof findOrderableDishesByIds
@@ -226,4 +268,7 @@ export type OrderItemRow = NonNullable<
 >['items'][number];
 export type UserOrderRow = NonNullable<
   ReturnType<typeof findOrdersByUserId>
+>[number];
+export type AdminOrderRow = NonNullable<
+  ReturnType<typeof findAllOrdersForAdmin>
 >[number];
