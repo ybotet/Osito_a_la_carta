@@ -49,6 +49,18 @@
       "cancelled": "Cancelado"
     }
   },
+  "stats": {
+    "title": "Mis estadísticas",
+    "loading": "Cargando tus estadísticas…",
+    "error": "No se han podido cargar tus estadísticas. Inténtalo de nuevo en unos minutos.",
+    "retry": "Reintentar",
+    "refresh": "Actualizar",
+    "totalOrders": "Total de pedidos",
+    "totalSpent": "Total gastado",
+    "memberSince": "Miembro desde",
+    "topViewedDishes": "Platos más vistos",
+    "topOrderedDishes": "Platos más pedidos"
+  },
   "language": {
     "label": "Idioma de la interfaz",
     "es": "Español",

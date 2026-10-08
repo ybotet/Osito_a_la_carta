@@ -1,8 +1,9 @@
 import { Router } from 'express';
+import { requireAuth } from '../../middleware/auth.js';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/index.js';
 import { accessClaimsSchema } from '../auth/auth.schema.js';
-import { recordPageView } from './stats.service.js';
+import { recordPageView, getUserStatsData } from './stats.service.js';
 import { pageViewBodySchema } from './stats.schema.js';
 
 const statsRouter = Router();
@@ -46,6 +47,25 @@ statsRouter.post('/stats/pageview', (req, res) => {
   const body = pageViewBodySchema.parse(req.body);
   recordPageView(userId, body);
   res.status(204).end();
+});
+
+/**
+ * GET /api/stats/me
+ *
+ * Estadísticas agregadas del usuario autenticado.
+ * Requiere access token válido (requireAuth).
+ * Devuelve: topViewedDishes, topOrderedDishes, totalOrders, totalSpent, memberSince.
+ */
+statsRouter.get('/stats/me', requireAuth, (req, res) => {
+  const user = req.user;
+
+  if (user === undefined) {
+    // No debería ocurrir porque requireAuth ya valida, pero por tipado
+    throw new Error('Usuario no encontrado en request');
+  }
+
+  const stats = getUserStatsData(user.id, req.headers['accept-language'] as string | undefined);
+  res.status(200).json(stats);
 });
 
 export { statsRouter };

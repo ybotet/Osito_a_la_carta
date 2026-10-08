@@ -49,6 +49,18 @@
       "cancelled": "Cancelled"
     }
   },
+  "stats": {
+    "title": "My statistics",
+    "loading": "Loading your statistics…",
+    "error": "We could not load your statistics. Please try again in a few minutes.",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "totalOrders": "Total orders",
+    "totalSpent": "Total spent",
+    "memberSince": "Member since",
+    "topViewedDishes": "Most viewed dishes",
+    "topOrderedDishes": "Most ordered dishes"
+  },
   "language": {
     "label": "Interface language",
     "es": "Español",

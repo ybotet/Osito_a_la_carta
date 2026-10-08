@@ -60,6 +60,24 @@
 
 ---
 
+## 2026-10-08 — T-072: Página /stats con gráficos (Recharts)
+
+**Qué:** Página `/stats` protegida con resumen numérico y dos gráficos de barras horizontales.  
+**Cómo:** `Stats.tsx` usa `useQuery` a `GET /api/stats/me`. Tarjetas: totalOrders, totalSpent, memberSince. Gráficos: `BarChart` (Recharts) con layout vertical para topViewedDishes y topOrderedDishes. i18n en es/ru/en. Enlace en navbar (`nav.stats`).  
+**Impacto:** Usuario ve sus métricas de consumo y visitas.  
+**Deuda/Notas:** Gráficos usan tooltip por defecto; colores fijos (azul/verde). Chunk de build crece por Recharts (~370KB gzipped).
+
+---
+
+## 2026-10-08 — T-071: GET /api/stats/me con agregados del usuario
+
+**Qué:** Endpoint protegido `GET /api/stats/me` que devuelve estadísticas agregadas del usuario autenticado.  
+**Cómo:** `stats.repository.ts` con consultas Drizzle: `getTopViewedDishes` (count + groupBy + orderBy + limit 5), `getTopOrderedDishes` (sum quantity + groupBy + orderBy + limit 5), `getUserStats` (count orders, sum total, memberSince). `stats.service.ts` con `getUserStatsData` que localiza nombres por idioma. `stats.routes.ts` con `requireAuth`. Respuesta: `{ topViewedDishes, topOrderedDishes, totalOrders, totalSpent, memberSince }`.  
+**Impacto:** Base para frontend de estadísticas (T-072).  
+**Deuda/Notas:** Agregaciones usan Drizzle SQL builders; memberSince viene de `users.createdAt`.
+
+---
+
 ## 2026-10-08 — T-070: POST /api/stats/pageview + frontend tracking
 
 **Qué:** Endpoint público `POST /api/stats/pageview` + llamada desde `DishDetail.tsx` al montar.  

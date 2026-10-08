@@ -72,13 +72,14 @@ osito_a_la_carta/
 │       │   ├── ui/           # button, card, input, label (shadcn)
 │       │   ├── DishCard.tsx
 │       │   ├── LanguageSwitcher.tsx
-│       │   └── Layout.tsx    # navbar con logo, enlaces, selector idioma, carrito, órdenes
+│       │   └── Layout.tsx    # navbar con logo, enlaces, selector idioma, carrito, órdenes, stats
 │       ├── pages/
 │       │   ├── Menu.tsx      # /menu - lista platos agrupados por categoría
 │       │   ├── DishDetail.tsx  # /menu/:id - detalle + add to cart
 │       │   ├── Cart.tsx      # /cart - resumen + confirmar pedido
 │       │   ├── Orders.tsx    # /orders - historial
 │       │   ├── OrderDetail.tsx # /orders/:id - detalle pedido
+│       │   ├── Stats.tsx     # /stats - estadísticas usuario (T-072)
 │       │   ├── Login.tsx     # /login
 │       │   └── Register.tsx  # /register
 │       └── locales/
@@ -146,6 +147,7 @@ osito_a_la_carta/
 - bcryptjs: 3.0.3 — @types/bcryptjs (dev)
 - mailgun.js: 14.x — form-data: 4.x — @types/form-data (dev)
 - node-telegram-bot-api: 2.x — @types/node-telegram-bot-api (dev)
+- recharts: 2.x — gráficos interactivos (T-072)
 - @types/node: 22.20.4
 
 ---
@@ -197,7 +199,7 @@ osito_a_la_carta/
 | GET | `/api/orders` | user | Historial del usuario autenticado |
 | GET | `/api/orders/:id` | user | Detalle de un pedido propio |
 | POST | `/api/stats/pageview` | público | Registra pageview (T-070) |
-| GET | `/api/stats/me` | — | (pendiente T-071) |
+| GET | `/api/stats/me` | user | Estadísticas agregadas usuario (T-071) |
 | GET | `/api/admin/orders` | — | (pendiente T-080) |
 | PATCH | `/api/admin/orders/:id/status` | — | (pendiente T-082) |
 

@@ -155,10 +155,12 @@
 - [x] **T-070**: `POST /api/stats/pageview` al visitar detalle de plato
   - Criterio: registra `userId` (si hay sesión) y `dishId`.
   - **Notas de progreso (2026-10-08):** creado módulo `stats` con `stats.schema.ts`, `stats.repository.ts`, `stats.service.ts`, `stats.routes.ts`. Endpoint público POST `/api/stats/pageview` acepta `{ dishId?, path }`, usa `userId` del token si hay sesión válida (sin lanzar 401), inserta en `pageViews` con `viewedAt = Date.now()`, responde 204. Frontend: creado `client/src/api/stats.ts` y `useEffect` en `DishDetail.tsx` que llama a `recordPageView(dish.id, path)` al cargar el plato. Typecheck, lint y build en verde.
-- [ ] **T-071**: `GET /api/stats/me` con agregados del usuario
+- [x] **T-071**: `GET /api/stats/me` con agregados del usuario
   - Criterio: devuelve platos más vistos, más pedidos y total gastado.
-- [ ] **T-072**: Página `/stats` con gráficos (Recharts)
+  - **Notas de progreso (2026-10-08):** creado endpoint protegido `GET /api/stats/me` en `stats.routes.ts` con `requireAuth`. Servicio `getUserStatsData` en `stats.service.ts` y consultas de agregación en `stats.repository.ts` usando Drizzle (count, sum, groupBy, orderBy, limit). Devuelve: topViewedDishes (top 5), topOrderedDishes (top 5), totalOrders, totalSpent, memberSince (ISO string). Localización por `Accept-Language`. Typecheck, lint y build en verde.
+- [x] **T-072**: Página `/stats` con gráficos (Recharts)
   - Criterio: muestra al menos 2 gráficos y un resumen numérico.
+  - **Notas de progreso (2026-10-08):** creado `client/src/pages/Stats.tsx` con `useQuery` a `GET /api/stats/me`. Instalado `recharts`. Tres tarjetas de resumen: totalOrders, totalSpent, memberSince. Dos BarCharts horizontales: topViewedDishes (azul) y topOrderedDishes (verde). Responsive (1 col en móvil, 2 en desktop). i18n keys en es/ru/en. Navegación en navbar (`nav.stats`). Typecheck, lint y build en verde.
 
 ---
 
