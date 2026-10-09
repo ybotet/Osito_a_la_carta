@@ -4,8 +4,8 @@ import { logger } from '../../logger.js';
 import { db, sqlite } from '../client.js';
 import { users } from '../schema.js';
 
-const ADMIN_EMAIL = 'admin@osito.local';
-const ADMIN_PASSWORD = 'OsitoAdmin123!';
+const ADMIN_EMAIL = 'chef@osito.com';
+const ADMIN_PASSWORD = 'Osito*123456';
 const BCRYPT_ROUNDS = 10;
 
 const seedAdmin = (): void => {

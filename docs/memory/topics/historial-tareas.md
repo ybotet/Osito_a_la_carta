@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-10-09 — T-082: PATCH /api/admin/orders/:id/status con validación de transiciones
+
+**Qué:** Endpoint admin `PATCH /api/admin/orders/:id/status` para cambiar estado de pedido con validación de transiciones.  
+**Cómo:** `updateOrderStatusAdmin` en `orders.service.ts` valida transiciones permitidas usando mapa `ALLOWED_TRANSITIONS`: `pending → preparing | cancelled`, `preparing → sent | cancelled`, `sent → delivered | cancelled`, `delivered` y `cancelled` son finales. Transiciones inválidas responden 400 con code `INVALID_TRANSITION`. Idempotente si el estado no cambia. `updateOrderStatus` en repositorio actualiza el estado en BD.  
+**Impacto:** Chef puede mover pedidos por el flujo correcto. Base para T-083 (detalle).  
+**Deuda/Notas:** Notificación al cliente de cambio de estado pendiente (T-063 orquestador).
+
+---
+
 ## 2026-10-09 — T-092a: Corregir renderizado del layout compartido
 
 **Qué:** Se eliminó un selector de Zustand inestable del layout global que podía provocar renderizados repetidos y dejar en blanco todas las rutas.  

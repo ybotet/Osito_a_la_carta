@@ -5,6 +5,7 @@ import {
   findOrdersByUserId,
   findAllOrdersForAdmin,
   insertOrderWithItems,
+  updateOrderStatus,
 } from './orders.repository.js';
 import type { OrderItemRow, OrderRow } from './orders.repository.js';
 import { BadRequestError, NotFoundError } from '../../shared/errors.js';
@@ -271,7 +272,7 @@ const createOrder = (
   return response;
 };
 
-export { createOrder, listOrders, getOrderById, listAdminOrders };
+export { createOrder, listOrders, getOrderById, listAdminOrders, updateOrderStatusAdmin };
 
 export type CreateOrderResult = ReturnType<typeof createOrder>;
 export type ListOrdersResult = ReturnType<typeof listOrders>;
@@ -289,4 +290,93 @@ const listAdminOrders = (
     ...toResponse(order, items, language),
     userEmail: order.userEmail,
   }));
+};
+
+/**
+ * Transiciones de estado permitidas.
+ *
+ * El chef solo puede mover el pedido hacia adelante en el flujo:
+ *   pending → preparing | cancelled
+ *   preparing → sent | cancelled
+ *   sent → delivered | cancelled
+ *   delivered → (final, no se puede cambiar)
+ *   cancelled → (final, no se puede cambiar)
+ *
+ * Si la transición no está en la lista, el endpoint responde 400 con
+ * code 'INVALID_TRANSITION'.
+ */
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  pending: ['preparing', 'cancelled'],
+  preparing: ['sent', 'cancelled'],
+  sent: ['delivered', 'cancelled'],
+  // delivered y cancelled son estados finales, no tienen transiciones salientes
+};
+
+/**
+ * Actualiza el estado de un pedido (solo admin).
+ *
+ * Valida que la transición sea permitida según ALLOWED_TRANSITIONS.
+ * Si la transición no es válida, lanza BadRequestError con code 'INVALID_TRANSITION'.
+ * Si el pedido no existe, lanza NotFoundError.
+ *
+ * Devuelve el pedido actualizado con sus items localizados.
+ */
+const updateOrderStatusAdmin = (
+  orderId: number,
+  newStatus: string,
+  acceptLanguage: string | undefined,
+) => {
+  const validStatuses = ['pending', 'preparing', 'sent', 'delivered', 'cancelled'] as const;
+
+  if (!validStatuses.includes(newStatus as typeof validStatuses[number])) {
+    throw new BadRequestError(
+      'Status inválido',
+      'VALIDATION_ERROR',
+      { validStatuses },
+    );
+  }
+
+  // Primero leemos el pedido actual para validar la transición
+  const current = findOrderWithItems(orderId);
+
+  if (current === undefined) {
+    throw new NotFoundError('Pedido no encontrado', 'ORDER_NOT_FOUND', { id: orderId });
+  }
+
+  const currentStatus = current.order.status;
+
+  // Si el estado es el mismo, no hacemos nada (idempotente)
+  if (currentStatus === newStatus) {
+    const language = resolveLanguage(acceptLanguage);
+    const response = orderEnvelopeSchema.parse({
+      language,
+      order: toResponse(current.order, current.items, language),
+    });
+    return response;
+  }
+
+  // Validar que la transición es permitida
+  const allowed = ALLOWED_TRANSITIONS[currentStatus] ?? [];
+
+  if (!allowed.includes(newStatus)) {
+    throw new BadRequestError(
+      `Transición no permitida de '${currentStatus}' a '${newStatus}'`,
+      'INVALID_TRANSITION',
+      { currentStatus, newStatus, allowedTransitions: allowed },
+    );
+  }
+
+  // Actualizar el estado
+  const updated = updateOrderStatus(orderId, newStatus as typeof validStatuses[number]);
+
+  if (updated === undefined) {
+    throw new NotFoundError('Pedido no encontrado', 'ORDER_NOT_FOUND', { id: orderId });
+  }
+
+  const language = resolveLanguage(acceptLanguage);
+
+  return orderEnvelopeSchema.parse({
+    language,
+    order: toResponse(updated.order, updated.items, language),
+  });
 };

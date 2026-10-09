@@ -255,7 +255,47 @@ const findAllOrdersForAdmin = (status?: string) => {
   }));
 };
 
-export { findOrderWithItems, findOrderWithItemsForUser, findOrderableDishesByIds, insertOrderWithItems, findOrdersByUserId, findAllOrdersForAdmin };
+/**
+ * Actualiza el estado de un pedido.
+ *
+ * Devuelve el pedido actualizado con sus items, o `undefined` si no existe.
+ */
+const updateOrderStatus = (
+  id: number,
+  status: 'pending' | 'preparing' | 'sent' | 'delivered' | 'cancelled',
+) => {
+  const result = db
+    .update(orders)
+    .set({ status })
+    .where(eq(orders.id, id))
+    .run();
+
+  if (result.changes === 0) {
+    return undefined;
+  }
+
+  const order = db
+    .select(orderProjection)
+    .from(orders)
+    .where(eq(orders.id, id))
+    .get();
+
+  if (order === undefined) {
+    return undefined;
+  }
+
+  const items = db
+    .select(orderItemProjection)
+    .from(orderItems)
+    .innerJoin(dishes, eq(orderItems.dishId, dishes.id))
+    .where(eq(orderItems.orderId, id))
+    .orderBy(asc(orderItems.id))
+    .all();
+
+  return { order, items };
+};
+
+export { findOrderWithItems, findOrderWithItemsForUser, findOrderableDishesByIds, insertOrderWithItems, findOrdersByUserId, findAllOrdersForAdmin, updateOrderStatus };
 
 export type OrderableDishRow = ReturnType<
   typeof findOrderableDishesByIds
