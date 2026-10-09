@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-10-09 — T-092a: Corregir renderizado del layout compartido
+
+**Qué:** Se eliminó un selector de Zustand inestable del layout global que podía provocar renderizados repetidos y dejar en blanco todas las rutas.  
+**Cómo:** `user` y `isAuthenticated` se seleccionan por separado para devolver referencias primitivas/estables; se conservó el comportamiento de autenticación existente.  
+**Impacto:** El layout compartido ya no crea un objeto nuevo durante cada lectura del store.  
+**Deuda/Notas:** T-092 (ErrorBoundary y toasts para errores globales) sigue pendiente y no forma parte de esta corrección.
+
 ## 2026-09-28 — T-001 a T-009: Setup del proyecto
 
 **Qué:** Estructura monorepo (`server/`, `client/`, `shared/`, `docs/`), TS estricto, Vite+React, proxy, Tailwind, ESLint/Prettier, pino, Zod env, health check.  

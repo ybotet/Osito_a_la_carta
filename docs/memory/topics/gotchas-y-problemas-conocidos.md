@@ -94,6 +94,7 @@ Lista viva de problemas, comportamientos sorprendentes y soluciones aplicadas. *
 |--------|---------|-------|----------|
 | **Selector derivado no se recalcula** | `totalPrice` muestra 0 tras agregar item | Selector usa `state.items` pero no se suscribe a cambios | En Zustand, selectores **siempre** reciben `state` fresco. Verificar que no se usa `useCartStore.getState()` en render (eso no suscribe). Usar `useCartStore(s => s.totalPrice)`. |
 | **`persist` hidrata antes de que React monte** | `useAuthStore.getState().isAuthenticated` es `false` en primer render | Hidratación asíncrona; store sincroniza `localStorage` después | Usar `useAuthStore(s => s.isAuthenticated)` en componente (suscribe); o `skipHydration: true` y hidratar manualmente en `useEffect`. |
+| **Selector de Zustand devuelve un objeto nuevo en cada lectura** | React repite renderizados y la SPA puede quedar en blanco | Zustand 5 compara el snapshot externo; un selector que construye un objeto nuevo en cada llamada nunca devuelve una referencia estable | Seleccionar valores primitivos/estables por separado o envolver selectores compuestos con `useShallow`. |
 | **Cart items guardan copia del plato (snapshot)** | Precio en carrito no cambia si admin actualiza precio | Decisión intencional: carrito = snapshot al agregar | Correcto. Al confirmar pedido, precios se recalculan desde BD (ver decisión #10). |
 
 ---

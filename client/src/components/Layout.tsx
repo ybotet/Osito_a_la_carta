@@ -44,89 +44,89 @@ const Layout = () => {
    * Lee el estado del store y no un `useIsAuthenticated` importado, porque en `Layout` hace falta
    * además poder distinguir "sin sesión" de "con sesión" en el JSX.
    */
-  const { user, isAuthenticated } = useAuthStore(
-    (state) => ({
-      user: state.user,
-      isAuthenticated: state.user !== null && state.accessToken !== null,
-    }),
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore(
+    (state) => state.user !== null && state.accessToken !== null,
   );
 
   const isAdmin = user?.role === 'admin';
 
   return (
     <>
-      {isHydrated && (
-        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 p-4">
+      <header
+        className={`sticky top-0 z-40 border-b bg-background/95 backdrop-blur ${
+          isHydrated ? '' : 'invisible h-0 overflow-hidden pointer-events-none'
+        }`}
+      >
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 p-4">
+          {/*
+            Logo de la app: imagen + nombre. Enlazado a la portada ("/").
+            La imagen está en /public/images/osito.jpg.
+          */}
+          <Link to="/" className="flex items-center gap-2 text-lg font-bold" aria-label={t('app.title')}>
+            <img
+              src="/images/osito.jpg"
+              alt=""
+              className="h-8 w-8 rounded-lg object-cover"
+              aria-hidden="true"
+            />
+            <span>{t('app.title')}</span>
+          </Link>
+
+          <nav aria-label={t('nav.main')}>
             {/*
-              Logo de la app: imagen + nombre. Enlazado a la portada ("/").
-              La imagen está en /public/images/osito.jpg.
+              `flex-wrap` porque en móvil el grupo de idioma y los tres enlaces no caben en una
+              sola línea, y forzar el salto con un `hidden md:flex` escondería el selector de
+              idioma justo en la pantalla más estrecha.
             */}
-            <Link to="/" className="flex items-center gap-2 text-lg font-bold" aria-label={t('app.title')}>
-              <img
-                src="/images/osito.jpg"
-                alt=""
-                className="h-8 w-8 rounded-lg object-cover"
-                aria-hidden="true"
-              />
-              <span>{t('app.title')}</span>
-            </Link>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/menu">{t('nav.menu')}</Link>
+              </Button>
 
-            <nav aria-label={t('nav.main')}>
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/cart">{t('nav.cart')}</Link>
+              </Button>
+
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/orders">{t('nav.orders')}</Link>
+              </Button>
+
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/stats">{t('nav.stats')}</Link>
+              </Button>
+
+              {isAdmin && (
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/admin/orders">{t('nav.admin')}</Link>
+                </Button>
+              )}
+
               {/*
-                `flex-wrap` porque en móvil el grupo de idioma y los tres enlaces no caben en una
-                sola línea, y forzar el salto con un `hidden md:flex` escondería el selector de
-                idioma justo en la pantalla más estrecha.
+                El enlace a `/login` se habilitó en T-044, cuando la ruta ya existía. Va como
+                `Button asChild` con un `Link` dentro, igual que el del menú, para que hereden
+                las mismas clases y no se desincronicen al cambiar el `Button`.
+
+                **Solo se pinta sin sesión.** En T-048 este hueco pasó a ser condicional: con
+                sesión lo sustituyen el email del usuario y el botón de cerrar sesión, que están
+                en `UserMenu`. Mostrar "Iniciar sesión" junto al nombre de quien ya está dentro
+                sería contradictorio, y un usuario que ve su email ya sabe que tiene sesión.
               */}
-              <div className="flex flex-wrap items-center justify-end gap-2">
+              {!isAuthenticated && (
                 <Button asChild variant="ghost" size="sm">
-                  <Link to="/menu">{t('nav.menu')}</Link>
+                  <Link to="/login">{t('nav.login')}</Link>
                 </Button>
+              )}
 
-                <Button asChild variant="ghost" size="sm">
-                  <Link to="/cart">{t('nav.cart')}</Link>
-                </Button>
+              <UserMenu />
 
-                <Button asChild variant="ghost" size="sm">
-                  <Link to="/orders">{t('nav.orders')}</Link>
-                </Button>
+              <span className="mx-1 hidden h-5 w-px bg-border sm:block" />
 
-                <Button asChild variant="ghost" size="sm">
-                  <Link to="/stats">{t('nav.stats')}</Link>
-                </Button>
-
-                {isAdmin && (
-                  <Button asChild variant="ghost" size="sm">
-                    <Link to="/admin/orders">{t('nav.admin')}</Link>
-                  </Button>
-                )}
-
-                {/*
-                  El enlace a `/login` se habilitó en T-044, cuando la ruta ya existía. Va como
-                  `Button asChild` con un `Link` dentro, igual que el del menú, para que hereden
-                  las mismas clases y no se desincronicen al cambiar el `Button`.
-
-                  **Solo se pinta sin sesión.** En T-048 este hueco pasó a ser condicional: con
-                  sesión lo sustituyen el email del usuario y el botón de cerrar sesión, que están
-                  en `UserMenu`. Mostrar "Iniciar sesión" junto al nombre de quien ya está dentro
-                  sería contradictorio, y un usuario que ve su email ya sabe que tiene sesión.
-                */}
-                {!isAuthenticated && (
-                  <Button asChild variant="ghost" size="sm">
-                    <Link to="/login">{t('nav.login')}</Link>
-                  </Button>
-                )}
-
-                <UserMenu />
-
-                <span className="mx-1 hidden h-5 w-px bg-border sm:block" />
-
-                <LanguageSwitcher />
-              </div>
-            </nav>
-          </div>
-        </header>
-      )}
+              <LanguageSwitcher />
+            </div>
+          </nav>
+        </div>
+      </header>
 
       <Outlet />
     </>

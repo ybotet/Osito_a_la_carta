@@ -185,6 +185,8 @@
   - Criterio: la app es instalable en móvil.
 - [ ] **T-091**: Responsive completo en móvil, tablet y desktop
   - Criterio: todas las páginas son usables desde 360px de ancho.
+- [x] **T-092a**: Corregir el renderizado global del layout compartido
+  - Criterio: navegar entre las rutas no dispara un bucle de renderizado ni deja la aplicación en blanco.
 - [ ] **T-092**: Manejo global de errores en frontend (ErrorBoundary + toasts)
   - Criterio: un error de red muestra un mensaje claro, no pantalla blanca.
 - [ ] **T-093**: Tests básicos de flujos críticos (registro, pedido, notificación)
