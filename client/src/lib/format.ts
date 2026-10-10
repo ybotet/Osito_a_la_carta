@@ -28,4 +28,27 @@ const formatPrice = (
     price,
   );
 
-export { formatPrice };
+/**
+ * Formatea un timestamp Unix a fecha legible.
+ *
+ * **Exige un idioma no vacío** igual que `formatPrice`. El timestamp viene en segundos
+ * (como lo devuelve el backend), así que hay que multiplicar por 1000 para `Date`.
+ */
+const formatDate = (
+  timestamp: number,
+  language: string,
+): string => {
+  try {
+    return new Date(timestamp * 1000).toLocaleDateString(language, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return String(timestamp);
+  }
+};
+
+export { formatPrice, formatDate };

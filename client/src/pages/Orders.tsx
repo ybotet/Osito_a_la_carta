@@ -21,53 +21,59 @@ function OrdersPage() {
     (state) => state.user !== null && state.accessToken !== null,
   );
   const [orders, setOrders] = useState<
-    { id: number; createdAt: number; status: string; total: number; itemCount: number }[]
+    {
+      id: number;
+      createdAt: number;
+      status: string;
+      total: number;
+      itemCount: number;
+    }[]
   >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const language = i18n.resolvedLanguage ?? i18n.language ?? 'es';
 
-   useEffect(() => {
-     if (!isAuthenticated) {
-       navigate('/login', { replace: true });
-       return;
-     }
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login', { replace: true });
+      return;
+    }
 
-     const load = async () => {
-       try {
-         const response = await listOrders();
+    const load = async () => {
+      try {
+        const response = await listOrders();
 
-         const mapped = response.orders.map((order) => ({
-           id: order.id,
-           createdAt: order.createdAt,
-           status: order.status,
-           total: order.total,
-           itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
-         }));
+        const mapped = response.orders.map((order) => ({
+          id: order.id,
+          createdAt: order.createdAt,
+          status: order.status,
+          total: order.total,
+          itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
+        }));
 
-         setOrders(mapped);
-       } catch {
-         setError(t('orders.error'));
-       } finally {
-         setIsLoading(false);
-       }
-     };
+        setOrders(mapped);
+      } catch {
+        setError(t('orders.error'));
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-     load();
-   }, [isAuthenticated, navigate, i18n, t]);
+    load();
+  }, [isAuthenticated, navigate, i18n, t]);
 
-   const formatDate = (timestamp: number): string => {
-     return new Date(timestamp * 1000).toLocaleDateString(language, {
-       year: 'numeric',
-       month: 'short',
-       day: 'numeric',
-     });
-   };
+  const formatDate = (timestamp: number): string => {
+    return new Date(timestamp * 1000).toLocaleDateString(language, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
 
-   if (!isAuthenticated) {
-     return null;
-   }
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (isLoading) {
     return (
@@ -85,7 +91,10 @@ function OrdersPage() {
     return (
       <div className="mx-auto max-w-5xl p-4">
         <Card>
-          <CardContent className="p-6 text-center text-destructive" role="alert">
+          <CardContent
+            className="p-6 text-center text-destructive"
+            role="alert"
+          >
             {error}
           </CardContent>
         </Card>
@@ -128,7 +137,8 @@ function OrdersPage() {
               <div className="mx-4">
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    STATUS_BADGE_CLASSES[order.status] ?? 'bg-gray-100 text-gray-800'
+                    STATUS_BADGE_CLASSES[order.status] ??
+                    'bg-gray-100 text-gray-800'
                   }`}
                 >
                   {t(`orders.statuses.${order.status}`)}

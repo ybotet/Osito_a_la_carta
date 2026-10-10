@@ -55,3 +55,29 @@ export const listAdminOrders = async (
   const query = params.toString() ? `?${params.toString()}` : '';
   return (await apiRequest(`/api/admin/orders${query}`)) as ApiAdminOrder[];
 };
+
+/**
+ * Devuelve el detalle de un pedido (solo admin).
+ *
+ * El backend devuelve el pedido con userEmail, items localizados, etc.
+ */
+export const fetchAdminOrderById = async (
+  orderId: number,
+): Promise<ApiAdminOrder> =>
+  (await apiRequest(`/api/admin/orders/${orderId}`)) as ApiAdminOrder;
+
+/**
+ * Actualiza el estado de un pedido (solo admin).
+ *
+ * Body: { status: 'pending'|'preparing'|'sent'|'delivered'|'cancelled' }
+ * Valida transiciones permitidas en el backend.
+ * Devuelve el pedido actualizado.
+ */
+export const updateAdminOrderStatus = async (
+  orderId: number,
+  status: string,
+): Promise<ApiAdminOrder> =>
+  (await apiRequest(`/api/admin/orders/${orderId}/status`, {
+    method: 'PATCH',
+    body: { status },
+  })) as ApiAdminOrder;

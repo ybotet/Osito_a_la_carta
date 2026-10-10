@@ -76,6 +76,43 @@
         "delivered": "Entregado",
         "cancelled": "Cancelado"
       }
+    },
+    "orderDetail": {
+      "title": "Detalle del pedido #{{id}}",
+      "invalidId": "ID de pedido inválido",
+      "invalidStatus": "El pedido contiene un estado no reconocido.",
+      "loading": "Cargando detalle del pedido…",
+      "error": "No se ha podido cargar el detalle del pedido. Inténtalo de nuevo en unos minutos.",
+      "retry": "Reintentar",
+      "refresh": "Actualizar",
+      "updating": "Actualizando…",
+      "update": "Actualizar",
+      "info": "Información del pedido",
+      "client": "Cliente",
+      "date": "Fecha",
+      "status": "Estado",
+      "total": "Total",
+      "note": "Nota del cliente",
+      "items": "Platos",
+      "colItem": "Plato",
+      "colQty": "Cant.",
+      "colUnitPrice": "Precio unit.",
+      "colSubtotal": "Subtotal",
+      "total": "Total",
+      "changeStatus": "Cambiar estado",
+      "statusUpdateError": "No se pudo actualizar el estado. Vuelve a intentarlo.",
+      "currentStatus": "Estado actual:",
+      "selectStatus": "Seleccionar nuevo estado",
+      "update": "Actualizar estado",
+      "updating": "Actualizando estado…",
+      "finalState": "El estado \"{{status}}\" es final y no se puede cambiar.",
+      "statuses": {
+        "pending": "Pendiente",
+        "preparing": "Preparando",
+        "sent": "Enviado",
+        "delivered": "Entregado",
+        "cancelled": "Cancelado"
+      }
     }
   },
   "stats": {

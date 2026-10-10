@@ -76,6 +76,43 @@
         "delivered": "Delivered",
         "cancelled": "Cancelled"
       }
+    },
+    "orderDetail": {
+      "title": "Order #{{id}} Details",
+      "invalidId": "Invalid order ID",
+      "invalidStatus": "The order contains an unknown status.",
+      "loading": "Loading order details…",
+      "error": "We could not load order details. Please try again in a few minutes.",
+      "retry": "Retry",
+      "refresh": "Refresh",
+      "updating": "Updating…",
+      "update": "Update",
+      "info": "Order Information",
+      "client": "Client",
+      "date": "Date",
+      "status": "Status",
+      "total": "Total",
+      "note": "Customer Note",
+      "items": "Items",
+      "colItem": "Item",
+      "colQty": "Qty",
+      "colUnitPrice": "Unit Price",
+      "colSubtotal": "Subtotal",
+      "total": "Total",
+      "changeStatus": "Change Status",
+      "statusUpdateError": "The status could not be updated. Please try again.",
+      "currentStatus": "Current Status:",
+      "selectStatus": "Select New Status",
+      "update": "Update Status",
+      "updating": "Updating Status…",
+      "finalState": "Status \"{{status}}\" is final and cannot be changed.",
+      "statuses": {
+        "pending": "Pending",
+        "preparing": "Preparing",
+        "sent": "Sent",
+        "delivered": "Delivered",
+        "cancelled": "Cancelled"
+      }
     }
   },
   "stats": {

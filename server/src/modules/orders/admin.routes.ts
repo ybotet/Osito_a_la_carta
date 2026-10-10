@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { requireAdmin } from '../../middleware/auth.js';
-import { BadRequestError } from '../../shared/errors.js';
+import { BadRequestError, NotFoundError } from '../../shared/errors.js';
 import { readAcceptLanguage } from '../../shared/http.js';
-import { listAdminOrders, updateOrderStatusAdmin } from './orders.service.js';
+import { listAdminOrders, updateOrderStatusAdmin, getAdminOrderById } from './orders.service.js';
 
 const adminOrdersRouter = Router();
 
@@ -28,6 +28,32 @@ adminOrdersRouter.get('/admin/orders', requireAdmin, (req, res) => {
 
   const orders = listAdminOrders(readAcceptLanguage(req), status);
   res.status(200).json(orders);
+});
+
+/**
+ * GET /api/admin/orders/:id
+ *
+ * Obtiene el detalle de un pedido específico (solo admin).
+ * Devuelve el pedido con userEmail, items localizados, etc.
+ */
+adminOrdersRouter.get('/admin/orders/:id', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new BadRequestError(
+      'ID de pedido inválido',
+      'VALIDATION_ERROR',
+      { id: req.params.id },
+    );
+  }
+
+  const order = getAdminOrderById(id, readAcceptLanguage(req));
+
+  if (order === undefined) {
+    throw new NotFoundError('Pedido no encontrado', 'ORDER_NOT_FOUND', { id });
+  }
+
+  res.status(200).json(order);
 });
 
 /**

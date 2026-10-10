@@ -213,3 +213,10 @@ src/
 ---
 
 > **Regla:** Cada decisión nueva se agrega aquí con fecha, contexto, alternativas y consecuencias. Si se revierte, agregar entrada nueva explicando el cambio (no borrar la original).
+
+## 20. Aclaración T-083: estados válidos de pedidos
+
+**Fecha:** 2026-10-10
+**Contexto:** La lista de estados de pedidos descrita en la decisión #4 es anterior a la implementación de T-082 y no menciona `cancelled`.
+**Aclaración:** Se mantiene la definición vigente en `SPEC.md` y el endpoint de T-082: `pending`, `preparing`, `sent`, `delivered` y `cancelled`. `pending → preparing | cancelled`, `preparing → sent | cancelled`, `sent → delivered | cancelled`; `delivered` y `cancelled` son finales.
+**Consecuencias:** T-083 muestra únicamente las transiciones permitidas por el backend; no introduce ni modifica reglas de negocio.

@@ -17,6 +17,9 @@ import { sendOrderEmail } from '../notifications/email.service.js';
 import { sendOrderTelegram } from '../notifications/telegram.service.js';
 import { sendWithRetry, insertNotificationLog } from '../notifications/notifications.repository.js';
 import type { LocalizedOrderItem } from '../notifications/templates/order-email.js';
+import { db } from '../../db/client.js';
+import { users } from '../../db/schema.js';
+import { eq } from 'drizzle-orm';
 
 /**
  * Redondea a céntimos. El precio viene de SQLite por `real`, así que es coma flotante:
@@ -272,8 +275,6 @@ const createOrder = (
   return response;
 };
 
-export { createOrder, listOrders, getOrderById, listAdminOrders, updateOrderStatusAdmin };
-
 export type CreateOrderResult = ReturnType<typeof createOrder>;
 export type ListOrdersResult = ReturnType<typeof listOrders>;
 export type GetOrderByIdResult = ReturnType<typeof getOrderById>;
@@ -380,3 +381,35 @@ const updateOrderStatusAdmin = (
     order: toResponse(updated.order, updated.items, language),
   });
 };
+
+/**
+ * Obtiene el detalle de un pedido para el panel de admin.
+ *
+ * Devuelve el pedido con userEmail, items localizados, etc.
+ * Si el pedido no existe, devuelve undefined.
+ */
+const getAdminOrderById = (
+  orderId: number,
+  acceptLanguage: string | undefined,
+) => {
+  const language = resolveLanguage(acceptLanguage);
+  const orderData = findOrderWithItems(orderId);
+
+  if (orderData === undefined) {
+    return undefined;
+  }
+
+  // Buscar el email del usuario
+  const user = db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.id, orderData.order.userId))
+    .get();
+
+  return {
+    ...toResponse(orderData.order, orderData.items, language),
+    userEmail: user?.email ?? 'desconocido@desconocido.com',
+  };
+};
+
+export { createOrder, listOrders, getOrderById, listAdminOrders, updateOrderStatusAdmin, getAdminOrderById };

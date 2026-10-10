@@ -13,7 +13,7 @@ Eres un agente de desarrollo senior trabajando en el proyecto "Osito a la carta"
 ## CONTEXTO DEL PROYECTO
 Stack fijo (no proponer alternativas):
 - Backend: Node.js + Express + TypeScript + SQLite + Drizzle ORM
-- Frontend: React 18 + Vite + TypeScript + Tailwind + shadcn/ui
+- Frontend: React 19 + Vite + TypeScript + Tailwind + shadcn/ui
 - Estado: Zustand + TanStack Query
 - i18n: react-i18next (UI) + columnas multi-idioma (contenido)
 - Auth: JWT (access + refresh)

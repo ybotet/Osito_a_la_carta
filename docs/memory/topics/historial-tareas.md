@@ -175,6 +175,13 @@
 
 ---
 
+## 2026-10-10 — T-083: Vista de detalle de pedido para el chef
+
+**Qué:** Página `/admin/orders/:id` para consultar el detalle del pedido y cambiar su estado.
+**Cómo:** Usa `fetchAdminOrderById` y `updateAdminOrderStatus`; restringe la vista a admin, muestra cliente, fecha, nota, platos, cantidades, precios unitarios y subtotales, y ofrece solo transiciones válidas según T-082. Al actualizar, sincroniza la caché del detalle y revalida la lista. Añadidas traducciones en español, ruso e inglés.
+**Impacto:** El chef puede consultar los datos completos y gestionar el avance del pedido desde su panel.
+**Deuda/Notas:** Se registró en `decisiones-arquitectura.md` la aclaración de que `cancelled` forma parte de los estados vigentes, siguiendo SPEC y T-082.
+
 ## Próximas entradas (plantilla)
 
 ```

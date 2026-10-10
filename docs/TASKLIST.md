@@ -175,8 +175,9 @@
 - [x] **T-082**: `PATCH /api/admin/orders/:id/status` para cambiar estado
   - Criterio: solo permite transiciones válidas (`pending → preparing → sent → delivered`).
   - **Notas de progreso (2026-10-09):** creado endpoint `PATCH /api/admin/orders/:id/status` en `orders/admin.routes.ts` con `requireAdmin`. Body: `{ status: 'pending'|'preparing'|'sent'|'delivered'|'cancelled' }`. Valida transiciones permitidas: `pending → preparing | cancelled`, `preparing → sent | cancelled`, `sent → delivered | cancelled`, `delivered` y `cancelled` son estados finales. Transiciones inválidas responden 400 con code `INVALID_TRANSITION`. Idempotente si el estado no cambia. Typecheck, lint y build en verde.
-- [ ] **T-083**: Vista de detalle de pedido para el chef
-  - Criterio: muestra datos del cliente, platos y nota.
+- [x] **T-083**: Vista de detalle de pedido para el chef
+  - Criterio: admin puede consultar email, fecha, nota, platos, cantidades, precios y total; cambiar estado mediante una transición válida; volver a la lista.
+  - **Notas de progreso (2026-10-10):** completada la página `/admin/orders/:id` con consulta al endpoint de detalle existente, acceso solo admin, datos y precios formateados según idioma, transiciones reflejadas por el endpoint T-082, actualización de caché y revalidación de la lista. Textos agregados en es/ru/en. Verificados typecheck, lint y build del cliente.
 
 ---
 
