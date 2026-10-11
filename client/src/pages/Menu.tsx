@@ -1,8 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { fetchDishes } from '../api/dishes';
 import DishCard from '../components/DishCard';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { useAuthStore } from '../store/auth';
 
 /**
  * skeletons del estado de carga: mismo hueco que la tarjeta final, sin texto. Se pintan
@@ -36,7 +39,10 @@ const DISH_SKELETONS = 3;
  */
 const Menu = () => {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const language = i18n.resolvedLanguage ?? i18n.language;
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role === 'admin';
 
   /**
    * `language` va en la `queryKey` a propósito: si no, al cambiar de idioma TanStack
@@ -52,9 +58,19 @@ const Menu = () => {
   if (isPending) {
     return (
       <main className="mx-auto max-w-5xl p-4">
-        <div className="mb-4 flex items-center gap-2">
-          <img src="/images/osito.jpg" alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
-          <h1 className="text-3xl font-bold">{t('menu.title')}</h1>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <img src="/images/osito.jpg" alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
+            <h1 className="text-3xl font-bold">{t('menu.title')}</h1>
+          </div>
+          {isAdmin && (
+            <Button
+              onClick={() => navigate('/admin/dishes/create')}
+              className="whitespace-nowrap"
+            >
+              {t('admin.dishes.create')}
+            </Button>
+          )}
         </div>
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: DISH_SKELETONS }, (_, index) => (
@@ -71,9 +87,19 @@ const Menu = () => {
   if (isError) {
     return (
       <main className="mx-auto max-w-5xl p-4">
-        <div className="mb-4 flex items-center gap-2">
-          <img src="/images/osito.jpg" alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
-          <h1 className="text-3xl font-bold">{t('menu.title')}</h1>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <img src="/images/osito.jpg" alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
+            <h1 className="text-3xl font-bold">{t('menu.title')}</h1>
+          </div>
+          {isAdmin && (
+            <Button
+              onClick={() => navigate('/admin/dishes/create')}
+              className="whitespace-nowrap"
+            >
+              {t('admin.dishes.create')}
+            </Button>
+          )}
         </div>
         <p
           role="alert"
@@ -93,9 +119,19 @@ const Menu = () => {
   if (dishes.length === 0) {
     return (
       <main className="mx-auto max-w-5xl p-4">
-        <div className="mb-4 flex items-center gap-2">
-          <img src="/images/osito.jpg" alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
-          <h1 className="text-3xl font-bold">{t('menu.title')}</h1>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <img src="/images/osito.jpg" alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
+            <h1 className="text-3xl font-bold">{t('menu.title')}</h1>
+          </div>
+          {isAdmin && (
+            <Button
+              onClick={() => navigate('/admin/dishes/create')}
+              className="whitespace-nowrap"
+            >
+              {t('admin.dishes.create')}
+            </Button>
+          )}
         </div>
         <p className="text-muted-foreground">{t('menu.empty')}</p>
       </main>
@@ -104,9 +140,19 @@ const Menu = () => {
 
   return (
     <main className="mx-auto max-w-5xl p-4">
-      <div className="mb-4 flex items-center gap-2">
-        <img src="/images/osito.jpg" alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
-        <h1 className="text-3xl font-bold">{t('menu.title')}</h1>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <img src="/images/osito.jpg" alt="" className="h-10 w-10 rounded-lg object-cover" aria-hidden="true" />
+          <h1 className="text-3xl font-bold">{t('menu.title')}</h1>
+        </div>
+        {isAdmin && (
+          <Button
+            onClick={() => navigate('/admin/dishes/create')}
+            className="whitespace-nowrap"
+          >
+            {t('admin.dishes.create')}
+          </Button>
+        )}
       </div>
       <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {dishes.map((dish) => (

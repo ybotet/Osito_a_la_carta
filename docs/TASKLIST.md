@@ -178,6 +178,12 @@
 - [x] **T-083**: Vista de detalle de pedido para el chef
   - Criterio: admin puede consultar email, fecha, nota, platos, cantidades, precios y total; cambiar estado mediante una transición válida; volver a la lista.
   - **Notas de progreso (2026-10-10):** completada la página `/admin/orders/:id` con consulta al endpoint de detalle existente, acceso solo admin, datos y precios formateados según idioma, transiciones reflejadas por el endpoint T-082, actualización de caché y revalidación de la lista. Textos agregados en es/ru/en. Verificados typecheck, lint y build del cliente.
+- [x] **T-084**: Crear página `/admin/dishes` y `/admin/dishes/:id` para crear/actualizar platos
+  - Criterio: admin puede crear un plato subiendo su imagen desde archivo, actualizar un plato y reemplazar la imagen subiendo otro archivo; botón "Crear" visible en `/menu` (admin), botón "Editar" visible en `/dishes/:id` (admin); ambos navegan a la página de form; validación de 3 idiomas; typecheck, lint, build OK; i18n completo en es/ru/en.
+  - **Notas de progreso (2026-10-10):** completada la implementación del formulario de administración de platos. Creado DishForm.tsx con validación multi-idioma, gestión de creación y edición, vista previa de imagen, y guard de autenticación (solo admin). Agregados botones "Crear plato" en `/menu` y "Editar" en detalles del plato, ambos solo visibles para admin. Configuradas rutas `/admin/dishes/create` y `/admin/dishes/:id`. Agregadas claves i18n completas en es.json, ru.json, en.json (admin.dishes.*). Verificados typecheck, lint y build sin errores.
+  - **Notas de progreso (2026-10-11):** el formulario ahora selecciona archivos de imagen en lugar de aceptar URL. La imagen se sube con `multipart/form-data` al endpoint admin `/api/dishes/image` antes de crear o actualizar; solo se reemplaza la imagen al editar si se selecciona un nuevo archivo. Formatos permitidos: JPG, PNG, WebP y AVIF; límite 5 MB. Typecheck, lint y build verificados.
+  - **Notas de progreso (2026-10-11):** la edición obtiene la traducción es/ru/en mediante tres lecturas localizadas y carga cada valor en su campo correcto.
+  - **Corrección (2026-10-11):** creación y edición pasan el objeto JSON sin pre-serializar a `apiRequest`; la serialización la realiza el cliente HTTP común, evitando el error `Malformed JSON body`.
 
 ---
 

@@ -38,10 +38,13 @@ export class ApiError extends Error {
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   headers?: Record<string, string>;
-  /** Se serializa con `JSON.stringify` y se manda como `application/json`. */
+  /** Los objetos se serializan como JSON; `FormData` se envía como multipart. */
   body?: unknown;
   signal?: AbortSignal;
 };
+
+const isFormData = (value: unknown): value is FormData =>
+  typeof FormData !== 'undefined' && value instanceof FormData;
 
 /**
  * Hace la petición y devuelve el cuerpo ya parseado, o lanza `ApiError`.
@@ -62,14 +65,19 @@ const requestJson = async (
   options: RequestOptions = {},
 ): Promise<unknown> => {
   const { method = 'GET', headers = {}, body, signal } = options;
+  const multipartBody = isFormData(body);
 
   const response = await fetch(path, {
     method,
     headers: {
-      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      ...(body === undefined || multipartBody
+        ? {}
+        : { 'content-type': 'application/json' }),
       ...headers,
     },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    ...(body === undefined
+      ? {}
+      : { body: multipartBody ? body : JSON.stringify(body) }),
     ...(signal !== undefined && { signal }),
   });
 

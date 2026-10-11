@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import { requireAdmin } from '../../middleware/auth.js';
 import { BadRequestError } from '../../shared/errors.js';
 import { idParamSchema, readAcceptLanguage } from '../../shared/http.js';
@@ -24,6 +24,19 @@ import {
 } from './dishes.uploads.js';
 
 const dishesRouter = Router();
+
+const parseDishImageUpload: RequestHandler = (req, res, next) => {
+  uploadDishImage.single('image')(req, res, (error?: unknown) => {
+    if (error !== undefined && error !== null) {
+      req.resume();
+      next(toUploadError(error));
+
+      return;
+    }
+
+    next();
+  });
+};
 
 // Las dos lecturas siguen siendo públicas a propósito desde T-043: el menú es de cualquiera,
 // también sin sesión.
@@ -68,9 +81,24 @@ dishesRouter.patch('/dishes/:id/availability', requireAdmin, (req, res) => {
 });
 
 /**
- * `multipart/form-data` con un único fichero en el campo `image`. Es la **única** ruta del
- * proyecto que no recibe JSON: `express.json()` no lo lee, y por eso multer va como
- * middleware explícito en esta ruta y no globalmente.
+ * Sube una imagen antes de crear o actualizar el plato. La ruta relativa devuelta se guarda
+ * después mediante los endpoints JSON existentes.
+ */
+dishesRouter.post('/dishes/image', requireAdmin, parseDishImageUpload, (req, res) => {
+  if (req.file === undefined) {
+    throw new BadRequestError(
+      'Se esperaba un unico fichero de imagen (jpeg, png, webp o avif) en el campo "image"',
+      'IMAGE_REQUIRED',
+    );
+  }
+
+  res.status(201).json({ imageUrl: toStoredImageUrl(req.file.filename) });
+});
+
+/**
+ * `multipart/form-data` con un único fichero en el campo `image`. Estas rutas son las únicas
+ * del proyecto que no reciben JSON: `express.json()` no lo lee, y por eso multer va como
+ * middleware explícito en cada ruta y no globalmente.
  *
  * **El error de multer se pasa a `next()` y no se lanza aquí.** Este callback lo ejecuta
  * multer de forma asíncrona, cuando `diskStorage` ha terminado de escribir y decide abortar,
@@ -87,18 +115,7 @@ dishesRouter.patch('/dishes/:id/availability', requireAdmin, (req, res) => {
 dishesRouter.post(
   '/dishes/:id/image',
   requireAdmin,
-  (req, res, next) => {
-    uploadDishImage.single('image')(req, res, (error?: unknown) => {
-      if (error !== undefined && error !== null) {
-        req.resume();
-        next(toUploadError(error));
-
-        return;
-      }
-
-      next();
-    });
-  },
+  parseDishImageUpload,
   (req, res) => {
     const { id } = idParamSchema.parse(req.params);
 

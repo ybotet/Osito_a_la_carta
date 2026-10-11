@@ -1,6 +1,6 @@
 # Gotchas y problemas conocidos
 
-> Última actualización: 2026-10-07
+> Última actualización: 2026-10-11
 
 Lista viva de problemas, comportamientos sorprendentes y soluciones aplicadas. **Objetivo: no tropezar dos veces con la misma piedra.**
 
@@ -74,6 +74,7 @@ Lista viva de problemas, comportamientos sorprendentes y soluciones aplicadas. *
 | **Nginx no sirve `/uploads/` tras deploy** | 404 en imágenes subidas | Falta config `location /uploads/ { alias /var/www/osito/uploads/; }` | Pendiente T-095. Recordar: `alias` (no `root`) + trailing slash en ambos. |
 | **Nombre de archivo UUID + extensión original** | Colisión si mismo nombre subido dos veces | `Date.now()` + nombre original colisiona en misma ms | `crypto.randomUUID() + path.extname(file.originalname)`. Implementado. |
 | **`PUBLIC_ORIGIN` sin trailing slash** | URL doble slash: `https://api.osito.local//uploads/...` | Concatenación manual | `const url = \`${PUBLIC_ORIGIN.replace(/\/$/, '')}/uploads/${relativePath}\``. Ver `uploads` service. |
+| **Carga de imagen separada del guardado del plato** | Archivo sin referencia en BD | El formulario sube el archivo antes de crear/actualizar el plato para reutilizar el endpoint multipart | Si la siguiente escritura falla, el fichero puede quedar huérfano en `UPLOADS_DIR`; la interfaz informa del fallo, pero la limpieza no está automatizada. |
 
 ---
 

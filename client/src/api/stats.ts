@@ -13,7 +13,7 @@ export const recordPageView = async (
 ): Promise<void> => {
   await apiRequest('/api/stats/pageview', {
     method: 'POST',
-    body: JSON.stringify({ dishId, path }),
+    body: { dishId, path },
   });
 };
 

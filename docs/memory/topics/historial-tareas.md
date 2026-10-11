@@ -182,6 +182,15 @@
 **Impacto:** El chef puede consultar los datos completos y gestionar el avance del pedido desde su panel.
 **Deuda/Notas:** Se registró en `decisiones-arquitectura.md` la aclaración de que `cancelled` forma parte de los estados vigentes, siguiendo SPEC y T-082.
 
+---
+
+## 2026-10-10 — T-084: Página admin para crear y editar platos
+
+**Qué:** Página `/admin/dishes/create` para crear nuevo plato y `/admin/dishes/:id` para editarlo. Botones "Crear plato" en `/menu` y "Editar" en `/menu/:id`, ambos solo visibles para admin.
+**Cómo:** Componente `DishForm.tsx` con React Hook Form + Zod; valida 3 idiomas (nombres, descripciones, ingredientes), URL de imagen (absoluta o `/uploads/dishes/...`), categoría (dropdown nativa), precio. Guarda imagen en cliente para vista previa. Auth guard redirige no-admin a `/menu`. API: `createDish()` y `updateDish()` en `client/src/api/dishes.ts`. Rutas configuradas en `main.tsx`. Botones integrados en `Menu.tsx` (header) y `DishDetail.tsx` (al lado de "Volver"). Cadenas i18n completas (admin.dishes.*) en es/ru/en.
+**Impacto:** Chef puede crear platos nuevos y editar existentes directamente desde la interfaz. UX fluida: botones contextuales, validación clara, previsualización de imagen.
+**Deuda/Notas:** Upload de imagen pendiente (endpoint POST /api/dishes/:id/image existe en backend pero no integrado aún en frontend; para ahora se usa URL textual). Sin confirmación de cambios sin guardar (useBlocker pendiente). TypeScript y linting en verde.
+
 ## Próximas entradas (plantilla)
 
 ```
@@ -193,3 +202,24 @@
 ```
 
 > **Regla:** Una entrada por tarea completada (o grupo pequeño relacionado). Al terminar cada tarea, agregar aquí. Si hay decisiones/gotchas nuevos, añadirlos también a su archivo temático correspondiente.
+
+## 2026-10-11 — T-084: Carga de archivo de imagen en el formulario de platos
+
+**Qué:** Se sustituyó la entrada manual de URL por selección y carga de un archivo de imagen al crear o actualizar platos.
+**Cómo:** Se añadió `POST /api/dishes/image` protegido para admin; acepta multipart `image` y devuelve la ruta relativa guardada. El cliente comparte `apiRequest` para enviar `FormData` con la autenticación/interceptor existentes, y sube antes de crear/actualizar. Al editar, si no se selecciona un archivo se conserva la imagen actual. Se mantiene el endpoint existente `POST /api/dishes/:id/image`.
+**Impacto:** La interfaz de administración ya no requiere que el chef conozca o escriba una URL. JPG, PNG, WebP y AVIF hasta 5 MB, con validación y mensajes en es/ru/en.
+**Deuda/Notas:** Como la carga y la escritura del plato son solicitudes separadas, si la segunda falla el archivo subido puede quedar sin referencia en la base de datos.
+
+## 2026-10-11 — T-084: Cargar traducciones completas al editar un plato
+
+**Qué:** Se corrigió la hidratación del formulario de edición, que antes solo completaba los campos del idioma activo.
+**Cómo:** La consulta de edición ahora obtiene el plato en español, ruso e inglés en paralelo y asigna nombre, descripción e ingredientes de cada respuesta a los campos de idioma correspondientes.
+**Impacto:** Al editar, las tres traducciones guardadas se muestran y se preservan aunque el idioma de interfaz esté cambiado.
+**Deuda/Notas:** La API de lectura sigue localizada; el cliente realiza tres peticiones en paralelo, sin ampliar la respuesta pública.
+
+## 2026-10-11 — T-084: Corregir serialización JSON al guardar platos
+
+**Qué:** Se resolvió el error `Malformed JSON body` al crear o editar un plato.
+**Cómo:** `createDish` y `updateDish` ahora pasan el objeto a `apiRequest` sin llamar previamente a `JSON.stringify`; `requestJson` es la capa responsable de serializar el objeto exactamente una vez. Se corrigió también el caller de pageview, que repetía el mismo patrón.
+**Impacto:** Express recibe un objeto JSON en vez de una cadena JSON de nivel superior, y puede validar el body correctamente.
+**Deuda/Notas:** Ninguna.

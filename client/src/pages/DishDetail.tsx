@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
@@ -7,6 +7,7 @@ import { fetchDishById } from '../api/dishes';
 import { recordPageView } from '../api/stats';
 import { formatPrice } from '../lib/format';
 import { useCartStore } from '../store/cart';
+import { useAuthStore } from '../store/auth';
 import { Button } from '../components/ui/button';
 
 /**
@@ -104,9 +105,12 @@ const DishDetailError = ({ isNotFound, message }: DishDetailErrorProps) => {
 
 const DishDetail = () => {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const language = i18n.resolvedLanguage ?? i18n.language;
   const dishId = Number(id);
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role === 'admin';
 
   /**
    * El botón de añadir se conecta al store en T-050. Los hooks van aquí arriba y no junto al
@@ -184,14 +188,24 @@ const DishDetail = () => {
     <main className="mx-auto max-w-5xl p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold">{dish.name}</h1>
-        {/*
-          `Button` con `asChild` y un `Link` dentro: un `<button>` no puede contener un
-          enlace, y `asChild` es lo que permite tener las dos cosas sin copiar las clases del
-          botón en cada enlace.
-        */}
-        <Button asChild variant="outline">
-          <Link to="/menu">{t('nav.backToMenu')}</Link>
-        </Button>
+        <div className="flex gap-2">
+          {isAdmin && (
+            <Button
+              onClick={() => navigate(`/admin/dishes/${dish.id}`)}
+              variant="outline"
+            >
+              {t('admin.dishes.edit')}
+            </Button>
+          )}
+          {/*
+            `Button` con `asChild` y un `Link` dentro: un `<button>` no puede contener un
+            enlace, y `asChild` es lo que permite tener las dos cosas sin copiar las clases del
+            botón en cada enlace.
+          */}
+          <Button asChild variant="outline">
+            <Link to="/menu">{t('nav.backToMenu')}</Link>
+          </Button>
+        </div>
       </div>
 
       {/*

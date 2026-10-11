@@ -48,3 +48,95 @@ export const fetchDishById = async (
     headers: { 'Accept-Language': acceptLanguage },
     signal,
   })) as ApiDishResponse;
+
+export type CreateDishInput = {
+  categoryId: number;
+  imageUrl: string;
+  price: number;
+  nameEs: string;
+  nameRu: string;
+  nameEn: string;
+  descEs: string;
+  descRu: string;
+  descEn: string;
+  ingredientsEs: string;
+  ingredientsRu: string;
+  ingredientsEn: string;
+};
+
+export type UpdateDishInput = Partial<CreateDishInput>;
+
+export type UploadedDishImage = {
+  imageUrl: string;
+};
+
+/**
+ * Sube la imagen de un plato como `multipart/form-data`. Requiere admin.
+ */
+export const uploadDishImage = async (
+  image: File,
+): Promise<UploadedDishImage> => {
+  const formData = new FormData();
+  formData.append('image', image);
+
+  return (await apiRequest('/api/dishes/image', {
+    method: 'POST',
+    body: formData,
+  })) as UploadedDishImage;
+};
+
+/**
+ * Crea un nuevo plato. Requiere admin.
+ *
+ * Devuelve el plato creado con su nuevo `id`.
+ */
+export const createDish = async (
+  body: CreateDishInput,
+  acceptLanguage: string,
+): Promise<ApiDishResponse> =>
+  (await apiRequest('/api/dishes', {
+    method: 'POST',
+    headers: { 'Accept-Language': acceptLanguage },
+    body,
+  })) as ApiDishResponse;
+
+/**
+ * Actualiza un plato existente. Requiere admin.
+ *
+ * Todos los campos son opcionales; solo se actualizan los que vienen en el body.
+ */
+export const updateDish = async (
+  id: number,
+  body: UpdateDishInput,
+  acceptLanguage: string,
+): Promise<ApiDishResponse> =>
+  (await apiRequest(`/api/dishes/${id}`, {
+    method: 'PUT',
+    headers: { 'Accept-Language': acceptLanguage },
+    body,
+  })) as ApiDishResponse;
+
+export type ApiCategory = {
+  id: number;
+  slug: string;
+  name: string;
+};
+
+export type ApiCategoriesResponse = {
+  language: string;
+  categories: ApiCategory[];
+};
+
+/**
+ * Pide las categorías en el idioma indicado.
+ *
+ * Endpoint público, se puede llamar sin sesión.
+ */
+export const fetchCategories = async (
+  acceptLanguage: string,
+  signal?: AbortSignal,
+): Promise<ApiCategoriesResponse> =>
+  (await apiRequest('/api/categories', {
+    headers: { 'Accept-Language': acceptLanguage },
+    signal,
+  })) as ApiCategoriesResponse;
