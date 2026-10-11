@@ -18,6 +18,7 @@ import AdminCategories from './pages/admin/Categories.tsx';
 import Layout from './components/Layout.tsx';
 import './lib/i18n.ts';
 import './index.css';
+import { initializeTheme } from './lib/theme.ts';
 
 /**
  * `staleTime` de 30 s: el menú cambia poco y el usuario navega entre páginas. Con el valor
@@ -41,6 +42,8 @@ const rootElement = document.getElementById('root');
 if (rootElement === null) {
   throw new Error('No se encontro el elemento #root en index.html');
 }
+
+initializeTheme();
 
 createRoot(rootElement).render(
   <StrictMode>

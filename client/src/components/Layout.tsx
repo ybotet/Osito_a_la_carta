@@ -4,6 +4,7 @@ import LanguageSwitcher from './LanguageSwitcher';
 import UserMenu from './UserMenu';
 import { useAuthStore, useAuthHydrated } from '../store/auth';
 import { Button } from './ui/button';
+import ThemeSwitcher from './ThemeSwitcher';
 
 /**
    * Envoltorio de todas las páginas: el navbar arriba y el hueco donde se pinta la ruta
@@ -129,6 +130,7 @@ const Layout = () => {
               <span className="mx-1 hidden h-5 w-px bg-border sm:block" />
 
               <LanguageSwitcher />
+              <ThemeSwitcher />
             </div>
           </nav>
         </div>

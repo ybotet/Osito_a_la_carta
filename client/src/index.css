@@ -16,10 +16,11 @@
  * sin `inline`, Tailwind copiaría el `oklch` en cada clase y cambiar el tema obligaría a
  * regenerar el CSS.
  *
- * **Solo la paleta clara.** El producto no tiene modo oscuro (SPEC.md no lo pide), así que no se
- * añade bloque `.dark` ni el variant `dark`: sería código muerto. Cuando se quiera, se añade el
- * `.dark` con los mismos nombres y el `@custom-variant dark`.
+ * El tema claro es el predeterminado; `.dark` reemplaza los mismos tokens y el variant de Tailwind
+ * sigue la clase aplicada a `html`.
  */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --radius: 0.625rem;
 
@@ -47,6 +48,42 @@
   --border: oklch(92.3% 0.003 48.717);
   --input: oklch(92.3% 0.003 48.717);
   --ring: oklch(70.9% 0.01 56.259);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: oklch(17.5% 0.006 56.043);
+  --foreground: oklch(95% 0.004 80);
+  --card: oklch(21.5% 0.007 56.043);
+  --card-foreground: oklch(95% 0.004 80);
+  --popover: oklch(21.5% 0.007 56.043);
+  --popover-foreground: oklch(95% 0.004 80);
+  --primary: oklch(90% 0.01 80);
+  --primary-foreground: oklch(22% 0.008 56);
+  --secondary: oklch(27% 0.008 56);
+  --secondary-foreground: oklch(95% 0.004 80);
+  --muted: oklch(27% 0.008 56);
+  --muted-foreground: oklch(70% 0.012 65);
+  --accent: oklch(30% 0.012 56);
+  --accent-foreground: oklch(95% 0.004 80);
+  --destructive: oklch(55% 0.2 25);
+  --destructive-foreground: oklch(98% 0.005 80);
+  --border: oklch(34% 0.008 56);
+  --input: oklch(34% 0.008 56);
+  --ring: oklch(62% 0.012 60);
+}
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
 }
 
 /**

@@ -2,6 +2,47 @@
   "app": {
     "title": "Osito a la carte"
   },
+  "home": {
+    "eyebrow": "Homemade cooking, made with care",
+    "title": "A little comfort in every dish.",
+    "intro": "Comforting recipes, fresh ingredients and all the care of a family kitchen. Choose your favourites and we’ll take care of the rest.",
+    "menuCta": "Explore the menu",
+    "storyCta": "Our story",
+    "heroBadge": "Made with care, every day",
+    "featuredEyebrow": "From our kitchen to your table",
+    "featuredTitle": "House favourites",
+    "allDishes": "See the full menu",
+    "featuredError": "We can’t load the featured dishes right now.",
+    "retry": "Try again",
+    "noFeatured": "We’re preparing the menu. Come back soon to discover our dishes.",
+    "valuesLabel": "What makes our kitchen special",
+    "valueCookingTitle": "Cooked to order",
+    "valueCookingText": "We prepare every order with care and attention, just like at home.",
+    "valueCareTitle": "Made with care",
+    "valueCareText": "Simple recipes, familiar flavours and care in every detail.",
+    "valueDeliveryTitle": "At your door",
+    "valueDeliveryText": "Order online and enjoy homemade food without leaving home.",
+    "aboutEyebrow": "A little about us",
+    "aboutTitle": "A small kitchen with a big heart",
+    "aboutText": "Osito a la carta began with a wish to share the dishes that bring everyone around the table. We’re a small family team in Valencia, cooking so every order feels personal, delicious and made for you.",
+    "aboutPointOne": "A friendly experience from choosing your meal to receiving it.",
+    "aboutPointTwo": "A menu inspired by home cooking and timeless flavours.",
+    "howEyebrow": "It’s that easy",
+    "howTitle": "Your next favourite meal in three steps",
+    "stepOneTitle": "Choose your dishes",
+    "stepOneText": "Browse the menu and find something you’re craving.",
+    "stepTwoTitle": "Place your order",
+    "stepTwoText": "Add your favourites to the cart and confirm your order.",
+    "stepThreeTitle": "Enjoy",
+    "stepThreeText": "We’ll get cooking so you can enjoy a meal at home.",
+    "visitEyebrow": "Here for you",
+    "visitTitle": "A taste of home in Valencia",
+    "visitText": "Browse the menu and place your order online. These location and opening details are provisional.",
+    "locationLabel": "Area",
+    "location": "Valencia and nearby areas",
+    "hoursLabel": "Provisional hours",
+    "hours": "Tuesday to Sunday · 12:00–22:00"
+  },
   "nav": {
     "menu": "Menu",
     "cart": "Cart",
@@ -226,6 +267,10 @@
     "es": "Español",
     "ru": "Русский",
     "en": "English"
+  },
+  "theme": {
+    "switchToDark": "Switch to dark mode",
+    "switchToLight": "Switch to light mode"
   },
   "dish": {
     "loading": "Loading the dish…",
