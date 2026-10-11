@@ -11,7 +11,8 @@
     "main": "Navegación principal",
     "backToMenu": "Volver al menú",
     "stats": "Estadísticas",
-    "admin": "Panel chef"
+    "admin": "Panel chef",
+    "adminCategories": "Categorías"
   },
   "menu": {
     "title": "Menú",
@@ -75,6 +76,36 @@
         "sent": "Enviado",
         "delivered": "Entregado",
         "cancelled": "Cancelado"
+      }
+    },
+    "categories": {
+      "title": "Gestión de categorías",
+      "createTitle": "Crear categoría",
+      "editTitle": "Editar categoría",
+      "listTitle": "Categorías actuales",
+      "loading": "Cargando categorías…",
+      "loadError": "No se pudieron cargar las categorías.",
+      "retry": "Reintentar",
+      "empty": "Todavía no hay categorías.",
+      "slug": "Slug (minúsculas, números y guiones)",
+      "nameEs": "Nombre (Español)",
+      "nameRu": "Nombre (Русский)",
+      "nameEn": "Nombre (English)",
+      "create": "Crear categoría",
+      "save": "Guardar cambios",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "cancel": "Cancelar",
+      "confirmDelete": "¿Eliminar la categoría «{{name}}»?",
+      "validation": {
+        "slugLength": "El slug debe tener entre 2 y 50 caracteres.",
+        "slugFormat": "Usa solo minúsculas, números y guiones.",
+        "nameRequired": "Completa el nombre en este idioma."
+      },
+      "errors": {
+        "unknown": "No se pudo guardar el cambio. Inténtalo de nuevo.",
+        "CATEGORY_SLUG_TAKEN": "Ya existe una categoría con ese slug.",
+        "CATEGORY_HAS_DISHES": "No se puede eliminar: la categoría todavía tiene platos."
       }
     },
     "orderDetail": {

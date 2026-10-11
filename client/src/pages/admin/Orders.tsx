@@ -137,9 +137,15 @@ const AdminOrdersError = ({
 /**
  * Badge de estado con color semántico.
  */
-const StatusBadge = ({ status }: { status: OrderStatus }) => (
+const StatusBadge = ({
+  status,
+  label,
+}: {
+  status: OrderStatus;
+  label: string;
+}) => (
   <Badge variant="secondary" className={statusColors[status]}>
-    {status}
+    {label}
   </Badge>
 );
 
@@ -260,7 +266,10 @@ const AdminOrders = () => {
                         {formatDate(order.createdAt, language)}
                       </td>
                       <td className="p-3">
-                        <StatusBadge status={order.status as OrderStatus} />
+                        <StatusBadge
+                          status={order.status as OrderStatus}
+                          label={t(`admin.orders.statuses.${order.status}`)}
+                        />
                       </td>
                       <td className="p-3 text-right font-medium">
                         {formatPrice(order.total, language)}

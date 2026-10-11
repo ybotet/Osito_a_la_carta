@@ -11,7 +11,8 @@
     "main": "Main navigation",
     "backToMenu": "Back to the menu",
     "stats": "My statistics",
-    "admin": "Chef panel"
+    "admin": "Chef panel",
+    "adminCategories": "Categories"
   },
   "menu": {
     "title": "Menu",
@@ -75,6 +76,36 @@
         "sent": "Sent",
         "delivered": "Delivered",
         "cancelled": "Cancelled"
+      }
+    },
+    "categories": {
+      "title": "Category management",
+      "createTitle": "Create category",
+      "editTitle": "Edit category",
+      "listTitle": "Current categories",
+      "loading": "Loading categories…",
+      "loadError": "Could not load categories.",
+      "retry": "Retry",
+      "empty": "There are no categories yet.",
+      "slug": "Slug (lowercase letters, numbers, and hyphens)",
+      "nameEs": "Name (Español)",
+      "nameRu": "Name (Русский)",
+      "nameEn": "Name (English)",
+      "create": "Create category",
+      "save": "Save changes",
+      "edit": "Edit",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "confirmDelete": "Delete the category “{{name}}”?",
+      "validation": {
+        "slugLength": "The slug must be between 2 and 50 characters.",
+        "slugFormat": "Use lowercase letters, numbers, and hyphens only.",
+        "nameRequired": "Enter the name in this language."
+      },
+      "errors": {
+        "unknown": "Could not save the change. Please try again.",
+        "CATEGORY_SLUG_TAKEN": "A category with this slug already exists.",
+        "CATEGORY_HAS_DISHES": "This category cannot be deleted while it contains dishes."
       }
     },
     "orderDetail": {

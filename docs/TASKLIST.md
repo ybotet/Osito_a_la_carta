@@ -1,7 +1,7 @@
 # TASKLIST.md — Osito a la carta
 
 > Leyenda: `[ ]` pendiente · `[~]` en progreso · `[x]` completada · `[!]` bloqueada
-> Última actualización: 2026-10-08
+> Última actualización: 2026-10-11
 
 ---
 
@@ -184,6 +184,9 @@
   - **Notas de progreso (2026-10-11):** el formulario ahora selecciona archivos de imagen en lugar de aceptar URL. La imagen se sube con `multipart/form-data` al endpoint admin `/api/dishes/image` antes de crear o actualizar; solo se reemplaza la imagen al editar si se selecciona un nuevo archivo. Formatos permitidos: JPG, PNG, WebP y AVIF; límite 5 MB. Typecheck, lint y build verificados.
   - **Notas de progreso (2026-10-11):** la edición obtiene la traducción es/ru/en mediante tres lecturas localizadas y carga cada valor en su campo correcto.
   - **Corrección (2026-10-11):** creación y edición pasan el objeto JSON sin pre-serializar a `apiRequest`; la serialización la realiza el cliente HTTP común, evitando el error `Malformed JSON body`.
+- [x] **T-085**: Gestión de categorías para admin y traducción de estados en panel de pedidos
+  - Criterio: admin puede listar, crear, editar y eliminar categorías con slug y nombres en es/ru/en; eliminación bloqueada cuando tenga platos; el estado de cada pedido se muestra en el idioma seleccionado; typecheck, lint y build pasan; UI en es/ru/en.
+  - **Notas de progreso (2026-10-11):** implementada la página `/admin/categories` con guard admin, listado multilingüe, formulario de creación/edición y eliminación usando los endpoints existentes. El backend bloquea el borrado si hay platos; sus errores de slug duplicado y categoría con platos se muestran traducidos. El badge del panel de pedidos ahora usa `admin.orders.statuses.*`. Corregido el cliente HTTP para devolver correctamente en respuestas 204. Typecheck, lint, build y diff check verificados.
 
 ---
 

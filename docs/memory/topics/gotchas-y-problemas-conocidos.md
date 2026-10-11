@@ -125,6 +125,7 @@ Lista viva de problemas, comportamientos sorprendentes y soluciones aplicadas. *
 
 | Gotcha | Síntoma | Causa | Solución |
 |--------|---------|-------|----------|
+| **204 sin body en `requestJson`** | Eliminación correcta responde como `INVALID_RESPONSE` | Se intentaba parsear JSON aunque HTTP 204 no lleva body | Retornar antes del parseo cuando `response.status === 204`. Corregido en T-085. |
 | **`zod` `refine` async no funciona en `superRefine`** | Validación async no ejecuta | `refine` sync; `superRefine` permite async pero API distinta | Usar `superRefine(async (val, ctx) => { const exists = await db...; if (exists) ctx.addIssue(...) })`. Ver `shared/schemas.ts`. |
 | **`pino` no loggea en tests** | Sin output en `vitest run` | `pino-pretty` no compatible con test runner | `LOG_LEVEL=silent` en test env, o `pino({ level: process.env.LOG_LEVEL || 'silent' })`. |
 | **`react-hook-form` + Zod: `resolver` types** | Error TS: `FieldValues` genérico | `zodResolver(schema)` infiere mal si schema tiene `.transform()` | Usar `zodResolver(schema.shape)` o tipar explícito `UseFormProps<z.infer<typeof schema>>`. |

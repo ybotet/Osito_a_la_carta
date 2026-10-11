@@ -1,6 +1,6 @@
 # Historial cronológico de tareas
 
-> Última actualización: 2026-10-08
+> Última actualización: 2026-10-11
 >
 > Formato: `YYYY-MM-DD | Tarea | Qué se hizo | Cómo/Impacto | Deuda/Notas`
 
@@ -223,3 +223,10 @@
 **Cómo:** `createDish` y `updateDish` ahora pasan el objeto a `apiRequest` sin llamar previamente a `JSON.stringify`; `requestJson` es la capa responsable de serializar el objeto exactamente una vez. Se corrigió también el caller de pageview, que repetía el mismo patrón.
 **Impacto:** Express recibe un objeto JSON en vez de una cadena JSON de nivel superior, y puede validar el body correctamente.
 **Deuda/Notas:** Ninguna.
+
+## 2026-10-11 — T-085: Gestión admin de categorías y estado localizado de pedidos
+
+**Qué:** Se agregó gestión de categorías para admin y se tradujo el badge de estado en la lista del panel del chef.
+**Cómo:** La ruta `/admin/categories` permite listar, crear, editar y eliminar categorías con slug y nombres en es/ru/en, utilizando el CRUD existente. El guard del cliente restringe la pantalla a admin y el backend conserva la protección de escritura y el bloqueo de borrado cuando hay platos. El estado de cada pedido en `/admin/orders` se renderiza con las claves existentes `admin.orders.statuses.*`. Se añadió manejo correcto de respuestas HTTP 204 para que las eliminaciones no se interpreten como JSON inválido.
+**Impacto:** El chef puede administrar categorías desde la UI y ver los estados de pedidos en español, ruso o inglés según el idioma elegido.
+**Deuda/Notas:** El orden de categorías sigue dependiendo del `sortOrder` persistido; esta pantalla no incluye controles para reordenarlas.

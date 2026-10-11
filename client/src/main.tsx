@@ -14,6 +14,7 @@ import Stats from './pages/Stats.tsx';
 import AdminOrders from './pages/admin/Orders.tsx';
 import AdminOrderDetail from './pages/admin/OrderDetail.tsx';
 import AdminDishForm from './pages/admin/DishForm.tsx';
+import AdminCategories from './pages/admin/Categories.tsx';
 import Layout from './components/Layout.tsx';
 import './lib/i18n.ts';
 import './index.css';
@@ -71,6 +72,7 @@ createRoot(rootElement).render(
             <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />
             <Route path="/admin/dishes/create" element={<AdminDishForm />} />
             <Route path="/admin/dishes/:id" element={<AdminDishForm />} />
+            <Route path="/admin/categories" element={<AdminCategories />} />
           </Route>
         </Routes>
       </BrowserRouter>

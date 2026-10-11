@@ -102,6 +102,12 @@ const Layout = () => {
                 </Button>
               )}
 
+              {isAdmin && (
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/admin/categories">{t('nav.adminCategories')}</Link>
+                </Button>
+              )}
+
               {/*
                 El enlace a `/login` se habilitó en T-044, cuando la ruta ya existía. Va como
                 `Button asChild` con un `Link` dentro, igual que el del menú, para que hereden

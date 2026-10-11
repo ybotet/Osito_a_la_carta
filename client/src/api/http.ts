@@ -81,6 +81,10 @@ const requestJson = async (
     ...(signal !== undefined && { signal }),
   });
 
+  if (response.status === 204) {
+    return undefined;
+  }
+
   const payload: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
