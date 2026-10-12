@@ -1,11 +1,11 @@
-﻿# TASKLIST.md вЂ” Osito a la carta
+﻿# TASKLIST.md  Osito a la carta
 
 > Leyenda: `[ ]` pendiente В· `[~]` en progreso В· `[x]` completada В· `[!]` bloqueada
 > Гљltima actualizaciГіn: 2026-10-12
 
 ---
 
-## Fase 0 вЂ” Setup del proyecto
+## Fase 0  Setup del proyecto
 
 - [x] **T-001**: Crear estructura de carpetas `server/`, `client/`, `shared/`, `docs/`
   - Criterio: existen las carpetas y cada una con su `package.json` (donde aplique).
@@ -28,7 +28,7 @@
 
 ---
 
-## Fase 1 вЂ” Base de datos
+## Fase 1  Base de datos
 
 - [x] **T-010**: Definir schema Drizzle en `server/src/db/schema.ts`
   - Criterio: `drizzle-kit generate` produce una migraciГіn vГЎlida con 6 entidades.
@@ -43,7 +43,7 @@
 
 ---
 
-## Fase 2 вЂ” API de platos
+## Fase 2  API de platos
 
 - [x] **T-020**: `GET /api/dishes` con localizaciГіn por `Accept-Language`
   - Criterio: con `Accept-Language: ru` devuelve nombres en ruso.
@@ -53,7 +53,7 @@
   - Criterio: rechaza con 401 sin token, con 403 si no es admin; crea plato con categorГ­a.
 - [x] **T-023**: `PUT /api/dishes/:id` (solo admin)
   - Criterio: actualizar solo el precio funciona; plato inexistente devuelve 404.
-- [x] **T-024**: `DELETE /api/dishes/:id` (solo admin) вЂ” borrado lГіgico (`isAvailable = 0`)
+- [x] **T-024**: `DELETE /api/dishes/:id` (solo admin)  borrado lГіgico (`isAvailable = 0`)
   - Criterio: tras el DELETE el plato desaparece de `GET /api/dishes` pero sigue en la BD; 404 si no existe; 204 sin body.
 - [x] **T-025**: `GET /api/categories` (pГєblico)
   - Criterio: devuelve categorГ­as en es/ru/en segГєn `Accept-Language`, ordenadas por `sortOrder`, con `slug` e `id`.
@@ -65,14 +65,14 @@
   - Criterio: rechaza 409 si la categorГ­a tiene platos asociados (incluye deshabilitados).
 - [x] **T-029**: ГЌndice en `dishes.category_id`
   - Criterio: migraciГіn aplicada y `EXPLAIN QUERY PLAN` usa el Г­ndice al filtrar por categorГ­a.
-- [x] **T-029a**: `PATCH /api/dishes/:id/availability` (solo admin) вЂ” habilita/deshabilita
+- [x] **T-029a**: `PATCH /api/dishes/:id/availability` (solo admin)  habilita/deshabilita
   - Criterio: `{"isAvailable": true}` recupera plato deshabilitado; `false` lo retira sin borrar.
-- [x] **T-029b**: `DELETE /api/dishes/:id/permanent` (solo admin) вЂ” purga fГ­sica
+- [x] **T-029b**: `DELETE /api/dishes/:id/permanent` (solo admin)  purga fГ­sica
   - Criterio: borra la fila; 404 si no existe; 409 si plato disponible o con historial (`order_items`/`page_views`).
 
 ---
 
-## Fase 3 вЂ” Frontend: menГє y multi-idioma
+## Fase 3  Frontend: menГє y multi-idioma
 
 - [x] **T-030**: Configurar `react-i18next` con `es.json`, `ru.json`, `en.json`
   - Criterio: cambiar idioma cambia textos sin recargar.
@@ -89,7 +89,7 @@
 
 ---
 
-## Fase 4 вЂ” AutenticaciГіn
+## Fase 4  AutenticaciГіn
 
 - [x] **T-040**: `POST /api/auth/register` con validaciГіn Zod
   - Criterio: rechaza email duplicado con 409 `EMAIL_TAKEN`; `role` fijado a `customer`; `passwordHash` nunca en respuesta.
@@ -98,7 +98,7 @@
 - [x] **T-042**: `POST /api/auth/refresh`
   - Criterio: renueva access con refresh vГЎlido (200, solo accessToken); 401 `INVALID_REFRESH_TOKEN` para cualquier fallo; relee usuario por `sub`; no rota refresh.
 - [x] **T-043**: Middleware `requireAuth` y `requireAdmin`
-  - Criterio: 9 escrituras protegidas вЂ” 401 sin token, 403 con token `customer`, 200/201/204 con token `admin`; exige `type === 'access'` y `JWT_SECRET`; `role` del token sin consultar BD.
+  - Criterio: 9 escrituras protegidas  401 sin token, 403 con token `customer`, 200/201/204 con token `admin`; exige `type === 'access'` y `JWT_SECRET`; `role` del token sin consultar BD.
 - [x] **T-044**: PГЎginas `/login` y `/register` en frontend
   - Criterio: React Hook Form + Zod con reglas compartidas en `shared/schemas.ts`; auto-login tras registro; errores inline con `role="alert"` por `code`; `preferredLang` enviado y validado.
 - [x] **T-045**: Store de sesiГіn con Zustand + persistencia en `localStorage`
@@ -110,7 +110,7 @@
 
 ---
 
-## Fase 5 вЂ” Carrito y pedidos
+## Fase 5  Carrito y pedidos
 
 - [x] **T-050**: Store de carrito con Zustand persistido en `localStorage`
   - Criterio: agregar, quitar, modificar cantidades funciona tras recargar; copia del plato en el item; `quantity: 0` quita la lГ­nea; totales son selectores derivados.
@@ -127,7 +127,7 @@
 
 ---
 
-## Fase 6 вЂ” Notificaciones al chef
+## Fase 6  Notificaciones al chef
 
 - [x] **T-060**: MГіdulo `notifications` con servicio de correo (Mailgun)
   - Criterio: enviar correo de prueba desde un script.
@@ -150,7 +150,7 @@
 
 ---
 
-## Fase 7 вЂ” EstadГ­sticas del usuario
+## Fase 7  EstadГ­sticas del usuario
 
 - [x] **T-070**: `POST /api/stats/pageview` al visitar detalle de plato
   - Criterio: registra `userId` (si hay sesiГіn) y `dishId`.
@@ -164,7 +164,7 @@
 
 ---
 
-## Fase 8 вЂ” Panel del chef
+## Fase 8  Panel del chef
 
 - [x] **T-080**: `GET /api/admin/orders` (todos los pedidos, solo admin)
   - Criterio: rechaza con 403 si no es admin.
@@ -190,7 +190,7 @@
 
 ---
 
-## Fase 9 вЂ” Pulido y despliegue
+## Fase 9  Pulido y despliegue
 
 - [ ] **T-090**: PWA con `vite-plugin-pwa`
   - Criterio: la app es instalable en mГіvil.

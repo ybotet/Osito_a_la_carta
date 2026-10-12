@@ -222,18 +222,18 @@ const Stats = () => {
       {/* Gráficos */}
       <div className="grid gap-4 md:grid-cols-2">
         <HorizontalBarChart
-          data={topViewedDishes.map((d) => ({ name: d.name, views: d.views }))}
-          dataKey="views"
-          nameKey="name"
-          label={t('stats.topViewedDishes')}
-          color="#3b82f6"
-        />
-        <HorizontalBarChart
           data={topOrderedDishes.map((d) => ({ name: d.name, count: d.count }))}
           dataKey="count"
           nameKey="name"
           label={t('stats.topOrderedDishes')}
           color="#10b981"
+        />
+        <HorizontalBarChart
+          data={topViewedDishes.map((d) => ({ name: d.name, views: d.views }))}
+          dataKey="views"
+          nameKey="name"
+          label={t('stats.topViewedDishes')}
+          color="#3b82f6"
         />
       </div>
     </main>

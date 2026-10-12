@@ -1,9 +1,6 @@
-﻿import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Clock3, CookingPot, Heart, MapPin, Truck } from 'lucide-react';
+﻿import { ArrowRight, Clock3, CookingPot, Heart, MapPin, Truck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { fetchDishes } from './api/dishes';
-import DishCard from './components/DishCard';
 import { Button } from './components/ui/button';
 
 type ValueCard = {
@@ -19,14 +16,7 @@ type StepCard = {
 };
 
 const App = () => {
-  const { t, i18n } = useTranslation();
-  const language = i18n.resolvedLanguage ?? i18n.language;
-  const { data, isPending, isError, refetch } = useQuery({
-    queryKey: ['dishes', language],
-    queryFn: ({ signal }) => fetchDishes(language, signal),
-  });
-
-  const featuredDishes = data?.dishes.slice(0, 3) ?? [];
+  const { t } = useTranslation();
 
   const valueCards: ValueCard[] = [
     { icon: CookingPot, titleKey: 'home.valueCookingTitle', textKey: 'home.valueCookingText' },
@@ -99,38 +89,59 @@ const App = () => {
           </Button>
         </div>
 
-        {isPending ? (
-          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }, (_, index) => (
-              <li
-                key={index}
-                className="h-80 animate-pulse rounded-xl border bg-muted/60"
-                aria-hidden="true"
-              />
-            ))}
-          </ul>
-        ) : isError ? (
-          <div className="flex flex-col items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-5">
-            <p role="alert" className="text-sm text-muted-foreground">
-              {t('home.featuredError')}
-            </p>
-            <Button variant="outline" onClick={() => void refetch()}>
-              {t('home.retry')}
-            </Button>
+        {/* Photo Collage */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-muted">
+            <img
+              src="/images/osito.jpg"
+              alt={t('home.featuredTitle')}
+              className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent p-4 flex items-end">
+              <span className="text-white font-semibold text-lg">{t('home.featuredTitle')}</span>
+            </div>
           </div>
-        ) : featuredDishes.length === 0 ? (
-          <p className="rounded-xl border bg-muted/40 p-5 text-muted-foreground">
-            {t('home.noFeatured')}
-          </p>
-        ) : (
-          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {featuredDishes.map((dish) => (
-              <li key={dish.id} className="h-full">
-                <DishCard dish={dish} language={language} />
-              </li>
-            ))}
-          </ul>
-        )}
+          <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-muted sm:col-span-1 lg:col-span-1">
+            <img
+              src="/images/osito.jpg"
+              alt="Cuban cuisine"
+              className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent p-4 flex items-end">
+              <span className="text-white font-semibold">Ropa Vieja</span>
+            </div>
+          </div>
+          <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-muted">
+            <img
+              src="/images/osito.jpg"
+              alt="Cuban cuisine"
+              className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent p-4 flex items-end">
+              <span className="text-white font-semibold">Lechón Asado</span>
+            </div>
+          </div>
+          <div className="relative aspect-square rounded-2xl overflow-hidden bg-muted sm:col-span-2 lg:col-span-1">
+            <img
+              src="/images/osito.jpg"
+              alt="Cuban cuisine"
+              className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent p-4 flex items-end">
+              <span className="text-white font-semibold">Moros y Cristianos</span>
+            </div>
+          </div>
+          <div className="relative aspect-square rounded-2xl overflow-hidden bg-muted sm:col-span-1 lg:col-span-1">
+            <img
+              src="/images/osito.jpg"
+              alt="Cuban cuisine"
+              className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent p-4 flex items-end">
+              <span className="text-white font-semibold">Yuca con Mojo</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section aria-label={t('home.valuesLabel')} className="grid gap-4 md:grid-cols-3">
@@ -158,16 +169,23 @@ const App = () => {
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">{t('home.aboutTitle')}</h2>
           <p className="leading-relaxed text-muted-foreground">{t('home.aboutText')}</p>
         </div>
-        <ul className="flex flex-col gap-4">
-          <li className="flex gap-3 rounded-xl border bg-background p-4">
-            <Heart className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" aria-hidden="true" />
-            <span>{t('home.aboutPointOne')}</span>
-          </li>
-          <li className="flex gap-3 rounded-xl border bg-background p-4">
-            <CookingPot className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-            <span>{t('home.aboutPointTwo')}</span>
-          </li>
-        </ul>
+        <div className="flex flex-col gap-4">
+          <img
+            src="/images/osito.jpg"
+            alt="Chef Yaisel"
+            className="rounded-2xl w-full aspect-square object-cover shadow-lg"
+          />
+          <ul className="flex flex-col gap-4">
+            <li className="flex gap-3 rounded-xl border bg-background p-4">
+              <Heart className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" aria-hidden="true" />
+              <span>{t('home.aboutPointOne')}</span>
+            </li>
+            <li className="flex gap-3 rounded-xl border bg-background p-4">
+              <CookingPot className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+              <span>{t('home.aboutPointTwo')}</span>
+            </li>
+          </ul>
+        </div>
       </section>
 
       <section aria-labelledby="how-title" className="flex flex-col gap-7">
