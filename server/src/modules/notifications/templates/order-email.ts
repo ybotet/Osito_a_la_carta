@@ -36,8 +36,8 @@ const buildItemRows = (items: LocalizedOrderItem[]): string =>
     )
     .join('');
 
-// URL absoluta del logo (servido por Nginx en producción, por Express en dev)
 const logoUrl = `${env.PUBLIC_ORIGIN}/images/osito.jpg`;
+const adminOrderUrl = `${env.PUBLIC_ORIGIN}/admin/orders`;
 
 export const buildOrderEmailHtml = (
   order: OrderRow,
@@ -138,6 +138,17 @@ export const buildOrderEmailHtml = (
 
               ${noteHtml}
 
+              <!-- Action Button -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 24px;">
+                <tr>
+                  <td style="padding: 16px 0; text-align: center;">
+                    <a href="${adminOrderUrl}/${order.id}" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #1f2937 0%, #374151 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600; letter-spacing: -0.01em;">
+                      Ver pedido en el panel
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
               <!-- Footer -->
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
               <p style="margin: 0; font-size: 12px; color: #9ca3af; text-align: center;">
@@ -174,22 +185,27 @@ export const buildOrderEmailText = (
     )
     .join('\n');
 
+  const adminOrderUrl = `${env.PUBLIC_ORIGIN}/admin/orders/${order.id}`;
+
   return `========================================
   Osito a la carta - Nuevo pedido #${order.id}
-========================================
+  ========================================
 
-Fecha: ${formatDate(order.createdAt)}
-Cliente: ${customerEmail}
-Estado: ${order.status}
+  Fecha: ${formatDate(order.createdAt)}
+  Cliente: ${customerEmail}
+  Estado: ${order.status}
 
---- Platos ---
-${lines}
+  --- Platos ---
+  ${lines}
 
---- Total ---
-${formatMoney(order.total)}
-${noteText}
+  --- Total ---
+  ${formatMoney(order.total)}
+  ${noteText}
 
----
-Este es un mensaje automático del sistema de pedidos de Osito a la carta.
-© ${new Date().getFullYear()} Osito a la carta. Todos los derechos reservados.`;
+  --- Acceso directo ---
+  Ver pedido en el panel: ${adminOrderUrl}
+
+  ---
+  Este es un mensaje automático del sistema de pedidos de Osito a la carta.
+  © ${new Date().getFullYear()} Osito a la carta. Todos los derechos reservados.`;
 };

@@ -85,17 +85,21 @@ const Layout = () => {
                 <Link to="/menu">{t('nav.menu')}</Link>
               </Button>
 
-              <Button asChild variant="ghost" size="sm">
-                <Link to="/cart">{t('nav.cart')}</Link>
-              </Button>
+              {isAuthenticated && (
+                <>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link to="/cart">{t('nav.cart')}</Link>
+                  </Button>
 
-              <Button asChild variant="ghost" size="sm">
-                <Link to="/orders">{t('nav.orders')}</Link>
-              </Button>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link to="/orders">{t('nav.orders')}</Link>
+                  </Button>
 
-              <Button asChild variant="ghost" size="sm">
-                <Link to="/stats">{t('nav.stats')}</Link>
-              </Button>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link to="/stats">{t('nav.stats')}</Link>
+                  </Button>
+                </>
+              )}
 
               {isAdmin && (
                 <Button asChild variant="ghost" size="sm">
