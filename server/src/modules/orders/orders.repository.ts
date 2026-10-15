@@ -22,6 +22,11 @@ const orderableDishProjection = {
 const orderProjection = {
   id: orders.id,
   userId: orders.userId,
+  guestName: orders.guestName,
+  guestPhone: orders.guestPhone,
+  guestEmail: orders.guestEmail,
+  deliveryAddress: orders.deliveryAddress,
+  trackingToken: orders.trackingToken,
   status: orders.status,
   total: orders.total,
   customerNote: orders.customerNote,
@@ -78,9 +83,14 @@ const findOrderableDishesByIds = (ids: number[]) =>
  * se ejecuta y no falla (gotcha de MEMORY).
  */
 const insertOrderWithItems = (values: {
-  userId: number;
+  userId: number | null;
   total: number;
   customerNote: string | null;
+  guestName?: string | null;
+  guestPhone?: string | null;
+  guestEmail?: string | null;
+  deliveryAddress?: string | null;
+  trackingToken?: string | null;
   items: { dishId: number; quantity: number; unitPrice: number }[];
 }) =>
   db.transaction((tx) => {
@@ -88,6 +98,11 @@ const insertOrderWithItems = (values: {
       .insert(orders)
       .values({
         userId: values.userId,
+        guestName: values.guestName,
+        guestPhone: values.guestPhone,
+        guestEmail: values.guestEmail,
+        deliveryAddress: values.deliveryAddress,
+        trackingToken: values.trackingToken,
         status: 'pending',
         total: values.total,
         customerNote: values.customerNote,
@@ -295,7 +310,34 @@ const updateOrderStatus = (
   return { order, items };
 };
 
-export { findOrderWithItems, findOrderWithItemsForUser, findOrderableDishesByIds, insertOrderWithItems, findOrdersByUserId, findAllOrdersForAdmin, updateOrderStatus };
+/**
+ * Obtiene un pedido por su trackingToken (para invitados).
+ *
+ * No requiere autenticación. Devuelve el pedido con sus items si existe.
+ */
+const findOrderByTrackingToken = (token: string) => {
+  const order = db
+    .select(orderProjection)
+    .from(orders)
+    .where(eq(orders.trackingToken, token))
+    .get();
+
+  if (order === undefined) {
+    return undefined;
+  }
+
+  const items = db
+    .select(orderItemProjection)
+    .from(orderItems)
+    .innerJoin(dishes, eq(orderItems.dishId, dishes.id))
+    .where(eq(orderItems.orderId, order.id))
+    .orderBy(asc(orderItems.id))
+    .all();
+
+  return { order, items };
+};
+
+export { findOrderWithItems, findOrderWithItemsForUser, findOrderableDishesByIds, insertOrderWithItems, findOrdersByUserId, findAllOrdersForAdmin, updateOrderStatus, findOrderByTrackingToken };
 
 export type OrderableDishRow = ReturnType<
   typeof findOrderableDishesByIds
@@ -312,3 +354,6 @@ export type UserOrderRow = NonNullable<
 export type AdminOrderRow = NonNullable<
   ReturnType<typeof findAllOrdersForAdmin>
 >[number];
+export type GuestOrderRow = NonNullable<
+  ReturnType<typeof findOrderByTrackingToken>
+>['order'];

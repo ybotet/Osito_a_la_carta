@@ -57,5 +57,12 @@ const loginUser = async (body: {
     body,
   })) as ApiLoginResponse;
 
-export { loginUser, registerUser };
+export { loginUser, registerUser, verifyEmail };
 export type { RegisterRequest };
+
+/**
+ * Verifica el email: `GET /api/auth/verify-email?token=...`
+ * Devuelve el usuario verificado.
+ */
+const verifyEmail = async (token: string): Promise<ApiAuthUser> =>
+  (await apiRequest(`/api/auth/verify-email?token=${encodeURIComponent(token)}`)) as ApiAuthUser;

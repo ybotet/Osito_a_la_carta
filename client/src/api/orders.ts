@@ -22,6 +22,25 @@ export const createOrder = async (
   })) as ApiOrderEnvelope;
 
 /**
+ * Crea un pedido como invitado (sin autenticación).
+ *
+ * El backend genera un trackingToken (UUID v4) que permite consultar el pedido
+ * sin autenticación. Devuelve `{ language, order }` con el trackingToken.
+ */
+export const createGuestOrder = async (body: {
+  items: { dishId: number; quantity: number }[];
+  customerNote?: string;
+  guestName: string;
+  guestPhone: string;
+  guestEmail?: string;
+  deliveryAddress: string;
+}): Promise<ApiOrderEnvelope> =>
+  (await apiRequest('/api/orders/guest', {
+    method: 'POST',
+    body,
+  })) as ApiOrderEnvelope;
+
+/**
  * Lista los pedidos del usuario autenticado, ordenados por `created_at` descendente.
  *
  * El backend devuelve `{ language, orders }`, donde cada pedido trae sus líneas con el
@@ -40,6 +59,16 @@ export const fetchOrderById = async (
   orderId: number,
 ): Promise<ApiOrderEnvelope> =>
   (await apiRequest(`/api/orders/${orderId}`)) as ApiOrderEnvelope;
+
+/**
+ * Consulta un pedido por trackingToken (para invitados, sin autenticación).
+ *
+ * Devuelve `{ language, order, contactEmail }` o 404 si no existe.
+ */
+export const fetchOrderByToken = async (
+  token: string,
+): Promise<ApiOrderEnvelope & { contactEmail?: string }> =>
+  (await apiRequest(`/api/orders/track/${encodeURIComponent(token)}`)) as ApiOrderEnvelope & { contactEmail?: string };
 
 /**
  * Lista todos los pedidos (solo admin).

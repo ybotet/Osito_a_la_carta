@@ -236,3 +236,44 @@
 **Cómo:** La portada usa datos provisionales de negocio y textos en es/ru/en, reutiliza `DishCard` para mostrar tres platos destacados y sigue el sistema de tokens CSS de Tailwind 4. El selector de tema se implementó como un `Button` de shadcn con guardado en `localStorage` y `dark` en `html` vía CSS variables.
 **Impacto:** La app muestra una primera versión usable y consistente del sitio con modo claro/oscuro y contenido de marca sin introducir nuevas dependencias.
 **Deuda/Notas:** Los textos del negocio son provisionales y pueden actualizarse con datos reales del restaurante y horarios reales cuando estén confirmados.
+
+## 2026-10-13 — T-098a-extendido: Email de verificación al registrar
+
+**Qué:** El registro de usuario ahora envía un email de verificación con un enlace que confirma que el correo es válido. La cuenta no puede usarse para login hasta que el email se verifique.
+**Cómo:**
+- Agregada migración `0004_fuzzy_blob.sql` → `users.emailVerified` (default 0) y `users.emailVerificationToken` (text).
+- Template `verification-email.ts` con HTML y texto plano, multiidioma (es/ru/en).
+- `sendVerificationEmail` en `email.service.ts` → envía a la dirección del usuario (no al chef).
+- `registerUser` en `auth.service.ts` genera `crypto.randomUUID()` como token, lo guarda con `updateEmailVerificationToken`, y envía el email con fire-and-forget (.catch loguea el error).
+- Nuevo endpoint `GET /api/auth/verify-email?token=` → `verifyEmail` busca el token, marca `emailVerified=1`, limpia el token, devuelve el usuario.
+- Frontend: nueva página `/verify-email` (`VerifyEmail.tsx`) con useQuery; `Register.tsx` deja de auto-login y muestra mensaje de "email de verificación enviado a {{email}}".
+**Impacto:** Se confirma que el email registrado es válido antes de permitir el uso de la cuenta.
+**Deuda/Notas:** El token no tiene expiración; considerar TTL para producción.
+
+## 2026-10-13 — T-098b: Checkout como invitado en el frontend
+
+**Qué:** Implementación del flujo de checkout híbrido para invitados en el frontend.
+**Cómo:**
+- `Cart.tsx` → navega a `/checkout` en vez de `/login` (funciona para usuarios no autenticados).
+- `Checkout.tsx` (nuevo): formulario RHF + Zod usando `createGuestOrderBodySchema` desde `shared/schemas.ts`. Campos: name, phone, email?, address, note. On submit → POST `/api/orders/guest`, clearCart, guarda trackingToken en localStorage vía `guest-orders.ts`, redirige a `/orders/track/:token`.
+- `OrderTrack.tsx` (nuevo, `/orders/track/:token`): useQuery al endpoint track. Botón "Crear cuenta" → `/register?email=&name=&phone=`.
+- `Register.tsx` → precarga email/name/phone desde query params.
+- `Orders.tsx` → sección "Pedidos como invitado" con tokens de localStorage; botón "Crear cuenta".
+- `Layout.tsx` → botón "Mis pedidos" (invitado) → `/orders` con i18n key `nav.guestOrders`.
+- `client/src/lib/guest-orders.ts` → save/get/getLast/getToken/remove/clear tokens (máx 10).
+- i18n claves `checkout.*`, `track.*`, `orders.guestOrders*`, `guestOrders.*`, `nav.guestOrders` en es/ru/en (duplicados de `cart` y `checkout` unificados).
+- `main.tsx` → rutas `/checkout` y `/orders/track/:token` registradas.
+
+**Impacto:** Un invitado puede crear un pedido sin login, seguir su tracking y registrar una cuenta con datos pre-cargados. Usuario autenticado sin regresión.
+## 2026-10-14 — Bugfixes: checkout híbrido
+
+**Qué:** Se corrigieron dos bugs en el flujo de checkout híbrido y logout.
+**Cómo:**
+- Server: `getOrderByTrackingToken` devolvía un objeto plano en vez del formato `{ language, order, contactEmail }`. El cliente (`OrderTrack.tsx`) accedía a `data.order` que era `undefined`, causando un crash silencioso (pantalla en blanco) después de crear el pedido. Se cambió el `return` a `return { language, order: toResponse(...), contactEmail }` (envelope consistente con `orderEnvelopeSchema`).
+- Server: `getOrderByTrackingToken` ahora incluye `contactEmail` en el envelope.
+- Client store: `clearSession` reseteaba `_hasHydrated = false`, lo que hacía desaparecer el navbar al cerrar sesión (Layout usa `invisible h-0` cuando `!_hasHydrated`). Se preservó `_hasHydrated` como `true` en `clearSession`.
+- Client `OrderTrack.tsx`: usa `location.state.order` como `initialData` de la query, evitando una llamada API redundante justo después de crear el pedido.
+- Client `Register.tsx`: ya no hace auto-login después del registro; muestra "email de verificación enviado" y no usa `loginUser`, `useNavigate`, `useAuthStore` (imports limpios).
+
+**Impacto:** El checkout híbrido funciona sin pantalla en blanco, el navbar persiste al cerrar sesión, y el flujo de verificación de email es consistente.
+**Deuda/Notas:** `db:migrate` sigue fallando en server (aplicado manualmente). La migración `0004_fuzzy_blob.sql` no incluye `contactEmail` en el envelope del track endpoint (se resolvió en servicio, no en migración.

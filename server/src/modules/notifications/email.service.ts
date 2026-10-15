@@ -2,6 +2,7 @@ import { env } from '../../config/index.js';
 import { logger } from '../../logger.js';
 import type { OrderRow } from '../../modules/orders/orders.repository.js';
 import { buildOrderEmailHtml, buildOrderEmailText, type LocalizedOrderItem } from './templates/order-email.js';
+import { buildVerificationEmailHtml, buildVerificationEmailText } from './templates/verification-email.js';
 
 /**
  * Servicio de correo electronico con Mailgun.
@@ -31,12 +32,19 @@ const sendOrderEmail = async (
     key: env.MAILGUN_API_KEY,
   });
 
+  // Determinar datos del cliente para el email
+  const isGuest = order.userId === null;
+  const clientName = isGuest ? order.guestName : customerEmail;
+  const clientPhone = isGuest ? order.guestPhone : null;
+  const deliveryAddress = isGuest ? order.deliveryAddress : null;
+  const trackingToken = isGuest ? order.trackingToken : null;
+
   const result = await client.messages.create(env.MAILGUN_DOMAIN, {
     from: env.MAILGUN_FROM.raw,
     to: env.CHEF_EMAIL,
     subject: `Nuevo pedido #${order.id} - Osito a la carta`,
-    text: buildOrderEmailText(order, items, customerEmail),
-    html: buildOrderEmailHtml(order, items, customerEmail),
+    text: buildOrderEmailText(order, items, customerEmail, { isGuest, clientName, clientPhone, deliveryAddress, trackingToken }),
+    html: buildOrderEmailHtml(order, items, customerEmail, { isGuest, clientName, clientPhone, deliveryAddress, trackingToken }),
   });
 
   logger.info(
@@ -52,3 +60,37 @@ export type SendOrderEmailParams = {
   items: LocalizedOrderItem[];
   customerEmail: string;
 };
+
+/**
+ * Envía un email de verificación de cuenta al usuario registrado.
+ * Lanza un error si el envío falla; el caller decide cómo manejarlo.
+ */
+const sendVerificationEmail = async (
+  email: string,
+  token: string,
+  language: 'es' | 'ru' | 'en' = 'es',
+): Promise<void> => {
+  const { default: Mailgun } = await import('mailgun.js');
+  const { default: FormData } = await import('form-data');
+
+  const mailgun = new Mailgun(FormData);
+  const client = mailgun.client({
+    username: 'api',
+    key: env.MAILGUN_API_KEY,
+  });
+
+  const result = await client.messages.create(env.MAILGUN_DOMAIN, {
+    from: env.MAILGUN_FROM.raw,
+    to: email,
+    subject: 'Verifica tu email - Osito a la carta',
+    text: buildVerificationEmailText(email, token, language),
+    html: buildVerificationEmailHtml(email, token, language),
+  });
+
+  logger.info(
+    { email, result },
+    'Correo de verificacion enviado',
+  );
+};
+
+export { sendVerificationEmail };

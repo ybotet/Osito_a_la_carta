@@ -1,12 +1,17 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/index.js';
+import { logger } from '../../logger.js';
 import { ConflictError, UnauthorizedError } from '../../shared/errors.js';
 import {
   emailExists,
   findUserByEmail,
   findUserById,
+  findUserByVerificationToken,
   insertUser,
+  updateEmailVerificationToken,
+  verifyUserEmail,
 } from './auth.repository.js';
 import {
   loginResponseSchema,
@@ -15,6 +20,7 @@ import {
   userSchema,
 } from './auth.schema.js';
 import type { LoginBody, RefreshBody, RegisterBody } from './auth.schema.js';
+import { sendVerificationEmail } from '../notifications/email.service.js';
 
 /**
  * 10 rounds, los mismos que usa `db:seed:admin`. Es el coste de hashear una contraseña
@@ -53,16 +59,48 @@ const registerUser = (body: RegisterBody) => {
 
   const passwordHash = bcrypt.hashSync(body.password, BCRYPT_ROUNDS);
 
-  return userSchema.parse(
+  const user = userSchema.parse(
     insertUser({
       email: body.email,
       passwordHash,
       preferredLang: body.preferredLang,
     }),
   );
+
+  /**
+   * Genera y guarda un token de verificación de email, y dispara el email de
+   * verificación de forma asíncrona (fire and forget). Un fallo en el envío no
+   * anula el registro: el usuario puede volver a solicitar el email más tarde.
+   */
+  const verificationToken = crypto.randomUUID();
+  updateEmailVerificationToken(user.id, verificationToken);
+
+  void sendVerificationEmail(user.email, verificationToken, body.preferredLang).catch((error) => {
+    logger.warn(
+      { userId: user.id, email: user.email, error },
+      'No se pudo enviar el email de verificacion',
+    );
+  });
+
+  return user;
 };
 
-export { registerUser };
+/**
+ * Verifica el email de un usuario buscando el token de verificación.
+ * Marca el email como verificado y limpia el token.
+ * Devuelve la representación pública del usuario o null si no existe el token.
+ */
+const verifyEmail = (token: string) => {
+  const user = findUserByVerificationToken(token);
+
+  if (user === undefined) {
+    return null;
+  }
+
+  return userSchema.parse(verifyUserEmail(user.id));
+};
+
+export type VerifyEmailResult = ReturnType<typeof verifyEmail>;
 
 export type RegisterResult = ReturnType<typeof registerUser>;
 
@@ -282,4 +320,4 @@ const refreshAccessToken = (body: RefreshBody) => {
   return refreshResponseSchema.parse({ accessToken: signAccessToken(user) });
 };
 
-export { loginUser, refreshAccessToken };
+export { loginUser, refreshAccessToken, registerUser, verifyEmail };

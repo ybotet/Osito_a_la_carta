@@ -7,27 +7,27 @@ import { Button } from './ui/button';
 import ThemeSwitcher from './ThemeSwitcher';
 
 /**
-   * Envoltorio de todas las páginas: el navbar arriba y el hueco donde se pinta la ruta
-   * activa (T-033, con el navbar terminado en T-035).
-   *
-   * **Va como ruta padre en `main.tsx` y no envolviendo `<Routes>` a mano**, con `<Outlet />`
-   * dentro y sin props. Es el patrón de `react-router` para un layout compartido: cada página
-   * deja de decidir qué chrome lleva encima, y añadir una ruta nueva es añadir un `<Route>`
-   * dentro y nada más.
-   *
-   * **Los enlaces del navbar son `Button` con `asChild` y un `Link` dentro**, no `Link` con
-   * clases de botón a mano. Es la forma que `asChild` existe para: un `<button>` no puede
-   * contener un enlace, así que la alternativa era copiar las clases del botón en cada enlace y
-   * que se desincronizasen al primer cambio de variante.
-   *
-   * **El botón del carrito se habilitó en T-053**: `/cart` ya existe y funciona, así que el
-   * enlace ya no lleva `disabled`. El de órdenes (`/orders`) es nuevo y va al historial de
-   * pedidos (T-054).
-   *
-   * **El enlace de iniciar sesión es condicional (T-048).** Con sesión, lo sustituyen el email del
-   * usuario y el botón de cerrar sesión, que están en `UserMenu`. La condición se decide aquí y en
-   * `UserMenu` con el mismo criterio, para que no puedan contradecirse.
-   */
+ * Envoltorio de todas las páginas: el navbar arriba y el hueco donde se pinta la ruta
+ * activa (T-033, con el navbar terminado en T-035).
+ *
+ * **Va como ruta padre en `main.tsx` y no envolviendo `<Routes>` a mano**, con `<Outlet />`
+ * dentro y sin props. Es el patrón de `react-router` para un layout compartido: cada página
+ * deja de decidir qué chrome lleva encima, y añadir una ruta nueva es añadir un `<Route>`
+ * dentro y nada más.
+ *
+ * **Los enlaces del navbar son `Button` con `asChild` y un `Link` dentro**, no `Link` con
+ * clases de botón a mano. Es la forma que `asChild` existe para: un `<button>` no puede
+ * contener un enlace, así que la alternativa era copiar las clases del botón en cada enlace y
+ * que se desincronizasen al primer cambio de variante.
+ *
+ * **El botón del carrito se habilitó en T-053**: `/cart` ya existe y funciona, así que el
+ * enlace ya no lleva `disabled`. El de órdenes (`/orders`) es nuevo y va al historial de
+ * pedidos (T-054).
+ *
+ * **El enlace de iniciar sesión es condicional (T-048).** Con sesión, lo sustituyen el email del
+ * usuario y el botón de cerrar sesión, que están en `UserMenu`. La condición se decide aquí y en
+ * `UserMenu` con el mismo criterio, para que no puedan contradecirse.
+ */
 const Layout = () => {
   const { t } = useTranslation();
 
@@ -64,7 +64,11 @@ const Layout = () => {
             Logo de la app: imagen + nombre. Enlazado a la portada ("/").
             La imagen está en /public/images/osito.jpg.
           */}
-          <Link to="/" className="flex items-center gap-2 text-lg font-bold" aria-label={t('app.title')}>
+          <Link
+            to="/"
+            className="flex items-center gap-2 text-lg font-bold"
+            aria-label={t('app.title')}
+          >
             <img
               src="/images/osito.jpg"
               alt=""
@@ -87,10 +91,6 @@ const Layout = () => {
 
               {isAuthenticated && (
                 <>
-                  <Button asChild variant="ghost" size="sm">
-                    <Link to="/cart">{t('nav.cart')}</Link>
-                  </Button>
-
                   <Button asChild variant="ghost" size="sm">
                     <Link to="/orders">{t('nav.orders')}</Link>
                   </Button>
@@ -124,9 +124,19 @@ const Layout = () => {
                 sería contradictorio, y un usuario que ve su email ya sabe que tiene sesión.
               */}
               {!isAuthenticated && (
-                <Button asChild variant="ghost" size="sm">
-                  <Link to="/login">{t('nav.login')}</Link>
-                </Button>
+                <>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link to="/orders">{t('nav.guestOrders')}</Link>
+                  </Button>
+
+                  <Button asChild variant="ghost" size="sm">
+                    <Link to="/cart">{t('nav.cart')}</Link>
+                  </Button>
+
+                  <Button asChild variant="ghost" size="sm">
+                    <Link to="/login">{t('nav.login')}</Link>
+                  </Button>
+                </>
               )}
 
               <UserMenu />

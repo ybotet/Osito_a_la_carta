@@ -17,6 +17,8 @@ export const users = sqliteTable('users', {
   preferredLang: text('preferred_lang', { enum: ['es', 'ru', 'en'] })
     .notNull()
     .default('es'),
+  emailVerified: integer('email_verified').notNull().default(0),
+  emailVerificationToken: text('email_verification_token'),
   createdAt: integer('created_at')
     .notNull()
     .default(sql`(unixepoch())`),
@@ -73,9 +75,12 @@ export const dishes = sqliteTable(
 
 export const orders = sqliteTable('orders', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  userId: integer('user_id')
-    .notNull()
-    .references(() => users.id),
+  userId: integer('user_id').references(() => users.id),
+  guestName: text('guest_name'),
+  guestPhone: text('guest_phone'),
+  guestEmail: text('guest_email'),
+  deliveryAddress: text('delivery_address'),
+  trackingToken: text('tracking_token').unique(),
   status: text('status', {
     enum: ['pending', 'preparing', 'sent', 'delivered', 'cancelled'],
   })

@@ -5,60 +5,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuthStore } from '@/store/auth';
 import { useCartStore, selectTotalItems, selectTotalPrice } from '@/store/cart';
-import { createOrder } from '@/api/orders';
 import { formatPrice } from '@/lib/format';
 
 function CartPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const isAuthenticated = useAuthStore(
-    (state) => state.user !== null && state.accessToken !== null,
-  );
   const items = useCartStore((state) => state.items);
   const updateQuantity = useCartStore((state) => state.updateQuantity);
   const removeItem = useCartStore((state) => state.removeItem);
-  const clearCart = useCartStore((state) => state.clearCart);
   const totalItems = useCartStore(selectTotalItems);
   const totalPrice = useCartStore(selectTotalPrice);
   const [note, setNote] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  if (!isAuthenticated) {
-    navigate('/login', { replace: true });
-    return null;
-  }
-
-  const handleQuantityChange = (dishId: number, raw: string) => {
-    const value = Number(raw);
-    if (Number.isNaN(value) || value < 1) {
-      removeItem(dishId);
-    } else {
-      updateQuantity(dishId, Math.round(value));
-    }
-  };
-
-  const handleCheckout = async () => {
-    if (items.length === 0 || isSubmitting) return;
-
-    setError(null);
-    setIsSubmitting(true);
-
-    try {
-      const response = await createOrder(
-        items.map((item) => ({ dishId: item.dishId, quantity: item.quantity })),
-        note.trim() || undefined,
-      );
-
-      clearCart();
-      navigate(`/orders/${response.order.id}`);
-    } catch {
-      setError(t('cart.error'));
-      setIsSubmitting(false);
-    }
-  };
 
   if (items.length === 0) {
     return (
@@ -71,6 +30,21 @@ function CartPage() {
       </div>
     );
   }
+
+  const handleQuantityChange = (dishId: number, raw: string) => {
+    const value = Number(raw);
+    if (Number.isNaN(value) || value < 1) {
+      removeItem(dishId);
+    } else {
+      updateQuantity(dishId, Math.round(value));
+    }
+  };
+
+  const handleCheckout = () => {
+    setError(null);
+    // Ir al formulario de checkout (invitado o autenticado)
+    void navigate('/checkout');
+  };
 
   const language = i18n.resolvedLanguage ?? i18n.language ?? 'es';
 
@@ -157,9 +131,8 @@ function CartPage() {
           <Button
             className="w-full"
             onClick={handleCheckout}
-            disabled={isSubmitting || items.length === 0}
           >
-            {isSubmitting ? t('cart.checkingOut') : t('cart.checkout')}
+            {t('cart.checkout')}
           </Button>
         </CardContent>
       </Card>

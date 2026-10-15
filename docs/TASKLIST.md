@@ -209,7 +209,37 @@
 - [ ] **T-096**: Script de backup diario de `osito.db`
   - Criterio: cron ejecuta `cp osito.db backups/osito-$(date).db` cada dГ­a.
 - [x] **T-097**: Portada informativa y tema claro/oscuro
-  - Criterio: la portada presenta el negocio, enlaza el menГє y muestra platos destacados; la interfaz ofrece un control accesible de tema que conserva la preferencia manual; textos completos en es/ru/en.
+  - Criterio: la portada presenta el negocio, enlaza el menú y muestra platos destacados; la interfaz ofrece un control accesible de tema que conserva la preferencia manual; textos completos en es/ru/en.
+- [x] **T-098a**: Checkout como invitado en el backend
+  - Criterio: usuario no autenticado puede crear pedido con nombre, teléfono, dirección; pedido se guarda con userId NULL y trackingToken generado; chef recibe notificación con datos del invitado; GET /api/orders/track/:token devuelve el pedido sin auth; typecheck + lint + build pasan.
+  - **Notas de progreso (2026-10-12):**
+    - Esquema actualizado: `orders.userId` nullable, campos `guest_name`, `guest_phone`, `guest_email`, `delivery_address`, `tracking_token` (unique).
+    - Migración generada y aplicada manualmente (0003_many_lady_bullseye.sql).
+    - Nuevo schema Zod `createGuestOrderBodySchema` con validación de guestName, guestPhone, guestEmail, deliveryAddress.
+    - Nuevo endpoint `POST /api/orders/guest` (sin auth) que genera trackingToken con UUID v4.
+    - Nuevo endpoint `GET /api/orders/track/:token` (sin auth) para consultar pedidos de invitados.
+    - Función `createGuestOrder` en orders.service.ts que maneja la creación de pedidos de invitados.
+    - Función `getOrderByTrackingToken` en orders.service.ts y `findOrderByTrackingToken` en orders.repository.ts.
+    - Email template actualizado para mostrar datos del invitado (nombre, teléfono, dirección, token).
+    - Telegram actualizado para mostrar datos del invitado cuando userId es null.
+    - typecheck, lint y build pasan.
+- [x] **T-098b**: Checkout como invitado en el frontend
+  - Criterio: invitado crea pedido sin login y ve tracking; lista de pedidos muestra fecha y hora; al registrarse se envía email de verificación; autenticado sin regresión; i18n es/ru/en; typecheck + lint + build pasan.
+  - **Notas de progreso (2026-10-13/14):**
+    - `Cart.tsx` → navega a `/checkout` en vez de `/login`; accesible sin estar autenticado.
+    - `Checkout.tsx` creado con RHF + Zod (`createGuestOrderBodySchema`), campos name/phone/email?/address/note. Submit → POST `/api/orders/guest`, clearCart, guarda token, redirige a `/orders/track/:token`.
+    - `OrderTrack.tsx` creado con useQuery al endpoint `/orders/track/:token`; usa `location.state.order` como `initialData` para evitar llamada redundante; botón "Crear cuenta" → `/register?email=`.
+    - `Register.tsx` → precarga email desde query params, muestra mensaje "email de verificación enviado" y no hace auto-login.
+    - `Orders.tsx` → sección "Pedidos como invitado" con tokens de localStorage; formateo de fecha y hora con `toLocaleString`.
+    - `Layout.tsx` → botón "Mis pedidos" (invitado) → `/orders`.
+    - `VerifyEmail.tsx` (nuevo) → página `/verify-email` que consume `GET /api/auth/verify-email?token=`.
+    - `client/src/lib/guest-orders.ts` → save/get/remove tokens (máx 10).
+    - Backend: `users.emailVerified` + `users.emailVerificationToken`, `sendVerificationEmail`, `GET /api/auth/verify-email`.
+    - Server fix: `getOrderByTrackingToken` ahora devuelve `{ language, order, contactEmail }` (envelope), no plano.
+    - Client fix: `clearSession` preserva `_hasHydrated=true` para que el navbar no desaparezca al logout.
+    - i18n claves `checkout.*`, `track.*`, `orders.guestOrders*`, `guestOrders.*`, `auth.register.verification*` en es/ru/en.
+    - `main.tsx` → rutas `/checkout`, `/orders/track/:token`, `/verify-email` registradas.
+    - typecheck, lint y build pasan en client y server.
 
 ---
 

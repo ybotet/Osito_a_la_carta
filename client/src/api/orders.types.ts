@@ -13,12 +13,17 @@ export type ApiOrderItem = {
 
 export type ApiOrder = {
   id: number;
-  userId: number;
+  userId: number | null;
   status: string;
   total: number;
   customerNote: string | null;
   createdAt: number;
   items: ApiOrderItem[];
+  trackingToken: string | null;
+  guestName: string | null;
+  guestPhone: string | null;
+  guestEmail: string | null;
+  deliveryAddress: string | null;
 };
 
 export type ApiOrderEnvelope = {

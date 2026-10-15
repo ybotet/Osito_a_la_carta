@@ -53,7 +53,8 @@
     "backToMenu": "Back to the menu",
     "stats": "My statistics",
     "admin": "Chef panel",
-    "adminCategories": "Categories"
+    "adminCategories": "Categories",
+    "guestOrders": "Guest orders"
   },
   "menu": {
     "title": "Menu",
@@ -74,7 +75,8 @@
     "totalPrice": "Total to pay",
     "checkingOut": "Placing order...",
     "error": "We could not place the order.",
-    "successRedirect": "Redirecting to your order..."
+    "successRedirect": "Redirecting to your order...",
+    "itemsMin": "Order must have at least one dish"
   },
   "orders": {
     "title": "My orders",
@@ -91,7 +93,11 @@
       "sent": "Sent",
       "delivered": "Delivered",
       "cancelled": "Cancelled"
-    }
+    },
+    "guestOrdersTitle": "Guest orders",
+    "guestOrdersEmpty": "You haven't placed any guest orders yet.",
+    "guestOrdersLast": "Latest order",
+    "guestOrdersAll": "View all"
   },
   "admin": {
     "orders": {
@@ -129,7 +135,7 @@
       "retry": "Retry",
       "empty": "There are no categories yet.",
       "slug": "Slug (lowercase letters, numbers, and hyphens)",
-      "nameEs": "Name (Español)",
+      "nameEs": "Name (Spanish)",
       "nameRu": "Name (Русский)",
       "nameEn": "Name (English)",
       "create": "Create category",
@@ -226,8 +232,6 @@
       "updateError": "We could not update the dish. Please try again in a few minutes.",
       "errors": {
         "unknown": "Something went wrong. Please try again in a few minutes.",
-        "load": "We could not load the dish. Please try again in a few minutes.",
-        "unknown": "Something went wrong. Please try again in a few minutes.",
         "load": "Could not load the dish. Please try again in a few minutes.",
         "imageRequired": "Select an image for the dish.",
         "imageInvalidType": "Use JPG, PNG, WebP, or AVIF format.",
@@ -298,7 +302,12 @@
       "submitting": "Creating the account…",
       "passwordHint": "At least {{min}} characters.",
       "hasAccount": "Already have an account?",
-      "loginLink": "Sign in"
+      "loginLink": "Sign in",
+      "verificationSent": "We sent a verification email to {{email}}. Check your inbox (and spam).",
+      "verificationSuccess": "Email verified successfully. You can now sign in.",
+      "verificationError": "Could not verify email. The link may be invalid.",
+      "verifying": "Verifying your email…",
+      "redirectToLogin": "You'll be redirected to the sign-in page."
     },
     "errors": {
       "emailMax": "The email cannot be longer than 254 characters",
@@ -312,5 +321,44 @@
       "loginFailed": "We could not sign you in. Please try again in a few minutes.",
       "registerFailed": "We could not create the account. Please try again in a few minutes."
     }
+  },
+  "checkout": {
+    "title": "Confirm order",
+    "subtitle": "Review your order and fill in the delivery details.",
+    "name": "Name",
+    "phone": "Phone",
+    "email": "Email (optional)",
+    "address": "Delivery address",
+    "note": "Note for the chef (optional)",
+    "submit": "Confirm order",
+    "submitting": "Confirming…",
+    "error": "We could not confirm your order. Please try again.",
+    "success": "Your order is on its way!",
+    "guestInfo": "You don't have an account. We'll send you a link to track your order.",
+    "loginInfo": "Sign in to view your order history.",
+    "nameMin": "Name must be at least 2 characters",
+    "nameMax": "Name cannot exceed 100 characters",
+    "phoneMin": "Phone must be at least 5 characters",
+    "phoneMax": "Phone cannot exceed 20 characters",
+    "addressMin": "Address must be at least 5 characters",
+    "addressMax": "Address cannot exceed 500 characters"
+  },
+  "track": {
+    "title": "Order tracking",
+    "loading": "Loading your order…",
+    "error": "We could not load your order. Please try again.",
+    "notFound": "We couldn't find that order. Please check the token.",
+    "retry": "Try again",
+    "createAccount": "Create account",
+    "createAccountHint": "Want to create an account? We'll save your details.",
+    "status": "Status",
+    "total": "Total",
+    "items": "Items"
+  },
+  "guestOrders": {
+    "title": "Guest orders",
+    "empty": "You haven't placed any guest orders yet.",
+    "last": "Latest order",
+    "all": "View all"
   }
 }

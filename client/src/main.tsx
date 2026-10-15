@@ -7,9 +7,12 @@ import Menu from './pages/Menu.tsx';
 import DishDetail from './pages/DishDetail.tsx';
 import Login from './pages/Login.tsx';
 import Register from './pages/Register.tsx';
+import VerifyEmail from './pages/VerifyEmail.tsx';
 import Cart from './pages/Cart.tsx';
+import Checkout from './pages/Checkout.tsx';
 import Orders from './pages/Orders.tsx';
 import OrderDetail from './pages/OrderDetail.tsx';
+import OrderTrack from './pages/OrderTrack.tsx';
 import Stats from './pages/Stats.tsx';
 import AdminOrders from './pages/admin/Orders.tsx';
 import AdminOrderDetail from './pages/admin/OrderDetail.tsx';
@@ -67,9 +70,12 @@ createRoot(rootElement).render(
             */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/cart" element={<Cart />} />
+            <Route path="/checkout" element={<Checkout />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/orders/:id" element={<OrderDetail />} />
+            <Route path="/orders/track/:token" element={<OrderTrack />} />
             <Route path="/stats" element={<Stats />} />
             <Route path="/admin/orders" element={<AdminOrders />} />
             <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />

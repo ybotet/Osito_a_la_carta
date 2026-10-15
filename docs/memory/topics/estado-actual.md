@@ -1,6 +1,6 @@
 # Estado actual del proyecto — Snapshot técnico
 
-> Fuente de verdad del avance: `docs/TASKLIST.md`. Última actualización: 2026-10-08.
+> Fuente de verdad del avance: `docs/TASKLIST.md`. Última actualización: 2026-10-13.
 
 ---
 
@@ -55,7 +55,8 @@ osito_a_la_carta/
 │       ├── lib/
 │       │   ├── i18n.ts       # i18next init + detector (localStorage > navigator)
 │       │   ├── cn.ts         # clsx + tailwind-merge
-│       │   └── format.ts     # formatPrice
+│       │   ├── format.ts     # formatPrice
+│       │   └── guest-orders.ts  # save/get/remove tracking tokens (máx 10) (T-098b)
 │       ├── hooks/
 │       │   └── useIsAuthenticated.ts  # selector derivado del store auth
 │       ├── store/
@@ -66,7 +67,7 @@ osito_a_la_carta/
 │       │   ├── client.ts     # apiRequest (único fetch: auth + refresh + Accept-Language)
 │       │   ├── auth.ts       # registerUser, loginUser
 │       │   ├── dishes.ts     # fetchDishes, fetchDishById
-│       │   ├── orders.ts     # createOrder, fetchOrders, fetchOrderById, listAdminOrders
+│       │   ├── orders.ts     # createOrder, createGuestOrder, fetchOrderByToken, fetchOrders, fetchOrderById, listAdminOrders
 │       │   └── stats.ts      # recordPageView (T-070)
 │       ├── components/
 │       │   ├── ui/           # button, card, input, label, badge, select (shadcn)
@@ -76,19 +77,21 @@ osito_a_la_carta/
 │       ├── pages/
 │       │   ├── Menu.tsx      # /menu - lista platos agrupados por categoría
 │       │   ├── DishDetail.tsx  # /menu/:id - detalle + add to cart
-│       │   ├── Cart.tsx      # /cart - resumen + confirmar pedido
-│       │   ├── Orders.tsx    # /orders - historial
+│       │   ├── Cart.tsx      # /cart - resumen + confirmar pedido → /checkout
+│       │   ├── Checkout.tsx  # /checkout - formulario invitado (T-098b)
+│       │   ├── Orders.tsx    # /orders - historial + pedidos de invitado (T-098b)
 │       │   ├── OrderDetail.tsx # /orders/:id - detalle pedido
+│       │   ├── OrderTrack.tsx  # /orders/track/:token - tracking invitado (T-098b)
 │       │   ├── Stats.tsx     # /stats - estadísticas usuario (T-072)
 │       │   ├── Login.tsx     # /login
-│       │   ├── Register.tsx  # /register
+│       │   ├── Register.tsx  # /register - precarga desde query params (T-098b)
 │       │   └── admin/
 │       │       └── Orders.tsx  # /admin/orders - panel chef (T-081)
 │       └── locales/
-│           ├── es.json, ru.json, en.json  # i18n keys (nav, menu, cart, orders, auth, etc.)
+│           ├── es.json, ru.json, en.json  # i18n keys (nav, menu, cart, orders, auth, checkout, track, guestOrders, etc.)
 ├── shared/
 │   ├── types.ts              # (vacío, reservado)
-│   └── schemas.ts            # fábricas createRegisterBodySchema(mensajes), createLoginBodySchema(mensajes)
+│   └── schemas.ts            # fábricas createRegisterBodySchema, createLoginBodySchema, createGuestOrderBodySchema (mensajes inyectados)
 ├── docs/
 │   ├── SPEC.md               # Especificación del producto
 │   ├── AGENTE.md             # Reglas del agente (NO AGENTE.md)
@@ -196,10 +199,13 @@ osito_a_la_carta/
 | POST | `/api/categories` | admin | Crear categoría (409 slug duplicado) |
 | PUT | `/api/categories/:id` | admin | Renombrar 3 idiomas + sortOrder |
 | DELETE | `/api/categories/:id` | admin | 409 si tiene platos (incluye deshabilitados) |
-| POST | `/api/auth/register` | público | Crea usuario (role=customer), 409 email duplicado |
+| POST | `/api/auth/register` | público | Crea usuario (role=customer), 409 email duplicado, envía email de verificación |
+| GET | `/api/auth/verify-email?token=` | público | Verifica email del usuario (T-098b-verif) |
 | POST | `/api/auth/login` | público | Devuelve access (15min) + refresh (7d) tokens |
 | POST | `/api/auth/refresh` | público | Renueva access con refresh válido |
 | POST | `/api/orders` | user | Crea pedido + items (transacción) |
+| POST | `/api/orders/guest` | público | Crea pedido invitado con trackingToken (T-098a) |
+| GET | `/api/orders/track/:token` | público | Consulta pedido por trackingToken (T-098a) |
 | GET | `/api/orders` | user | Historial del usuario autenticado |
 | GET | `/api/orders/:id` | user | Detalle de un pedido propio |
 | POST | `/api/stats/pageview` | público | Registra pageview (T-070) |
@@ -212,10 +218,10 @@ osito_a_la_carta/
 ## Base de datos (SQLite + Drizzle)
 
 **Tablas:**
-- `users`: id, email (unique), passwordHash, role (customer/admin), preferredLang, createdAt
+- `users`: id, email (unique), passwordHash, role (customer/admin), preferredLang, emailVerified, emailVerificationToken, createdAt
 - `categories`: id, slug (unique), nameEs, nameRu, nameEn, sortOrder
 - `dishes`: id, categoryId (FK), imageUrl, price, nameEs/Ru/En, descriptionEs/Ru/En, ingredientsEs/Ru/En, isAvailable (default 1), createdAt
-- `orders`: id, userId (FK), status (pending/preparing/sent/delivered), totalCents, note, createdAt
+- `orders`: id, userId (FK, nullable), status (pending/preparing/sent/delivered), totalCents, note, createdAt, guestName, guestPhone, guestEmail, deliveryAddress, trackingToken (unique)
 - `order_items`: id, orderId (FK), dishId (FK), quantity, unitPriceCents
 - `page_views`: id, userId (FK, nullable), dishId (FK), createdAt
 - `notification_logs`: id, orderId (FK), channel (email/telegram), status (sent/failed), attempts, error, createdAt
@@ -233,11 +239,14 @@ osito_a_la_carta/
 | `/` | (redirige a `/menu`) | — | — |
 | `/menu` | Menu.tsx | público | Platos agrupados por categoría |
 | `/menu/:id` | DishDetail.tsx | público | Detalle + botón agregar al carrito |
-| `/cart` | Cart.tsx | user | Resumen + nota + confirmar → `/orders/:id` |
-| `/orders` | Orders.tsx | user | Historial pedidos propios |
+| `/cart` | Cart.tsx | público | Resumen + nota + confirmar → `/checkout` |
+| `/checkout` | Checkout.tsx | público | Formulario invitado con RHF + Zod → POST /api/orders/guest |
+| `/orders` | Orders.tsx | público/user | Historial propio / pedidos de invitado |
 | `/orders/:id` | OrderDetail.tsx | user | Detalle pedido |
+| `/orders/track/:token` | OrderTrack.tsx | público | Seguimiento por trackingToken |
 | `/login` | Login.tsx | público | Login + auto-redirect a `/menu` |
-| `/register` | Register.tsx | público | Registro + auto-login → `/menu` |
+| `/register` | Register.tsx | público | Registro + email de verificación; precarga desde query params |
+| `/verify-email` | VerifyEmail.tsx | público | Verifica email con token del enlace |
 | `/admin/orders` | — | admin | (pendiente T-081) |
 | `/stats` | — | user | (pendiente T-072) |
 

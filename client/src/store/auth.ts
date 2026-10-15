@@ -71,9 +71,15 @@ export const useAuthStore = create<AuthState>()(
        * Vacía la sesión en memoria. **Con `persist`, esto también borra el `localStorage`**,
        * que es lo que hace falta para cerrar sesión de verdad: si solo se limpiara el estado,
        * al recargar la página volvería la sesión de antes.
+       *
+       * **Preserva `_hasHydrated`.** El store ya está hidratado desde que cargó la app;
+       * ponerlo a `false` haría que `Layout.tsx` volviera a ocultar el navbar (el header usa
+       * `invisible h-0` mientras `!_hasHydrated`), lo que hace desaparecer la barra de
+       * navegación justo cuando el usuario cierra sesión. No hay razón para "des-hidratar".
        */
       clearSession: () => {
-        set(initialState());
+        const { _hasHydrated } = useAuthStore.getState();
+        set({ user: null, accessToken: null, refreshToken: null, _hasHydrated });
       },
     }),
     {

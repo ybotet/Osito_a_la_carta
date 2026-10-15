@@ -33,7 +33,7 @@ const orderItemInputSchema = z.object({
 });
 
 /**
- * Body de `POST /api/orders`.
+ * Body de `POST /api/orders` para usuarios autenticados.
  *
  * **`items` no admite el mismo plato dos veces.** El carrito de T-050 garantiza una línea
  * por plato (`addItem` sube la cantidad en vez de añadir línea), así que un duplicado
@@ -62,6 +62,50 @@ const createOrderBodySchema = z.object({
       message: `La nota no puede superar los ${MAX_CUSTOMER_NOTE_LENGTH} caracteres`,
     })
     .optional(),
+});
+
+/**
+ * Body de `POST /api/orders` para invitados (sin autenticación).
+ *
+ * Requiere los mismos items que el usuario autenticado, más datos de contacto
+ * y entrega obligatorios para el invitado.
+ */
+const createGuestOrderBodySchema = z.object({
+  items: z
+    .array(orderItemInputSchema)
+    .min(1, { message: 'El pedido debe tener al menos un plato' })
+    .refine(
+      (items) =>
+        new Set(items.map((item) => item.dishId)).size === items.length,
+      { message: 'No se puede repetir el mismo plato en un pedido' },
+    ),
+  customerNote: z
+    .string()
+    .trim()
+    .max(MAX_CUSTOMER_NOTE_LENGTH, {
+      message: `La nota no puede superar los ${MAX_CUSTOMER_NOTE_LENGTH} caracteres`,
+    })
+    .optional(),
+  guestName: z
+    .string()
+    .trim()
+    .min(2, { message: 'El nombre debe tener al menos 2 caracteres' })
+    .max(100, { message: 'El nombre no puede superar 100 caracteres' }),
+  guestPhone: z
+    .string()
+    .trim()
+    .min(5, { message: 'El teléfono debe tener al menos 5 caracteres' })
+    .max(20, { message: 'El teléfono no puede superar 20 caracteres' }),
+  guestEmail: z
+    .string()
+    .trim()
+    .email({ message: 'Email inválido' })
+    .max(254, { message: 'El email no puede superar 254 caracteres' }),
+  deliveryAddress: z
+    .string()
+    .trim()
+    .min(5, { message: 'La dirección debe tener al menos 5 caracteres' })
+    .max(500, { message: 'La dirección no puede superar 500 caracteres' }),
 });
 
 /**
@@ -96,7 +140,12 @@ const orderItemSchema = z.object({
  */
 const orderSchema = z.object({
   id: z.number().int(),
-  userId: z.number().int(),
+  userId: z.number().int().nullable(),
+  guestName: z.string().nullable(),
+  guestPhone: z.string().nullable(),
+  guestEmail: z.string().nullable(),
+  deliveryAddress: z.string().nullable(),
+  trackingToken: z.string().nullable(),
   status: z.enum(ORDER_STATUSES),
   total: z.number(),
   customerNote: z.string().nullable(),
@@ -133,6 +182,7 @@ export {
   MAX_CUSTOMER_NOTE_LENGTH,
   ORDER_STATUSES,
   createOrderBodySchema,
+  createGuestOrderBodySchema,
   orderEnvelopeSchema,
   ordersListEnvelopeSchema,
   orderItemInputSchema,
@@ -141,6 +191,7 @@ export {
 };
 
 export type CreateOrderBody = z.infer<typeof createOrderBodySchema>;
+export type CreateGuestOrderBody = z.infer<typeof createGuestOrderBodySchema>;
 export type Order = z.infer<typeof orderSchema>;
 export type OrderEnvelope = z.infer<typeof orderEnvelopeSchema>;
 export type OrdersListEnvelope = z.infer<typeof ordersListEnvelopeSchema>;

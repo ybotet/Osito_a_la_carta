@@ -139,8 +139,8 @@ const createRegisterBodySchema = (messages: RegisterBodyMessages) =>
  * Body de `POST /api/auth/login`: dos campos y nada más.
  *
  * **La contraseña aquí solo se exige que no esté vacía, y no se reutiliza la regla del
- * registro, a propósito.** El login no responde "¿esta contraseña cumple las reglas?", sino
- * "¿son estas las credenciales?": aplicar el `min(8)` haría que una contraseña demasiado
+ * registro, a propósito.** El login no responde "¿esta.cumple las reglas?", sino
+ * "¿son estas las credenciales?": aplicar el `min(8)` haría que una demasiado
  * corta devolviera 400 en vez del 401 `INVALID_CREDENTIALS` que el cliente tiene que saber
  * pintar ("usuario o contraseña incorrectos").
  */
@@ -150,10 +150,68 @@ const createLoginBodySchema = (messages: LoginBodyMessages) =>
     password: z.string().min(1, { message: messages.passwordRequired }),
   });
 
+/**
+ * Body de `POST /api/orders/guest` (T-098a). Campos de contacto y entrega del invitado.
+ *
+ * **`guestEmail` es opcional**, pero si se provee debe ser válido: el backend usa el email
+ * del usuario autenticado cuando hay sessión, y para invitados es una forma alternativa de
+ * contacto que no es obligatoria.
+ *
+ * **`guestPhone` y `deliveryAddress` obligatorios**: son los datos mínimos para entregar.
+ * **`guestName` obligatorio**: identifica al cliente en el panel del chef.
+ */
+const createGuestOrderBodySchema = (messages: GuestOrderBodyMessages) =>
+  z.object({
+    items: z
+      .array(
+        z.object({
+          dishId: z.number().int().positive(),
+          quantity: z.number().int().min(1),
+        }),
+      )
+      .min(1, { message: messages.itemsMin }),
+    customerNote: z.string().trim().max(500).optional(),
+    guestName: z
+      .string()
+      .trim()
+      .min(2, { message: messages.nameMin })
+      .max(100, { message: messages.nameMax }),
+    guestPhone: z
+      .string()
+      .trim()
+      .min(5, { message: messages.phoneMin })
+      .max(20, { message: messages.phoneMax }),
+    guestEmail: z
+      .string()
+      .trim()
+      .email({ message: messages.emailFormat })
+      .max(254, { message: messages.emailMax })
+      .optional(),
+    deliveryAddress: z
+      .string()
+      .trim()
+      .min(5, { message: messages.addressMin })
+      .max(500, { message: messages.addressMax }),
+  });
+
+type GuestOrderBodyMessages = {
+  itemsMin: string;
+  nameMin: string;
+  nameMax: string;
+  phoneMin: string;
+  phoneMax: string;
+  emailFormat: string;
+  emailMax: string;
+  addressMin: string;
+  addressMax: string;
+};
+
 export {
   BCRYPT_MAX_BYTES,
+  createGuestOrderBodySchema,
   createLoginBodySchema,
   createRegisterBodySchema,
+  type GuestOrderBodyMessages,
   type LoginBodyMessages,
   type RegisterBodyMessages,
 };

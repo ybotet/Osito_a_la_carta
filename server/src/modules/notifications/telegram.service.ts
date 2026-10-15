@@ -33,8 +33,14 @@ const buildTelegramMessage = (
 
   const date = new Date(order.createdAt * 1000).toLocaleString('es-ES');
 
+  // Datos del cliente invitado si aplica
+  const guestInfo = order.userId === null
+    ? `\n👤 *Invitado:*\nNombre: ${order.guestName ?? 'N/A'}\nTeléfono: ${order.guestPhone ?? 'N/A'}\nDirección: ${order.deliveryAddress ?? 'N/A'}\nToken: ${order.trackingToken ?? 'N/A'}`
+    : '';
+
   return `🍽️ *Nuevo pedido #${order.id}*
 👤 Cliente: (email no disponible en order)
+${guestInfo}
 📝 Nota: ${note}
 ---- Items ----
 ${lines}

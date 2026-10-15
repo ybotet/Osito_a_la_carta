@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthStore } from '@/store/auth';
 import { listOrders } from '@/api/orders';
 import { formatPrice } from '@/lib/format';
+import { getTokens, removeToken } from '@/lib/guest-orders';
+import type { GuestTokenEntry } from '@/lib/guest-orders';
+import { Button } from '@/components/ui/button';
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -29,14 +32,17 @@ function OrdersPage() {
       itemCount: number;
     }[]
   >([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(isAuthenticated);
   const [error, setError] = useState<string | null>(null);
+  const [guestTokens, setGuestTokens] = useState<GuestTokenEntry[]>(
+    () => getTokens(),
+  );
+  const [showAllGuest, setShowAllGuest] = useState(false);
 
   const language = i18n.resolvedLanguage ?? i18n.language ?? 'es';
 
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/login', { replace: true });
       return;
     }
 
@@ -63,16 +69,91 @@ function OrdersPage() {
     load();
   }, [isAuthenticated, navigate, i18n, t]);
 
+  const handleGuestClick = (token: string) => {
+    removeToken(token);
+    setGuestTokens(getTokens());
+    void navigate(`/orders/track/${token}`);
+  };
+
+  const handleCreateAccount = () => {
+    void navigate(`/register`);
+  };
+
   const formatDate = (timestamp: number): string => {
-    return new Date(timestamp * 1000).toLocaleDateString(language, {
+    return new Date(timestamp * 1000).toLocaleString(language, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
   if (!isAuthenticated) {
-    return null;
+    return (
+      <main className="mx-auto max-w-5xl p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('orders.guestOrdersTitle')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {guestTokens.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground">
+                {t('orders.guestOrdersEmpty')}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {(showAllGuest ? guestTokens : [guestTokens[0]!]).map((entry) => (
+                  <button
+                    key={entry.token}
+                    type="button"
+                    onClick={() => handleGuestClick(entry.token)}
+                    className="flex w-full items-center justify-between rounded-lg border p-4 text-left transition-colors hover:bg-muted/50"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium">
+                        #{entry.orderId}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {t('orders.date')}: {formatDate(entry.createdAt)}
+                      </p>
+                    </div>
+                    <Button variant="link" size="sm">
+                      {t('orders.guestOrdersLast')}
+                    </Button>
+                  </button>
+                ))}
+                {!showAllGuest && guestTokens.length > 1 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAllGuest(true)}
+                    className="w-full"
+                  >
+                    {t('orders.guestOrdersAll')}
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {guestTokens.length > 0 && (
+          <Card className="mt-4">
+            <CardContent className="pt-6">
+              <Button
+                variant="default"
+                size="lg"
+                className="w-full"
+                onClick={handleCreateAccount}
+              >
+                {t('track.createAccount')}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </main>
+    );
   }
 
   if (isLoading) {

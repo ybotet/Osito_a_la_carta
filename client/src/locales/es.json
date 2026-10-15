@@ -53,7 +53,8 @@
     "backToMenu": "Volver al menú",
     "stats": "Estadísticas",
     "admin": "Panel chef",
-    "adminCategories": "Categorías"
+    "adminCategories": "Categorías",
+    "guestOrders": "Pedidos de invitado"
   },
   "menu": {
     "title": "Menú",
@@ -74,7 +75,8 @@
     "totalPrice": "Total a pagar",
     "checkingOut": "Confirmando...",
     "error": "No se pudo confirmar el pedido.",
-    "successRedirect": "Redirigiendo a tu pedido..."
+    "successRedirect": "Redirigiendo a tu pedido...",
+    "itemsMin": "El pedido debe tener al menos un plato"
   },
   "orders": {
     "title": "Mis pedidos",
@@ -91,7 +93,11 @@
       "sent": "Enviado",
       "delivered": "Entregado",
       "cancelled": "Cancelado"
-    }
+    },
+    "guestOrdersTitle": "Mis pedidos como invitado",
+    "guestOrdersEmpty": "Aún no has hecho pedidos como invitado.",
+    "guestOrdersLast": "Último pedido",
+    "guestOrdersAll": "Ver todos"
   },
   "admin": {
     "orders": {
@@ -296,7 +302,12 @@
       "submitting": "Creando la cuenta…",
       "passwordHint": "Mínimo {{min}} caracteres.",
       "hasAccount": "¿Ya tienes cuenta?",
-      "loginLink": "Inicia sesión"
+      "loginLink": "Inicia sesión",
+      "verificationSent": "Te enviamos un email de verificación a {{email}}. Revisa tu bandeja (y la carpeta de spam).",
+      "verificationSuccess": "Email verificado correctamente. Ya puedes iniciar sesión.",
+      "verificationError": "No se pudo verificar el email. El enlace puede haber expirado.",
+      "verifying": "Verificando tu email…",
+      "redirectToLogin": "Serás redirigido a la pantalla de inicio de sesión."
     },
     "errors": {
       "emailMax": "El email no puede superar los 254 caracteres",
@@ -310,5 +321,44 @@
       "loginFailed": "No se ha podido iniciar sesión. Inténtalo de nuevo en unos minutos.",
       "registerFailed": "No se ha podido crear la cuenta. Inténtalo de nuevo en unos minutos."
     }
+  },
+  "checkout": {
+    "title": "Confirmar pedido",
+    "subtitle": "Revisa tu pedido y completa los datos de entrega.",
+    "name": "Nombre",
+    "phone": "Teléfono",
+    "email": "Email (opcional)",
+    "address": "Dirección de entrega",
+    "note": "Nota para el chef (opcional)",
+    "submit": "Confirmar pedido",
+    "submitting": "Confirmando…",
+    "error": "No se ha podido confirmar el pedido. Inténtalo de nuevo.",
+    "success": "¡Tu pedido está en camino!",
+    "guestInfo": "No tienes cuenta. Te crearemos un enlace para seguir tu pedido.",
+    "loginInfo": "Inicia sessión para ver tu historial de pedidos.",
+    "nameMin": "El nombre debe tener al menos 2 caracteres",
+    "nameMax": "El nombre no puede superar 100 caracteres",
+    "phoneMin": "El teléfono debe tener al menos 5 caracteres",
+    "phoneMax": "El teléfono no puede superar 20 caracteres",
+    "addressMin": "La dirección debe tener al menos 5 caracteres",
+    "addressMax": "La dirección no puede superar 500 caracteres"
+  },
+  "track": {
+    "title": "Seguimiento de pedido",
+    "loading": "Cargando tu pedido…",
+    "error": "No se ha podido cargar el pedido. Inténtalo de nuevo.",
+    "notFound": "No encontramos ese pedido. Puede que el token sea incorrecto.",
+    "retry": "Volver a intentar",
+    "createAccount": "Creá tu cuenta",
+    "createAccountHint": "¿Querés crear una cuenta? Te guardamos tus datos.",
+    "status": "Estado",
+    "total": "Total",
+    "items": "Platos"
+  },
+  "guestOrders": {
+    "title": "Mis pedidos como invitado",
+    "empty": "Aún no has hecho pedidos como invitado.",
+    "last": "Último pedido",
+    "all": "Ver todos"
   }
 }

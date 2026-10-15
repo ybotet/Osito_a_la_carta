@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import { loginUser, refreshAccessToken, registerUser } from './auth.service.js';
+import { loginUser, refreshAccessToken, registerUser, verifyEmail } from './auth.service.js';
 import {
   loginBodySchema,
   refreshBodySchema,
   registerBodySchema,
 } from './auth.schema.js';
+import { BadRequestError, NotFoundError } from '../../shared/errors.js';
 
 const authRouter = Router();
 
@@ -50,6 +51,26 @@ authRouter.post('/auth/refresh', (req, res) => {
   const body = refreshBodySchema.parse(req.body);
 
   res.json(refreshAccessToken(body));
+});
+
+/**
+ * Verificación de email. `GET` con query param `token` para que funcione como
+ * enlace desde el email. Marca `emailVerified = 1` y limpia el token.
+ */
+authRouter.get('/auth/verify-email', (req, res) => {
+  const token = req.query.token;
+
+  if (typeof token !== 'string' || token.trim().length === 0) {
+    throw new BadRequestError('Token de verificacion invalido', 'INVALID_TOKEN');
+  }
+
+  const result = verifyEmail(token.trim());
+
+  if (result === null) {
+    throw new NotFoundError('Token de verificacion no encontrado', 'TOKEN_NOT_FOUND');
+  }
+
+  res.json(result);
 });
 
 export { authRouter };

@@ -22,6 +22,20 @@
       "when": 1790966012104,
       "tag": "0002_unusual_the_hand",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791802452862,
+      "tag": "0003_many_lady_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791897317487,
+      "tag": "0004_fuzzy_blob",
+      "breakpoints": true
     }
   ]
 }

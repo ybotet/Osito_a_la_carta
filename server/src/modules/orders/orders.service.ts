@@ -6,13 +6,14 @@ import {
   findAllOrdersForAdmin,
   insertOrderWithItems,
   updateOrderStatus,
+  findOrderByTrackingToken,
 } from './orders.repository.js';
 import type { OrderItemRow, OrderRow } from './orders.repository.js';
+import { z } from 'zod';
 import { BadRequestError, NotFoundError } from '../../shared/errors.js';
 import type { Language } from '../../shared/language.js';
 import { resolveLanguage } from '../../shared/language.js';
-import { orderEnvelopeSchema, ordersListEnvelopeSchema } from './orders.schema.js';
-import type { CreateOrderBody } from './orders.schema.js';
+import { orderEnvelopeSchema, ordersListEnvelopeSchema, createGuestOrderBodySchema, type CreateOrderBody } from './orders.schema.js';
 import { sendOrderEmail } from '../notifications/email.service.js';
 import { sendOrderTelegram } from '../notifications/telegram.service.js';
 import { sendWithRetry, insertNotificationLog } from '../notifications/notifications.repository.js';
@@ -20,6 +21,7 @@ import type { LocalizedOrderItem } from '../notifications/templates/order-email.
 import { db } from '../../db/client.js';
 import { users } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
 
 /**
  * Redondea a céntimos. El precio viene de SQLite por `real`, así que es coma flotante:
@@ -49,6 +51,11 @@ const toResponse = (
 ) => ({
   id: order.id,
   userId: order.userId,
+  guestName: order.guestName,
+  guestPhone: order.guestPhone,
+  guestEmail: order.guestEmail,
+  deliveryAddress: order.deliveryAddress,
+  trackingToken: order.trackingToken,
   status: order.status,
   total: order.total,
   customerNote: order.customerNote,
@@ -275,7 +282,134 @@ const createOrder = (
   return response;
 };
 
+/**
+ * Crea un pedido como invitado (sin autenticación).
+ *
+ * Valida los mismos items que createOrder, más los datos obligatorios del invitado:
+ * guestName, guestPhone, guestEmail, deliveryAddress.
+ * Genera un trackingToken (UUID v4) para que el invitado pueda consultar su pedido.
+ *
+ * Devuelve `{ language, order }` con el pedido ya leído de la base y localizado al idioma
+ * de la petición, incluyendo el trackingToken.
+ */
+const createGuestOrder = (
+  body: z.infer<typeof createGuestOrderBodySchema>,
+  acceptLanguage: string | undefined,
+) => {
+  const requestedIds = body.items.map((item) => item.dishId);
+  const available = findOrderableDishesByIds(requestedIds);
+  const priceByDishId = new Map(available.map((dish) => [dish.id, dish.price]));
+
+  const unavailableIds = requestedIds.filter((id) => !priceByDishId.has(id));
+
+  if (unavailableIds.length > 0) {
+    throw new BadRequestError(
+      'Uno o varios platos ya no estan disponibles',
+      'DISH_UNAVAILABLE',
+      { dishIds: unavailableIds },
+    );
+  }
+
+  const items = body.items.map((item) => ({
+    dishId: item.dishId,
+    quantity: item.quantity,
+    unitPrice: priceByDishId.get(item.dishId) ?? 0,
+  }));
+
+  const total = roundToCents(
+    items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
+  );
+
+  const trackingToken = randomUUID();
+
+  const created = insertOrderWithItems({
+    userId: null,
+    total,
+    customerNote:
+      body.customerNote === undefined || body.customerNote.length === 0
+        ? null
+        : body.customerNote,
+    guestName: body.guestName,
+    guestPhone: body.guestPhone,
+    guestEmail: body.guestEmail,
+    deliveryAddress: body.deliveryAddress,
+    trackingToken,
+    items,
+  });
+
+  const reloaded = findOrderWithItems(created.id);
+
+  if (reloaded === undefined) {
+    throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND', {
+      id: created.id,
+    });
+  }
+
+  const language = resolveLanguage(acceptLanguage);
+
+  const response = orderEnvelopeSchema.parse({
+    language,
+    order: toResponse(reloaded.order, reloaded.items, language),
+  });
+
+  // Disparar notificaciones en paralelo con reintentos (T-063 / T-065)
+  const localizedItems: LocalizedOrderItem[] = reloaded.items.map((item) => ({
+    dishId: item.dishId,
+    name: localize(item, language),
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+  }));
+
+  // Para invitados, el customerEmail es el guestEmail
+  const customerEmail = body.guestEmail;
+
+  const notifications = Promise.allSettled([
+    sendWithRetry(
+      reloaded.order.id,
+      'email',
+      () => sendOrderEmail(reloaded.order, localizedItems, customerEmail),
+      2,
+      2000,
+    ).then(
+      (success) => ({ channel: 'email' as const, success }),
+      (err) => ({ channel: 'email' as const, success: false, error: String(err) }),
+    ),
+    sendWithRetry(
+      reloaded.order.id,
+      'telegram',
+      () => sendOrderTelegram(reloaded.order, localizedItems),
+      2,
+      2000,
+    ).then(
+      (success) => ({ channel: 'telegram' as const, success }),
+      (err) => ({ channel: 'telegram' as const, success: false, error: String(err) }),
+    ),
+  ]);
+
+  notifications.then((results) => {
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        if (!result.value.success) {
+          // Fallo final ya registrado por sendWithRetry
+        }
+      } else {
+        insertNotificationLog(
+          reloaded.order.id,
+          'email',
+          1,
+          2,
+          'failed',
+          String(result.reason),
+        );
+      }
+    }
+  });
+
+  return response;
+};
+
 export type CreateOrderResult = ReturnType<typeof createOrder>;
+export type CreateGuestOrderResult = ReturnType<typeof createGuestOrder>;
 export type ListOrdersResult = ReturnType<typeof listOrders>;
 export type GetOrderByIdResult = ReturnType<typeof getOrderById>;
 export type ListAdminOrdersResult = ReturnType<typeof listAdminOrders>;
@@ -399,17 +533,60 @@ const getAdminOrderById = (
     return undefined;
   }
 
-  // Buscar el email del usuario
-  const user = db
-    .select({ email: users.email })
-    .from(users)
-    .where(eq(users.id, orderData.order.userId))
-    .get();
+  // Buscar el email del usuario (userId puede ser null para invitados)
+  let userEmail: string | null = null;
+  if (orderData.order.userId !== null) {
+    const user = db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, orderData.order.userId))
+      .get();
+    userEmail = user?.email ?? null;
+  }
 
   return {
     ...toResponse(orderData.order, orderData.items, language),
-    userEmail: user?.email ?? 'desconocido@desconocido.com',
+    userEmail: userEmail ?? 'desconocido@desconocido.com',
   };
 };
 
-export { createOrder, listOrders, getOrderById, listAdminOrders, updateOrderStatusAdmin, getAdminOrderById };
+/**
+ * Obtiene un pedido por trackingToken (para invitados).
+ *
+ * No requiere autenticación. Devuelve el pedido con sus items localizados
+ * si existe y tiene trackingToken.
+ */
+const getOrderByTrackingToken = (
+  trackingToken: string,
+  acceptLanguage: string | undefined,
+) => {
+  const language = resolveLanguage(acceptLanguage);
+  const orderData = findOrderByTrackingToken(trackingToken);
+
+  if (orderData === undefined) {
+    return undefined;
+  }
+
+  // Para pedidos de invitados, determinar el email de contacto
+  let contactEmail = orderData.order.guestEmail;
+  const userId = orderData.order.userId;
+  if (!contactEmail && userId !== null) {
+    const user = db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, userId))
+      .get();
+    contactEmail = user?.email ?? null;
+  }
+  if (!contactEmail) {
+    contactEmail = 'desconocido@desconocido.com';
+  }
+
+  return {
+    language,
+    order: toResponse(orderData.order, orderData.items, language),
+    contactEmail,
+  };
+};
+
+export { createOrder, createGuestOrder, listOrders, getOrderById, listAdminOrders, updateOrderStatusAdmin, getAdminOrderById, getOrderByTrackingToken };

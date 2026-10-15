@@ -92,6 +92,32 @@ const findUserByEmail = (email: string) =>
   db.select(authUserProjection).from(users).where(eq(users.email, email)).get();
 
 /**
+ * Busca un usuario por su token de verificación de email.
+ * Devuelve la proyección pública o undefined si no existe.
+ */
+const findUserByVerificationToken = (token: string) =>
+  db
+    .select(publicUserProjection)
+    .from(users)
+    .where(eq(users.emailVerificationToken, token))
+    .get();
+
+/**
+ * Marca el email de un usuario como verificado y limpia el token.
+ * Devuelve la proyección pública del usuario actualizado.
+ */
+const verifyUserEmail = (userId: number) =>
+  db
+    .update(users)
+    .set({
+      emailVerified: 1,
+      emailVerificationToken: null,
+    })
+    .where(eq(users.id, userId))
+    .returning(publicUserProjection)
+    .get();
+
+/**
  * Busca el usuario por id **para la renovación de token** (T-042).
  *
  * Por qué no basta con creerse el `sub` del token, aunque venga firmado: si la fila
@@ -107,4 +133,21 @@ const findUserByEmail = (email: string) =>
 const findUserById = (id: number) =>
   db.select(authUserProjection).from(users).where(eq(users.id, id)).get();
 
-export { emailExists, findUserByEmail, findUserById, insertUser };
+/**
+ * Guarda el token de verificación de email para un usuario.
+ * Se usa tras el registro para permitir al usuario confirmar su email.
+ */
+const updateEmailVerificationToken = (
+  userId: number,
+  token: string | null,
+) =>
+  db
+    .update(users)
+    .set({
+      emailVerificationToken: token,
+      emailVerified: token === null ? 1 : 0,
+    })
+    .where(eq(users.id, userId))
+    .run();
+
+export { emailExists, findUserByEmail, findUserById, findUserByVerificationToken, insertUser, updateEmailVerificationToken, verifyUserEmail };
