@@ -277,3 +277,23 @@
 
 **Impacto:** El checkout híbrido funciona sin pantalla en blanco, el navbar persiste al cerrar sesión, y el flujo de verificación de email es consistente.
 **Deuda/Notas:** `db:migrate` sigue fallando en server (aplicado manualmente). La migración `0004_fuzzy_blob.sql` no incluye `contactEmail` en el envelope del track endpoint (se resolvió en servicio, no en migración.
+
+## 2026-10-15 — T-090: PWA con vite-plugin-pwa
+
+**Qué:** Configuración de Progressive Web App (PWA) en el cliente para permitir la instalación en móvil.
+**Cómo:**
+- Instalado `vite-plugin-pwa@^2.0.0` como devDependency en `client/` (via npm workspace).
+- Configurado en `client/vite.config.ts`:
+  - `strategies: 'generateSW'` (generación automática de service worker).
+  - `registerType: 'autoUpdate'` (actualización automática del SW cuando hay cambios).
+  - `injectRegister: 'auto'` (inyección automática del registro en `index.html` durante build).
+  - `includeAssets`: `favicon.ico`, `apple-touch-icon.png`, `images/osito.jpg` (precacheados).
+  - `workbox`: `globPatterns: ['**/*.{js,css,html,svg,png,ico}']`, `maximumFileSizeToCacheInBytes: 3MB`.
+  - `devOptions.enabled: false` (SW desactivado en dev).
+- Manifest: `name: "Osito a la carta"`, `short_name: "Osito"`, `display: "standalone"`, `theme_color: "#f59e0b"`, `background_color: "#fff7ed"`, icons 192x192 y 512x512 (purpose: any + maskable).
+- Creados íconos placeholder en `client/public/icons/`: `osito-icon-192.png`, `osito-icon-512.png`, `osito-icon.svg`.
+- Creados `client/public/favicon.ico` (16/32/48) y `client/public/apple-touch-icon.png` (180x180).
+- Build genera: `manifest.webmanifest`, `registerSW.js` (auto-inyectado en `index.html`), `sw.js` (service worker con precache).
+
+**Impacto:** En Chrome móvil, la app muestra el prompt "Añadir a pantalla de inicio" y al abrirse desde allí se ve sin barra de navegador.
+**Deuda/Notas:** Los íconos son placeholder; reemplazar con el logo oficial del restaurante. No hay runtimeCaching configurado (solo precache).

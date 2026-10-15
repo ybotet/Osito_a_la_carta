@@ -2,6 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
 const API_TARGET = 'http://localhost:3000';
 
@@ -19,7 +20,63 @@ const API_TARGET = 'http://localhost:3000';
 const SRC_ROOT = fileURLToPath(new URL('./src', import.meta.url));
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    VitePWA({
+      strategies: 'generateSW',
+      registerType: 'autoUpdate',
+      includeAssets: [
+        'favicon.ico',
+        'apple-touch-icon.png',
+        'images/osito.jpg',
+      ],
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+      },
+      manifest: {
+        name: 'Osito a la carta',
+        short_name: 'Osito',
+        description: 'Pedidos de comida con envío a domicilio',
+        theme_color: '#f59e0b',
+        background_color: '#fff7ed',
+        display: 'standalone',
+        orientation: 'portrait',
+        categories: ['restaurant', 'food', 'shopping'],
+        icons: [
+          {
+            src: '/icons/osito-icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/icons/osito-icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/icons/osito-icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/icons/osito-icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      devOptions: {
+        enabled: false,
+      },
+      injectRegister: 'auto',
+    }),
+  ],
   resolve: {
     alias: {
       '@': SRC_ROOT,

@@ -260,7 +260,7 @@ osito_a_la_carta/
 
 ## Pendientes de infraestructura (Fase 9)
 
-- T-090: PWA (`vite-plugin-pwa`)
+- T-090: PWA (`vite-plugin-pwa`) — **completado** 2026-10-15
 - T-091: Responsive completo (360px+)
 - T-092: ErrorBoundary + toasts (shadcn toast + dropdown-menu)
 - T-093: Tests (vitest server + client)
