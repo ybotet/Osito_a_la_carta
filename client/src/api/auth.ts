@@ -28,10 +28,14 @@ type RegisterRequest = {
  * **400 `VALIDATION_ERROR**, que en el cliente casi nunca llega porque las mismas reglas están
  * en `shared/schemas.ts` y el formulario las aplica antes de enviar.
  */
-const registerUser = async (body: RegisterRequest): Promise<ApiAuthUser> =>
+const registerUser = async (
+  body: RegisterRequest,
+  options?: { silent?: boolean },
+): Promise<ApiAuthUser> =>
   (await apiRequest('/api/auth/register', {
     method: 'POST',
     body,
+    silent: options?.silent,
   })) as ApiAuthUser;
 
 /**
@@ -48,13 +52,17 @@ const registerUser = async (body: RegisterRequest): Promise<ApiAuthUser> =>
  * que también es 401) dispare la renovación, cierre la sesión del usuario y lo devuelva al
  * login en bucle. Ver `api/client.ts`.
  */
-const loginUser = async (body: {
-  email: string;
-  password: string;
-}): Promise<ApiLoginResponse> =>
+const loginUser = async (
+  body: {
+    email: string;
+    password: string;
+  },
+  options?: { silent?: boolean },
+): Promise<ApiLoginResponse> =>
   (await apiRequest('/api/auth/login', {
     method: 'POST',
     body,
+    silent: options?.silent,
   })) as ApiLoginResponse;
 
 export { loginUser, registerUser, verifyEmail };
@@ -64,5 +72,11 @@ export type { RegisterRequest };
  * Verifica el email: `GET /api/auth/verify-email?token=...`
  * Devuelve el usuario verificado.
  */
-const verifyEmail = async (token: string): Promise<ApiAuthUser> =>
-  (await apiRequest(`/api/auth/verify-email?token=${encodeURIComponent(token)}`)) as ApiAuthUser;
+const verifyEmail = async (
+  token: string,
+  options?: { silent?: boolean },
+): Promise<ApiAuthUser> =>
+  (await apiRequest(
+    `/api/auth/verify-email?token=${encodeURIComponent(token)}`,
+    { silent: options?.silent },
+  )) as ApiAuthUser;

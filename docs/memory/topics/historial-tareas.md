@@ -310,3 +310,20 @@
 
 **Impacto:** Navbar usable en 360 px (antes se amontontaban todos los enlaces + selectors). Grids de detalle de pedido adaptivos. Charts de stats no dominan la pantalla en móvil.
 **Deuda/Notas:** Los botones shadcn `size="sm"` (32 px) y `size="default"` (36 px) están por debajo del mínimo WCAG de 44 px. En el menú móvil se compensa con `w-full` (ancho completo). Corregir globalmente requiere modificar el componente base `Button` (T-035), pendiente de decisión.
+
+## 2026-10-17 — T-092: Manejo global de errores en frontend (ErrorBoundary + toasts)
+
+**Qué:** Implementación completa de manejo global de errores en el frontend: ErrorBoundary con fallback amigable, toasts de notificación para errores API, y sistema de supresión para evitar duplicados.
+
+**Cómo:**
+- `ErrorBoundary.tsx`: Class component (requerido por React) con `getDerivedStateFromError`, `componentDidCatch` (log a consola), y `reset` que recarga la página. El fallback (`ErrorFallback`) es un componente función que usa `useTranslation` para renderizar claves i18n `errors.title`, `errors.fallback`, `errors.retry`. Envuelve todas las rutas en `main.tsx`.
+- `main.tsx`: Importado `Toaster` de `sonner` y `<ErrorBoundary>` envolviendo `<Routes>`. Corregida estructura JSX de comentarios (comentario no cerrado que rompía el árbol).
+- `client.ts` (`apiRequest`): Al re-throw de un error 4xx/5xx que no sea `UNAUTHORIZED` (que se renueva), muestra `toast.error()` con el mensaje del API y una descripción con el código de error. El `i18n` instance ya importado se usa para el mensaje genérico `errors.generic`.
+- `http.ts` (`RequestOptions`): Añadido `silent?: boolean`. Cuando es `true`, `apiRequest` no muestra el toast.
+- API wrapper functions (`api/dishes.ts`, `api/categories.ts`, `api/orders.ts`, `api/auth.ts`, `api/stats.ts`): Todos aceptan un parámetro opcional `options?: { silent?: boolean }` que se reenvía a `apiRequest`.
+- Todos los llamadores actuales pasan `{ silent: true }` para evitar notificaciones duplicadas (formularios con errores inline, `useQuery` con estado de error, mutations con `onError`).
+- Claves i18n `errors: { title, fallback, retry, generic }` añadidas a `locales/es.json`, `ru.json`, `en.json`.
+
+**Impacto:** Un error de red o de API que no sea capturado por el caller muestra un toast de notificación. Si un componente se rompe durante el render, el usuario ve un fallback amigable con botón de recarga. Formularios y queries que manejan errores localmente mantienen su UX sin toasts duplicados. Typecheck, lint y build pasan.
+
+**Deuda/Notas:** La renovación de token fallida no muestra toast (redirige al login). El retry después de renovación exituosa llama a `requestJson` directamente (no `apiRequest`), por lo que un error en el retry no dispara toast; esto es consistente con el diseño actual.

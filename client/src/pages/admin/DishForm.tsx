@@ -145,9 +145,9 @@ const DishForm = () => {
     queryFn: async () => {
       if (!isValidId || dishId === null) return null;
       const [spanish, russian, english] = await Promise.all([
-        fetchDishById(dishId, 'es'),
-        fetchDishById(dishId, 'ru'),
-        fetchDishById(dishId, 'en'),
+        fetchDishById(dishId, 'es', undefined, { silent: true }),
+        fetchDishById(dishId, 'ru', undefined, { silent: true }),
+        fetchDishById(dishId, 'en', undefined, { silent: true }),
       ]);
 
       return {
@@ -166,7 +166,9 @@ const DishForm = () => {
   } = useQuery({
     queryKey: ['categories', i18n.resolvedLanguage],
     queryFn: () =>
-      fetchCategories(i18n.resolvedLanguage ?? DEFAULT_LANGUAGE),
+      fetchCategories(i18n.resolvedLanguage ?? DEFAULT_LANGUAGE, undefined, {
+        silent: true,
+      }),
   });
 
   const {
@@ -228,7 +230,7 @@ const DishForm = () => {
   const createMutation = useMutation({
     mutationFn: async (values: DishFormFields) => {
       if (selectedImage === null) throw new Error('Dish image is required');
-      const uploadedImage = await uploadDishImage(selectedImage);
+      const uploadedImage = await uploadDishImage(selectedImage, { silent: true });
       const body: CreateDishInput = {
         categoryId: values.categoryId,
         imageUrl: uploadedImage.imageUrl,
@@ -243,7 +245,7 @@ const DishForm = () => {
         ingredientsRu: values.ingredientsRu,
         ingredientsEn: values.ingredientsEn,
       };
-      return createDish(body, i18n.resolvedLanguage ?? DEFAULT_LANGUAGE);
+      return createDish(body, i18n.resolvedLanguage ?? DEFAULT_LANGUAGE, { silent: true });
     },
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['dishes'] });
@@ -265,7 +267,7 @@ const DishForm = () => {
     mutationFn: async (values: DishFormFields) => {
       if (!isValidId || dishId === null) throw new Error('Invalid dish ID');
       const uploadedImage =
-        selectedImage === null ? null : await uploadDishImage(selectedImage);
+        selectedImage === null ? null : await uploadDishImage(selectedImage, { silent: true });
       const body: UpdateDishInput = {
         categoryId: values.categoryId,
         ...(uploadedImage !== null && { imageUrl: uploadedImage.imageUrl }),
@@ -280,7 +282,7 @@ const DishForm = () => {
         ingredientsRu: values.ingredientsRu,
         ingredientsEn: values.ingredientsEn,
       };
-      return updateDish(dishId, body, i18n.resolvedLanguage ?? DEFAULT_LANGUAGE);
+      return updateDish(dishId, body, i18n.resolvedLanguage ?? DEFAULT_LANGUAGE, { silent: true });
     },
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['dish', dishId] });

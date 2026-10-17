@@ -37,7 +37,7 @@ function OrderTrackPage() {
 
   const { data, isPending, isError, error, refetch } = useQuery<TrackOrderData>({
     queryKey: ['orderTrack', token],
-    queryFn: () => fetchOrderByToken(token ?? ''),
+    queryFn: () => fetchOrderByToken(token ?? '', { silent: true }),
     enabled: token !== undefined && token.length > 0,
     initialData:
       locationState?.order !== undefined

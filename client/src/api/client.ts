@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { DEFAULT_LANGUAGE, i18n } from '../lib/i18n';
 import { useAuthStore } from '../store/auth';
 import { ApiError, requestJson } from './http';
@@ -213,6 +214,20 @@ const apiRequest = async (
     const canRenew = accessToken !== null && isUnauthorized(error);
 
     if (!canRenew) {
+      if (options.silent !== true) {
+        const description =
+          error instanceof ApiError
+            ? error.message
+            : i18n.t('errors.generic');
+
+        toast.error(description, {
+          description:
+            error instanceof ApiError
+              ? `Error ${error.status} · ${error.code}`
+              : undefined,
+        });
+      }
+
       throw error;
     }
 

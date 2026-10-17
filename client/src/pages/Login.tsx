@@ -61,7 +61,7 @@ const Login = () => {
 
   const onSubmit = handleSubmit(async (values) => {
     try {
-      const session = await loginUser(values);
+      const session = await loginUser(values, { silent: true });
 
       setSession(session.user, session.accessToken, session.refreshToken);
       // `replace` para que el login no quede en el historial: si el usuario pulsa "atrás"

@@ -20,7 +20,7 @@ function VerifyEmailPage() {
 
   const { isPending, isError, isSuccess } = useQuery({
     queryKey: ['verifyEmail', token],
-    queryFn: () => verifyEmail(token),
+    queryFn: () => verifyEmail(token, { silent: true }),
     enabled: token.length > 0,
   });
 

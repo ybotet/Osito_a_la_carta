@@ -89,7 +89,7 @@ const Register = () => {
       : DEFAULT_LANGUAGE;
 
     try {
-      await registerUser({ ...values, preferredLang: language });
+      await registerUser({ ...values, preferredLang: language }, { silent: true });
       setRegisteredEmail(values.email);
     } catch (error) {
       setError('root', {

@@ -137,7 +137,7 @@ const DishDetail = () => {
 
   const { data, isPending, isError, error } = useQuery({
     queryKey: ['dish', dishId, language],
-    queryFn: ({ signal }) => fetchDishById(dishId, language, signal),
+    queryFn: ({ signal }) => fetchDishById(dishId, language, signal, { silent: true }),
     enabled: isValidId,
   });
 
@@ -147,7 +147,7 @@ const DishDetail = () => {
   useEffect(() => {
     const dish = data?.dish;
     if (dish) {
-      recordPageView(dish.id, `/menu/${dish.id}`).catch((err) => {
+      recordPageView(dish.id, `/menu/${dish.id}`, { silent: true }).catch((err) => {
         // Silencioso: no bloquear la UI si falla el registro de estadísticas
         console.debug('Pageview recording failed:', err);
       });

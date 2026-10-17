@@ -48,7 +48,7 @@ function OrdersPage() {
 
     const load = async () => {
       try {
-        const response = await listOrders();
+        const response = await listOrders({ silent: true });
 
         const mapped = response.orders.map((order) => ({
           id: order.id,

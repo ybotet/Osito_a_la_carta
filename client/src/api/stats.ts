@@ -10,10 +10,12 @@ import { apiRequest } from './client.js';
 export const recordPageView = async (
   dishId: number | undefined,
   path: string,
+  options?: { silent?: boolean },
 ): Promise<void> => {
   await apiRequest('/api/stats/pageview', {
     method: 'POST',
     body: { dishId, path },
+    silent: options?.silent,
   });
 };
 
@@ -27,14 +29,19 @@ export const recordPageView = async (
  * - totalSpent: total gastado
  * - memberSince: fecha de registro en ISO string
  */
-export const fetchStats = async (): Promise<{
+export const fetchStats = async (
+  options?: { silent?: boolean },
+): Promise<{
   topViewedDishes: Array<{ dishId: number; name: string; views: number }>;
   topOrderedDishes: Array<{ dishId: number; name: string; count: number }>;
   totalOrders: number;
   totalSpent: number;
   memberSince: string;
 }> => {
-  const response = await apiRequest('/api/stats/me', { method: 'GET' });
+  const response = await apiRequest('/api/stats/me', {
+    method: 'GET',
+    silent: options?.silent,
+  });
   return response as {
     topViewedDishes: Array<{ dishId: number; name: string; views: number }>;
     topOrderedDishes: Array<{ dishId: number; name: string; count: number }>;

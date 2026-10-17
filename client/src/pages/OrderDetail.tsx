@@ -45,7 +45,7 @@ function OrderDetailPage() {
 
     const load = async () => {
       try {
-        const response = await fetchOrderById(Number(id));
+        const response = await fetchOrderById(Number(id), { silent: true });
         setOrder(response.order);
       } catch {
         setError(t('orders.error'));

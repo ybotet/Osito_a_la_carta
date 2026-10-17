@@ -15,10 +15,12 @@ import type {
 export const createOrder = async (
   items: { dishId: number; quantity: number }[],
   customerNote?: string,
+  options?: { silent?: boolean },
 ): Promise<ApiOrderEnvelope> =>
   (await apiRequest('/api/orders', {
     method: 'POST',
     body: { items, customerNote },
+    silent: options?.silent,
   })) as ApiOrderEnvelope;
 
 /**
@@ -27,17 +29,21 @@ export const createOrder = async (
  * El backend genera un trackingToken (UUID v4) que permite consultar el pedido
  * sin autenticación. Devuelve `{ language, order }` con el trackingToken.
  */
-export const createGuestOrder = async (body: {
-  items: { dishId: number; quantity: number }[];
-  customerNote?: string;
-  guestName: string;
-  guestPhone: string;
-  guestEmail?: string;
-  deliveryAddress: string;
-}): Promise<ApiOrderEnvelope> =>
+export const createGuestOrder = async (
+  body: {
+    items: { dishId: number; quantity: number }[];
+    customerNote?: string;
+    guestName: string;
+    guestPhone: string;
+    guestEmail?: string;
+    deliveryAddress: string;
+  },
+  options?: { silent?: boolean },
+): Promise<ApiOrderEnvelope> =>
   (await apiRequest('/api/orders/guest', {
     method: 'POST',
     body,
+    silent: options?.silent,
   })) as ApiOrderEnvelope;
 
 /**
@@ -46,8 +52,12 @@ export const createGuestOrder = async (body: {
  * El backend devuelve `{ language, orders }`, donde cada pedido trae sus líneas con el
  * nombre del plato ya localizado al idioma de la petición.
  */
-export const listOrders = async (): Promise<ApiOrdersListEnvelope> =>
-  (await apiRequest('/api/orders')) as ApiOrdersListEnvelope;
+export const listOrders = async (
+  options?: { silent?: boolean },
+): Promise<ApiOrdersListEnvelope> =>
+  (await apiRequest('/api/orders', {
+    silent: options?.silent,
+  })) as ApiOrdersListEnvelope;
 
 /**
  * Devuelve el detalle de un pedido concreto del usuario autenticado.
@@ -57,8 +67,11 @@ export const listOrders = async (): Promise<ApiOrdersListEnvelope> =>
  */
 export const fetchOrderById = async (
   orderId: number,
+  options?: { silent?: boolean },
 ): Promise<ApiOrderEnvelope> =>
-  (await apiRequest(`/api/orders/${orderId}`)) as ApiOrderEnvelope;
+  (await apiRequest(`/api/orders/${orderId}`, {
+    silent: options?.silent,
+  })) as ApiOrderEnvelope;
 
 /**
  * Consulta un pedido por trackingToken (para invitados, sin autenticación).
@@ -67,8 +80,11 @@ export const fetchOrderById = async (
  */
 export const fetchOrderByToken = async (
   token: string,
+  options?: { silent?: boolean },
 ): Promise<ApiOrderEnvelope & { contactEmail?: string }> =>
-  (await apiRequest(`/api/orders/track/${encodeURIComponent(token)}`)) as ApiOrderEnvelope & { contactEmail?: string };
+  (await apiRequest(`/api/orders/track/${encodeURIComponent(token)}`, {
+    silent: options?.silent,
+  })) as ApiOrderEnvelope & { contactEmail?: string };
 
 /**
  * Lista todos los pedidos (solo admin).
@@ -78,11 +94,14 @@ export const fetchOrderByToken = async (
  */
 export const listAdminOrders = async (
   status?: string,
+  options?: { silent?: boolean },
 ): Promise<ApiAdminOrder[]> => {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
   const query = params.toString() ? `?${params.toString()}` : '';
-  return (await apiRequest(`/api/admin/orders${query}`)) as ApiAdminOrder[];
+  return (await apiRequest(`/api/admin/orders${query}`, {
+    silent: options?.silent,
+  })) as ApiAdminOrder[];
 };
 
 /**
@@ -92,8 +111,11 @@ export const listAdminOrders = async (
  */
 export const fetchAdminOrderById = async (
   orderId: number,
+  options?: { silent?: boolean },
 ): Promise<ApiAdminOrder> =>
-  (await apiRequest(`/api/admin/orders/${orderId}`)) as ApiAdminOrder;
+  (await apiRequest(`/api/admin/orders/${orderId}`, {
+    silent: options?.silent,
+  })) as ApiAdminOrder;
 
 /**
  * Actualiza el estado de un pedido (solo admin).
@@ -105,8 +127,10 @@ export const fetchAdminOrderById = async (
 export const updateAdminOrderStatus = async (
   orderId: number,
   status: string,
+  options?: { silent?: boolean },
 ): Promise<ApiAdminOrder> =>
   (await apiRequest(`/api/admin/orders/${orderId}/status`, {
     method: 'PATCH',
     body: { status },
+    silent: options?.silent,
   })) as ApiAdminOrder;

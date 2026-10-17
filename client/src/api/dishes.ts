@@ -24,10 +24,12 @@ import type { ApiDishesResponse, ApiDishResponse } from './dishes.types.js';
 export const fetchDishes = async (
   acceptLanguage: string,
   signal?: AbortSignal,
+  options?: { silent?: boolean },
 ): Promise<ApiDishesResponse> =>
   (await apiRequest('/api/dishes', {
     headers: { 'Accept-Language': acceptLanguage },
     signal,
+    silent: options?.silent,
   })) as ApiDishesResponse;
 
 /**
@@ -43,10 +45,12 @@ export const fetchDishById = async (
   id: number,
   acceptLanguage: string,
   signal?: AbortSignal,
+  options?: { silent?: boolean },
 ): Promise<ApiDishResponse> =>
   (await apiRequest(`/api/dishes/${id}`, {
     headers: { 'Accept-Language': acceptLanguage },
     signal,
+    silent: options?.silent,
   })) as ApiDishResponse;
 
 export type CreateDishInput = {
@@ -75,6 +79,7 @@ export type UploadedDishImage = {
  */
 export const uploadDishImage = async (
   image: File,
+  options?: { silent?: boolean },
 ): Promise<UploadedDishImage> => {
   const formData = new FormData();
   formData.append('image', image);
@@ -82,6 +87,7 @@ export const uploadDishImage = async (
   return (await apiRequest('/api/dishes/image', {
     method: 'POST',
     body: formData,
+    silent: options?.silent,
   })) as UploadedDishImage;
 };
 
@@ -93,11 +99,13 @@ export const uploadDishImage = async (
 export const createDish = async (
   body: CreateDishInput,
   acceptLanguage: string,
+  options?: { silent?: boolean },
 ): Promise<ApiDishResponse> =>
   (await apiRequest('/api/dishes', {
     method: 'POST',
     headers: { 'Accept-Language': acceptLanguage },
     body,
+    silent: options?.silent,
   })) as ApiDishResponse;
 
 /**
@@ -109,11 +117,13 @@ export const updateDish = async (
   id: number,
   body: UpdateDishInput,
   acceptLanguage: string,
+  options?: { silent?: boolean },
 ): Promise<ApiDishResponse> =>
   (await apiRequest(`/api/dishes/${id}`, {
     method: 'PUT',
     headers: { 'Accept-Language': acceptLanguage },
     body,
+    silent: options?.silent,
   })) as ApiDishResponse;
 
 export type ApiCategory = {
@@ -135,8 +145,10 @@ export type ApiCategoriesResponse = {
 export const fetchCategories = async (
   acceptLanguage: string,
   signal?: AbortSignal,
+  options?: { silent?: boolean },
 ): Promise<ApiCategoriesResponse> =>
   (await apiRequest('/api/categories', {
     headers: { 'Accept-Language': acceptLanguage },
     signal,
+    silent: options?.silent,
   })) as ApiCategoriesResponse;

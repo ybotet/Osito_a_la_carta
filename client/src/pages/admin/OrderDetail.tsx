@@ -186,7 +186,7 @@ const AdminOrderDetail = () => {
   // Query para obtener el detalle del pedido
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['adminOrderDetail', orderId, language],
-    queryFn: () => fetchAdminOrderById(orderId),
+    queryFn: () => fetchAdminOrderById(orderId, { silent: true }),
     enabled: isAuthenticated && user?.role === 'admin' && Number.isInteger(orderId) && orderId > 0,
   });
 
@@ -210,7 +210,11 @@ const AdminOrderDetail = () => {
     setIsUpdating(true);
     setStatusUpdateFailedFor(null);
     try {
-      const updatedOrder = await updateAdminOrderStatus(orderId, selectedStatus);
+      const updatedOrder = await updateAdminOrderStatus(
+        orderId,
+        selectedStatus,
+        { silent: true },
+      );
       queryClient.setQueryData(
         ['adminOrderDetail', orderId, language],
         updatedOrder,

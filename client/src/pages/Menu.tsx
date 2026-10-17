@@ -52,7 +52,7 @@ const Menu = () => {
    */
   const { data, isPending, isError, error } = useQuery({
     queryKey: ['dishes', language],
-    queryFn: ({ signal }) => fetchDishes(language, signal),
+    queryFn: ({ signal }) => fetchDishes(language, signal, { silent: true }),
   });
 
   if (isPending) {

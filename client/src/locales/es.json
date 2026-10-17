@@ -2,6 +2,12 @@
   "app": {
     "title": "Osito a la carta"
   },
+  "errors": {
+    "title": "Algo salió mal",
+    "fallback": "Ocurrió un error al cargar la página. Por favor, recarga e inténtalo de nuevo.",
+    "retry": "Recargar",
+    "generic": "No se pudo completar la acción. Inténtalo de nuevo en unos minutos."
+  },
   "home": {
     "eyebrow": "Sabores de Cuba en el corazón de Moscú",
     "title": "La auténtica cocina cubana, a tu puerta.",

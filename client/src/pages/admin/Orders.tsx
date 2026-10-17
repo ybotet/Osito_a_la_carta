@@ -178,7 +178,8 @@ const AdminOrders = () => {
   // Query con polling cada 10s
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['adminOrders', statusFilter, language],
-    queryFn: () => listAdminOrders(statusFilter === 'all' ? undefined : statusFilter),
+    queryFn: () =>
+      listAdminOrders(statusFilter === 'all' ? undefined : statusFilter, { silent: true }),
     enabled: isAuthenticated && user?.role === 'admin',
     refetchInterval: 10_000, // 10 segundos
     staleTime: 5_000,

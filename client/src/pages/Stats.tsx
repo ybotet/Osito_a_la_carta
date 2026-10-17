@@ -174,7 +174,7 @@ const Stats = () => {
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['stats', language],
-    queryFn: fetchStats,
+    queryFn: () => fetchStats({ silent: true }),
   });
 
   if (isPending) {

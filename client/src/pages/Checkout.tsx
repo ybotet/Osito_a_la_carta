@@ -99,14 +99,17 @@ function CheckoutPage() {
 
   const onSubmit = handleSubmit(async (values) => {
     try {
-      const response = await createGuestOrder({
-        items: values.items,
-        customerNote: values.customerNote?.trim() || undefined,
-        guestName: values.guestName.trim(),
-        guestPhone: values.guestPhone.trim(),
-        guestEmail: values.guestEmail?.trim() || undefined,
-        deliveryAddress: values.deliveryAddress.trim(),
-      });
+      const response = await createGuestOrder(
+        {
+          items: values.items,
+          customerNote: values.customerNote?.trim() || undefined,
+          guestName: values.guestName.trim(),
+          guestPhone: values.guestPhone.trim(),
+          guestEmail: values.guestEmail?.trim() || undefined,
+          deliveryAddress: values.deliveryAddress.trim(),
+        },
+        { silent: true },
+      );
 
       clearCart();
       saveToken({

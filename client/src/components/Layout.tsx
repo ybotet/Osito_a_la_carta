@@ -35,7 +35,7 @@ type NavButtonProps = {
   full?: boolean;
 };
 
- /**
+/**
  * Enlaces del navbar extraídos en una función para reutilizar entre el menú
  * de escritorio (inline) y el panel de móvil (colapsable). El `onClick`
  * opcional cierra el menú móvil tras navegar. `full` ajusta ancho y alineación
@@ -48,49 +48,105 @@ const NavLinks = ({ onClick, full = false }: NavButtonProps) => {
   );
   const isAdmin = useAuthStore((state) => state.user?.role) === 'admin';
 
-  const buttonClass = full
-    ? 'w-full justify-start'
-    : '';
+  const buttonClass = full ? 'w-full justify-start' : '';
 
   return (
     <>
-      <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+      <Button
+        asChild
+        variant="ghost"
+        size="sm"
+        className={buttonClass}
+        onClick={onClick}
+      >
         <Link to="/menu">{t('nav.menu')}</Link>
       </Button>
 
       {isAuthenticated && (
         <>
-          <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className={buttonClass}
+            onClick={onClick}
+          >
             <Link to="/orders">{t('nav.orders')}</Link>
           </Button>
 
-          <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className={buttonClass}
+            onClick={onClick}
+          >
             <Link to="/stats">{t('nav.stats')}</Link>
+          </Button>
+
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className={buttonClass}
+            onClick={onClick}
+          >
+            <Link to="/cart">{t('nav.cart')}</Link>
           </Button>
         </>
       )}
 
       {isAdmin && (
-        <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className={buttonClass}
+          onClick={onClick}
+        >
           <Link to="/admin/orders">{t('nav.admin')}</Link>
         </Button>
       )}
 
       {isAdmin && (
-        <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className={buttonClass}
+          onClick={onClick}
+        >
           <Link to="/admin/categories">{t('nav.adminCategories')}</Link>
         </Button>
       )}
 
       {!isAuthenticated && (
         <>
-          <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className={buttonClass}
+            onClick={onClick}
+          >
             <Link to="/orders">{t('nav.guestOrders')}</Link>
           </Button>
-          <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className={buttonClass}
+            onClick={onClick}
+          >
             <Link to="/cart">{t('nav.cart')}</Link>
           </Button>
-          <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className={buttonClass}
+            onClick={onClick}
+          >
             <Link to="/login">{t('nav.login')}</Link>
           </Button>
         </>

@@ -213,8 +213,16 @@
   - Criterio: todas las páginas son usables desde 360px de ancho.
 - [x] **T-092a**: Corregir el renderizado global del layout compartido
   - Criterio: navegar entre las rutas no dispara un bucle de renderizado ni deja la aplicación en blanco.
-- [ ] **T-092**: Manejo global de errores en frontend (ErrorBoundary + toasts)
+- [x] **T-092**: Manejo global de errores en frontend (ErrorBoundary + toasts)
   - Criterio: un error de red muestra un mensaje claro, no pantalla blanca.
+  - **Notas de progreso (2026-10-17):**
+    - `ErrorBoundary.tsx` creado: class component con `ErrorFallback` usando `useTranslation` y claves i18n `errors.title`/`errors.fallback`/`errors.retry`. Envuelve todas las rutas en `main.tsx`.
+    - `<Toaster />` de `sonner` anadido en `main.tsx`.
+    - `apiRequest` en `client.ts`: muestra `toast.error()` para errores 4xx/5xx que no sean `UNAUTHORIZED` (que se renueva). Mensaje usa el error del API o `errors.generic` de i18n.
+    - `silent?: boolean` anadido a `RequestOptions` para que los llamadores que manejan errores localmente (formularios inline, `useQuery` con estado de error) suppress el toast.
+    - Todos los llamadores actuales pasan `{ silent: true }` para evitar notificaciones duplicadas.
+    - Claves i18n `errors: { title, fallback, retry, generic }` anadidas a es/ru/en.
+    - `npm run typecheck` ✓, `npm run lint` ✓, `npm run build` ✓.
 - [ ] **T-093**: Tests básicos de flujos crí­ticos (registro, pedido, notificación)
   - Criterio: `npm run test` pasa.
 - [ ] **T-094**: Configurar PM2 en el VPS

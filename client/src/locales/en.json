@@ -2,6 +2,12 @@
   "app": {
     "title": "Osito a la carte"
   },
+  "errors": {
+    "title": "Something went wrong",
+    "fallback": "An error occurred while loading the page. Please reload and try again.",
+    "retry": "Reload",
+    "generic": "We could not complete the action. Please try again in a few minutes."
+  },
   "home": {
     "eyebrow": "Cuban flavors in the heart of Moscow",
     "title": "Authentic Cuban cuisine, at your door.",

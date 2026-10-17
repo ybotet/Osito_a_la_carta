@@ -80,9 +80,9 @@ const Categories = () => {
     queryKey: ['adminCategories'],
     queryFn: async () => {
       const [spanish, russian, english] = await Promise.all([
-        fetchCategories('es'),
-        fetchCategories('ru'),
-        fetchCategories('en'),
+        fetchCategories('es', undefined, { silent: true }),
+        fetchCategories('ru', undefined, { silent: true }),
+        fetchCategories('en', undefined, { silent: true }),
       ]);
       const translations = new Map(
         russian.categories.map((category) => [category.id, category.name]),
@@ -113,7 +113,9 @@ const Categories = () => {
 
   const saveCategory = useMutation({
     mutationFn: ({ id, values }: { id: number | null; values: CategoryFormFields }) =>
-      id === null ? createCategory(values) : updateCategory(id, values),
+      id === null
+        ? createCategory(values, { silent: true })
+        : updateCategory(id, values, { silent: true }),
     onSuccess: async () => {
       setMutationError(null);
       setEditingId(null);
@@ -134,7 +136,7 @@ const Categories = () => {
   });
 
   const removeCategory = useMutation({
-    mutationFn: deleteCategory,
+    mutationFn: (id: number) => deleteCategory(id, { silent: true }),
     onSuccess: async (_data, deletedId) => {
       setMutationError(null);
       if (editingId === deletedId) {

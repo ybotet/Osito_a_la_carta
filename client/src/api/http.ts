@@ -41,6 +41,13 @@ type RequestOptions = {
   /** Los objetos se serializan como JSON; `FormData` se envía como multipart. */
   body?: unknown;
   signal?: AbortSignal;
+  /**
+   * Cuando es `true`, `apiRequest` no muestra un toast de notificación para errores
+   * 4xx/5xx. Los llamadores que manejan errores localmente (formularios con errores
+   * inline, `useQuery` con estado de error) deben pasar `silent: true` para evitar
+   * notificaciones duplicadas.
+   */
+  silent?: boolean;
 };
 
 const isFormData = (value: unknown): value is FormData =>
