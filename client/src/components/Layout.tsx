@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
+import { Menu, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from './LanguageSwitcher';
 import UserMenu from './UserMenu';
@@ -28,6 +30,75 @@ import ThemeSwitcher from './ThemeSwitcher';
  * usuario y el botón de cerrar sesión, que están en `UserMenu`. La condición se decide aquí y en
  * `UserMenu` con el mismo criterio, para que no puedan contradecirse.
  */
+type NavButtonProps = {
+  onClick?: () => void;
+  full?: boolean;
+};
+
+ /**
+ * Enlaces del navbar extraídos en una función para reutilizar entre el menú
+ * de escritorio (inline) y el panel de móvil (colapsable). El `onClick`
+ * opcional cierra el menú móvil tras navegar. `full` ajusta ancho y alineación
+ * para botones de ancho completo en el panel móvil.
+ */
+const NavLinks = ({ onClick, full = false }: NavButtonProps) => {
+  const { t } = useTranslation();
+  const isAuthenticated = useAuthStore(
+    (state) => state.user !== null && state.accessToken !== null,
+  );
+  const isAdmin = useAuthStore((state) => state.user?.role) === 'admin';
+
+  const buttonClass = full
+    ? 'w-full justify-start'
+    : '';
+
+  return (
+    <>
+      <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+        <Link to="/menu">{t('nav.menu')}</Link>
+      </Button>
+
+      {isAuthenticated && (
+        <>
+          <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+            <Link to="/orders">{t('nav.orders')}</Link>
+          </Button>
+
+          <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+            <Link to="/stats">{t('nav.stats')}</Link>
+          </Button>
+        </>
+      )}
+
+      {isAdmin && (
+        <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+          <Link to="/admin/orders">{t('nav.admin')}</Link>
+        </Button>
+      )}
+
+      {isAdmin && (
+        <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+          <Link to="/admin/categories">{t('nav.adminCategories')}</Link>
+        </Button>
+      )}
+
+      {!isAuthenticated && (
+        <>
+          <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+            <Link to="/orders">{t('nav.guestOrders')}</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+            <Link to="/cart">{t('nav.cart')}</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm" className={buttonClass} onClick={onClick}>
+            <Link to="/login">{t('nav.login')}</Link>
+          </Button>
+        </>
+      )}
+    </>
+  );
+};
+
 const Layout = () => {
   const { t } = useTranslation();
 
@@ -37,20 +108,7 @@ const Layout = () => {
    */
   const isHydrated = useAuthHydrated();
 
-  /**
-   * Decide si se pinta el enlace de iniciar sesión. **Es el mismo criterio que usa `UserMenu`**
-   * (`user` y `accessToken` los dos), y no un atajo: si los dos componentes decidieran distinto,
-   * aparecería "Iniciar sesión" al lado del email de quien ya está dentro.
-   *
-   * Lee el estado del store y no un `useIsAuthenticated` importado, porque en `Layout` hace falta
-   * además poder distinguir "sin sesión" de "con sesión" en el JSX.
-   */
-  const user = useAuthStore((state) => state.user);
-  const isAuthenticated = useAuthStore(
-    (state) => state.user !== null && state.accessToken !== null,
-  );
-
-  const isAdmin = user?.role === 'admin';
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
     <>
@@ -78,76 +136,61 @@ const Layout = () => {
             <span>{t('app.title')}</span>
           </Link>
 
-          <nav aria-label={t('nav.main')}>
-            {/*
-              `flex-wrap` porque en móvil el grupo de idioma y los tres enlaces no caben en una
-              sola línea, y forzar el salto con un `hidden md:flex` escondería el selector de
-              idioma justo en la pantalla más estrecha.
-            */}
+          {/*
+            Botón hamburguesa: visible solo en móvil (md:hidden). En desktop
+            el menú se muestra inline. `size="icon"` con `h-10 w-10` asegura
+            40 px de touch target en móvil.
+          */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 md:hidden"
+            aria-label={isMenuOpen ? t('nav.closeMenu') : t('nav.openMenu')}
+            aria-expanded={isMenuOpen}
+            aria-controls="mobile-menu"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+          >
+            {isMenuOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
+          </Button>
+
+          {/* Menú de escritorio: oculto en móvil */}
+          <nav aria-label={t('nav.main')} className="hidden md:block">
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button asChild variant="ghost" size="sm">
-                <Link to="/menu">{t('nav.menu')}</Link>
-              </Button>
-
-              {isAuthenticated && (
-                <>
-                  <Button asChild variant="ghost" size="sm">
-                    <Link to="/orders">{t('nav.orders')}</Link>
-                  </Button>
-
-                  <Button asChild variant="ghost" size="sm">
-                    <Link to="/stats">{t('nav.stats')}</Link>
-                  </Button>
-                </>
-              )}
-
-              {isAdmin && (
-                <Button asChild variant="ghost" size="sm">
-                  <Link to="/admin/orders">{t('nav.admin')}</Link>
-                </Button>
-              )}
-
-              {isAdmin && (
-                <Button asChild variant="ghost" size="sm">
-                  <Link to="/admin/categories">{t('nav.adminCategories')}</Link>
-                </Button>
-              )}
-
-              {/*
-                El enlace a `/login` se habilitó en T-044, cuando la ruta ya existía. Va como
-                `Button asChild` con un `Link` dentro, igual que el del menú, para que hereden
-                las mismas clases y no se desincronicen al cambiar el `Button`.
-
-                **Solo se pinta sin sesión.** En T-048 este hueco pasó a ser condicional: con
-                sesión lo sustituyen el email del usuario y el botón de cerrar sesión, que están
-                en `UserMenu`. Mostrar "Iniciar sesión" junto al nombre de quien ya está dentro
-                sería contradictorio, y un usuario que ve su email ya sabe que tiene sesión.
-              */}
-              {!isAuthenticated && (
-                <>
-                  <Button asChild variant="ghost" size="sm">
-                    <Link to="/orders">{t('nav.guestOrders')}</Link>
-                  </Button>
-
-                  <Button asChild variant="ghost" size="sm">
-                    <Link to="/cart">{t('nav.cart')}</Link>
-                  </Button>
-
-                  <Button asChild variant="ghost" size="sm">
-                    <Link to="/login">{t('nav.login')}</Link>
-                  </Button>
-                </>
-              )}
-
+              <NavLinks />
               <UserMenu />
-
               <span className="mx-1 hidden h-5 w-px bg-border sm:block" />
-
               <LanguageSwitcher />
               <ThemeSwitcher />
             </div>
           </nav>
         </div>
+
+        {/*
+          Panel móvil: se muestra encima del resto cuando `isMenuOpen`.
+          Cada enlace cierra el menú al navegar.
+        */}
+        {isMenuOpen && (
+          <div
+            id="mobile-menu"
+            className="md:hidden border-t bg-background/95 backdrop-blur"
+          >
+            <div className="flex flex-col gap-2 p-4">
+              <div className="flex flex-col gap-1">
+                <NavLinks full onClick={() => setIsMenuOpen(false)} />
+              </div>
+
+              <div className="flex items-center gap-2 py-2">
+                <UserMenu />
+                <LanguageSwitcher />
+                <ThemeSwitcher />
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       <Outlet />

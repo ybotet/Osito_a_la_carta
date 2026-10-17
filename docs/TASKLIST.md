@@ -1,7 +1,7 @@
 ﻿# TASKLIST.md  Osito a la carta
 
 > Leyenda: `[ ]` pendiente В· `[~]` en progreso В· `[x]` completada В· `[!]` bloqueada
-> Última actualización: 2026-10-12
+> Última actualización: 2026-10-17
 
 ---
 
@@ -204,7 +204,12 @@
     - Build genera: `manifest.webmanifest`, `registerSW.js` (auto-inject en index.html), `sw.js`.
     - typecheck, lint y build pasan.
     - Nota: `devOptions.enabled: false` (SW desactivado en dev para evitar interferencias).
-- [ ] **T-091**: Responsive completo en móvil, tablet y desktop
+- [x] **T-091**: Auditoría y ajustes responsive
+  - Criterio: todas las páginas usables desde móvil (360px), tablet (768px) y desktop (1280px+).
+  - **Notas de progreso (2026-10-17):**
+    - `Layout.tsx`: navbar colapsable con hamburguesa; `NavLinks` extraído y reutilizable entre desktop (inline) y mobile (panel `md:hidden`); botones `w-full justify-start` en mobile para touch targets; `nav.openMenu`/`nav.closeMenu` i18n keys en es/ru/en.
+    - `admin/OrderDetail.tsx`: `grid-cols-2` → `grid-cols-1 sm:grid-cols-2`.
+    - `Stats.tsx`: chart height 300→200 px, YAxis width 120→100 px, fontSize 12→11.
   - Criterio: todas las páginas son usables desde 360px de ancho.
 - [x] **T-092a**: Corregir el renderizado global del layout compartido
   - Criterio: navegar entre las rutas no dispara un bucle de renderizado ni deja la aplicación en blanco.

@@ -54,7 +54,9 @@
     "stats": "Статистика",
     "admin": "Панель шефа",
     "adminCategories": "Категории",
-    "guestOrders": "Заказы гостей"
+    "guestOrders": "Заказы гостей",
+    "openMenu": "Открыть меню",
+    "closeMenu": "Закрыть меню"
   },
   "menu": {
     "title": "Меню",

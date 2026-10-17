@@ -54,7 +54,9 @@
     "stats": "Estadísticas",
     "admin": "Panel chef",
     "adminCategories": "Categorías",
-    "guestOrders": "Pedidos de invitado"
+    "guestOrders": "Pedidos de invitado",
+    "openMenu": "Abrir menú",
+    "closeMenu": "Cerrar menú"
   },
   "menu": {
     "title": "Menú",

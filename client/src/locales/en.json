@@ -54,7 +54,9 @@
     "stats": "My statistics",
     "admin": "Chef panel",
     "adminCategories": "Categories",
-    "guestOrders": "Guest orders"
+    "guestOrders": "Guest orders",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
   },
   "menu": {
     "title": "Menu",

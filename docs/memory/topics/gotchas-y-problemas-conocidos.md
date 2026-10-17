@@ -85,6 +85,7 @@ Lista viva de problemas, comportamientos sorprendentes y soluciones aplicadas. *
 | **Tailwind 4 no lee `tailwind.config.js`** | Config ignorada, temas no aplican | Tailwind 4 usa CSS-first (`@import "tailwindcss"`) | Mover tokens a `:root` en `index.css` con `@theme { --color-primary: ... }`. Ver `client/src/index.css`. |
 | **`dark:` variant no funciona** | Modo oscuro no aplica | Tailwind 4 usa `class` strategy por defecto; `html.dark` no basta | En `index.css`: `@custom-variant dark (&:where(.dark, .dark *));` o agregar `class="dark"` al `html` via JS. Ver `client/src/main.tsx`. |
 | **shadcn/ui components no tienen estilos** | Botones sin padding, inputs sin border | Componentes copiados pero falta `@import "tailwindcss"` en CSS que los usa | `index.css` ya importa tailwind; componentes usan `@apply` o clases directas. Verificar que `index.css` se importa en `main.tsx` **antes** de componentes. |
+| **Botones shadcn por debajo de 44px WCAG** | Touch targets de 32–40 px en mobile (T-091) | `size="sm"`=32px, `size="default"`=36px, `size="lg"`=40px; el mínimo WCAG es 44px | En menús verticales usar `w-full` para ancho completo; para corregir globalmente modificar `buttonVariants` en `client/src/components/ui/button.tsx` (pendiente). |
 | **`cn()` utility no mergea clases Tailwind correctamente** | Clases duplicadas o orden incorrecto | `clsx` + `tailwind-merge` no configurado | `cn = (...inputs) => twMerge(clsx(inputs))` en `client/src/utils/cn.ts`. Usar siempre `cn()` para classNames condicionales. |
 
 ---

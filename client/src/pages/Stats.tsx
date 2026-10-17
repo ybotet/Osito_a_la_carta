@@ -133,16 +133,16 @@ const HorizontalBarChart = ({
         <h3 className="text-lg font-semibold">{label}</h3>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data} layout="vertical">
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis type="number" />
-            <YAxis
-              type="category"
-              dataKey={nameKey}
-              width={120}
-              tick={{ fontSize: 12 }}
-            />
+       <ResponsiveContainer width="100%" height={200}>
+         <BarChart data={data} layout="vertical">
+           <CartesianGrid strokeDasharray="3 3" vertical={false} />
+           <XAxis type="number" />
+           <YAxis
+             type="category"
+             dataKey={nameKey}
+             width={100}
+             tick={{ fontSize: 11 }}
+           />
             <Tooltip />
             <Legend />
             <Bar dataKey={dataKey} fill={color} radius={[0, 4, 4, 0]} maxBarSize={30} />

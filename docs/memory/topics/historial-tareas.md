@@ -297,3 +297,16 @@
 
 **Impacto:** En Chrome móvil, la app muestra el prompt "Añadir a pantalla de inicio" y al abrirse desde allí se ve sin barra de navegador.
 **Deuda/Notas:** Los íconos son placeholder; reemplazar con el logo oficial del restaurante. No hay runtimeCaching configurado (solo precache).
+
+## 2026-10-17 — T-091: Auditoría y ajustes responsive
+
+**Qué:** Se auditó y ajustó todas las páginas para móvil (360px), tablet (768px) y desktop (1280px+).
+**Cómo:**
+- `Layout.tsx`: Navbar colapsable con menú hamburguesa. Se extrajeron los enlaces de navegación a `NavLinks` (reutilizable entre desktop y mobile). En desktop: nav inline (`hidden md:block`). En móvil: botón hamburguesa `Menu`/`X` (40×40 px) que abre un panel con enlaces de ancho completo (`w-full justify-start`) para mejor touch target; cada enlace cierra el menú al navegar.
+- `Layout.tsx`: Añadidas claves i18n `nav.openMenu` y `nav.closeMenu` en es/ru/en.
+- `admin/OrderDetail.tsx`: `grid grid-cols-2` → `grid-cols-1 sm:grid-cols-2` (la cuadrícula de info del pedido ahora es 1 columna en móvil).
+- `Stats.tsx`: `ResponsiveContainer` height `300→200` px y `YAxis` width `120→100` px (`tick` fontSize `12→11`), para charts más compactos en móvil.
+- Tabla de `admin/Orders.tsx` y `admin/OrderDetail.tsx`: ya usan `overflow-x-auto` (scroll horizontal), mantenido como solución responsive para tablas anchas.
+
+**Impacto:** Navbar usable en 360 px (antes se amontontaban todos los enlaces + selectors). Grids de detalle de pedido adaptivos. Charts de stats no dominan la pantalla en móvil.
+**Deuda/Notas:** Los botones shadcn `size="sm"` (32 px) y `size="default"` (36 px) están por debajo del mínimo WCAG de 44 px. En el menú móvil se compensa con `w-full` (ancho completo). Corregir globalmente requiere modificar el componente base `Button` (T-035), pendiente de decisión.
