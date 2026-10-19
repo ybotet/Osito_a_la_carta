@@ -327,3 +327,18 @@
 **Impacto:** Un error de red o de API que no sea capturado por el caller muestra un toast de notificación. Si un componente se rompe durante el render, el usuario ve un fallback amigable con botón de recarga. Formularios y queries que manejan errores localmente mantienen su UX sin toasts duplicados. Typecheck, lint y build pasan.
 
 **Deuda/Notas:** La renovación de token fallida no muestra toast (redirige al login). El retry después de renovación exituosa llama a `requestJson` directamente (no `apiRequest`), por lo que un error en el retry no dispara toast; esto es consistente con el diseño actual.
+
+## 2026-10-19 — T-099: Checkout híbrido (autenticados + invitados) con prefilling y formato de teléfono ruso
+
+**Qué:** Se extendió el flujo de checkout para soportar tanto usuarios autenticados como invitados en una sola página, con pre-llenado de email para usuarios logueados y formato de teléfono para formato ruso.
+
+**Cómo:**
+- `Checkout.tsx` reescrito completamente: se separó en dos componentes internos `AuthCheckoutForm` y `GuestCheckoutForm` para cumplir `react-hooks/rules-of-hooks` (no hooks condicionales) y mantener tipos separados.
+- Usuario autenticado: solo ve campo de nota opcional; email se pre-rellena desde `user.email` y se usa `POST /api/orders` (crea pedido con `userId`).
+- Usuario invitado: formulario completo (nombre, teléfono, email, dirección, nota); placeholder y ayuda visual para formato ruso +7 (XXX) XXX-XX-XX; usa `POST /api/orders/guest` (crea pedido con `userId=null` y `trackingToken`).
+- Claves i18n añadidas en `locales/es.json`, `ru.json`, `en.json`: `checkout.authInfo`, `checkout.phoneFormat`, corrección `checkout.loginInfo`.
+- Separación de formularios en componentes separados para cumplir `react-hooks/rules-of-hooks` y evitar hooks condicionales (los hooks `useForm`, `useMemo` se llaman siempre en el mismo orden en cada componente).
+
+**Impacto:** Checkout unificado para autenticados e invitados; autenticados tienen UX simplificada (solo nota); invitados tienen formulario completo con ayuda de formato de teléfono ruso; typecheck, lint y build pasan.
+
+**Deuda/Notas:** El modelo de usuario (`ApiAuthUser`) solo tiene `id`, `email`, `role`, `preferredLang` — no hay nombre, teléfono ni dirección guardados en BD, por lo que solo se pre-rellena email. Si en el futuro se añaden esos campos al usuario, se pueden pre-rellenar también.

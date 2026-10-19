@@ -342,14 +342,16 @@
     "submitting": "Confirmando…",
     "error": "No se ha podido confirmar el pedido. Inténtalo de nuevo.",
     "success": "¡Tu pedido está en camino!",
-    "guestInfo": "No tienes cuenta. Te crearemos un enlace para seguir tu pedido.",
-    "loginInfo": "Inicia sessión para ver tu historial de pedidos.",
+"guestInfo": "No tienes cuenta. Te crearemos un enlace para seguir tu pedido.",
+    "loginInfo": "Inicia sesión para ver tu historial de pedidos.",
     "nameMin": "El nombre debe tener al menos 2 caracteres",
     "nameMax": "El nombre no puede superar 100 caracteres",
     "phoneMin": "El teléfono debe tener al menos 5 caracteres",
     "phoneMax": "El teléfono no puede superar 20 caracteres",
-    "addressMin": "La dirección debe tener al menos 5 caracteres",
-    "addressMax": "La dirección no puede superar 500 caracteres"
+    "addressMin": "La dirección de entrega debe tener al menos 5 caracteres",
+    "addressMax": "La dirección de entrega no puede superar 500 caracteres",
+    "authInfo": "Iniciaste sesión como {{email}}. Solo necesitamos una nota opcional para el chef.",
+    "phoneFormat": "Formato: +7 (XXX) XXX-XX-XX"
   },
   "track": {
     "title": "Seguimiento de pedido",

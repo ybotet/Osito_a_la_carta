@@ -348,8 +348,10 @@
     "nameMax": "Name cannot exceed 100 characters",
     "phoneMin": "Phone must be at least 5 characters",
     "phoneMax": "Phone cannot exceed 20 characters",
-    "addressMin": "Address must be at least 5 characters",
-    "addressMax": "Address cannot exceed 500 characters"
+    "addressMin": "Delivery address must be at least 5 characters",
+    "addressMax": "Delivery address cannot exceed 500 characters",
+    "authInfo": "You're signed in as {{email}}. We only need an optional note for the chef.",
+    "phoneFormat": "Format: +7 (XXX) XXX-XX-XX"
   },
   "track": {
     "title": "Order tracking",

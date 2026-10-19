@@ -3,13 +3,15 @@ import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
+import { z } from 'zod';
 import {
   createGuestOrderBodySchema,
   type GuestOrderBodyMessages,
 } from '../../../shared/schemas';
 import { ApiError } from '@/api/http';
-import { createGuestOrder } from '@/api/orders';
+import { createOrder, createGuestOrder } from '@/api/orders';
 import { useCartStore } from '@/store/cart';
+import { useAuthStore, useIsAuthenticated } from '@/store/auth';
 import { saveToken } from '@/lib/guest-orders';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,7 +24,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-type CheckoutFields = {
+type GuestOrderFields = {
   items: { dishId: number; quantity: number }[];
   customerNote?: string;
   guestName: string;
@@ -31,13 +33,152 @@ type CheckoutFields = {
   deliveryAddress: string;
 };
 
-function CheckoutPage() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const items = useCartStore((state) => state.items);
-  const clearCart = useCartStore((state) => state.clearCart);
+type AuthOrderFields = {
+  items: { dishId: number; quantity: number }[];
+  customerNote?: string;
+};
 
-  const schema = useMemo(() => {
+function AuthCheckoutForm({
+  items,
+  clearCart,
+  navigate,
+  user,
+  t,
+}: {
+  items: { dishId: number; quantity: number }[];
+  clearCart: () => void;
+  navigate: ReturnType<typeof useNavigate>;
+  user: { email: string } | null;
+  t: ReturnType<typeof useTranslation>['t'];
+}) {
+  const authSchema = useMemo(() => {
+    return z.object({
+      items: z
+        .array(
+          z.object({
+            dishId: z.number().int().positive(),
+            quantity: z.number().int().min(1),
+          }),
+        )
+        .min(1, { message: t('cart.itemsMin') })
+        .refine(
+          (items) =>
+            new Set(items.map((item) => item.dishId)).size === items.length,
+          { message: 'No se puede repetir el mismo plato en un pedido' },
+        ),
+      customerNote: z.string().trim().max(500).optional(),
+    });
+  }, [t]);
+
+  const baseValues = useMemo(
+    () => ({
+      items: items.map((item) => ({
+        dishId: item.dishId,
+        quantity: item.quantity,
+      })),
+      customerNote: '',
+    }),
+    [items],
+  );
+
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting: authIsSubmitting },
+  } = useForm<AuthOrderFields>({
+    resolver: zodResolver(authSchema),
+    defaultValues: baseValues,
+  });
+
+  const onSubmitAuth = async (values: AuthOrderFields) => {
+    try {
+      const response = await createOrder(
+        values.items,
+        values.customerNote?.trim() || undefined,
+        { silent: true },
+      );
+
+      clearCart();
+
+      navigate(`/orders/${response.order.id}`, {
+        state: { order: response.order },
+      });
+    } catch (error) {
+      setError('root', {
+        message:
+          error instanceof ApiError && error.code === 'DISH_UNAVAILABLE'
+            ? t('cart.error')
+            : t('checkout.error'),
+      });
+    }
+  };
+
+  return (
+    <main className="mx-auto flex w-full max-w-md flex-col gap-6 p-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('checkout.title')}</CardTitle>
+          <CardDescription>{t('checkout.subtitle')}</CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          {errors.root?.message !== undefined && (
+            <p role="alert" className="mb-4 text-sm text-destructive">
+              {errors.root.message}
+            </p>
+          )}
+
+          <p className="mb-4 text-sm text-muted-foreground">
+            {t('checkout.authInfo', { email: user?.email })}
+          </p>
+
+          <form
+            onSubmit={(event) => void handleSubmit(onSubmitAuth)(event)}
+            className="flex flex-col gap-4"
+          >
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="customerNote">{t('checkout.note')}</Label>
+              <Input
+                id="customerNote"
+                {...register('customerNote')}
+                aria-invalid={errors.customerNote !== undefined}
+              />
+              {errors.customerNote !== undefined && (
+                <p className="text-sm text-destructive">
+                  {errors.customerNote.message}
+                </p>
+              )}
+            </div>
+
+            <Button type="submit" disabled={authIsSubmitting}>
+              {authIsSubmitting ? t('checkout.submitting') : t('checkout.submit')}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <p className="text-center text-sm text-muted-foreground">
+        {t('checkout.loginInfo')}
+      </p>
+    </main>
+  );
+}
+
+function GuestCheckoutForm({
+  items,
+  clearCart,
+  navigate,
+  user,
+  t,
+}: {
+  items: { dishId: number; quantity: number }[];
+  clearCart: () => void;
+  navigate: ReturnType<typeof useNavigate>;
+  user: { email: string } | null;
+  t: ReturnType<typeof useTranslation>['t'];
+}) {
+  const guestSchema = useMemo(() => {
     const messages: GuestOrderBodyMessages = {
       itemsMin: t('cart.itemsMin'),
       nameMin: t('checkout.nameMin'),
@@ -58,46 +199,41 @@ function CheckoutPage() {
       guestEmail: true,
       deliveryAddress: true,
     });
-  }, [
-    t,
-  ]);
+  }, [t]);
 
-  const {
-    register,
-    handleSubmit,
-    setError,
-    formState: { errors, isSubmitting },
-  } = useForm<CheckoutFields>({
-    resolver: zodResolver(schema),
-    defaultValues: {
+  const baseValues = useMemo(
+    () => ({
       items: items.map((item) => ({
         dishId: item.dishId,
         quantity: item.quantity,
       })),
       customerNote: '',
+    }),
+    [items],
+  );
+
+  const guestDefaultValues = useMemo(
+    () => ({
+      ...baseValues,
       guestName: '',
       guestPhone: '',
-      guestEmail: '',
+      guestEmail: user?.email ?? '',
       deliveryAddress: '',
-    },
+    }),
+    [baseValues, user?.email],
+  );
+
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting: guestIsSubmitting },
+  } = useForm<GuestOrderFields>({
+    resolver: zodResolver(guestSchema),
+    defaultValues: guestDefaultValues,
   });
 
-  if (items.length === 0) {
-    return (
-      <main className="mx-auto flex w-full max-w-md flex-col gap-6 p-4">
-        <Card>
-          <CardContent className="p-6 text-center text-muted-foreground">
-            {t('cart.empty')}
-          </CardContent>
-        </Card>
-        <Button asChild variant="outline" className="w-full">
-          <Link to="/menu">{t('nav.menu')}</Link>
-        </Button>
-      </main>
-    );
-  }
-
-  const onSubmit = handleSubmit(async (values) => {
+  const onSubmit = async (values: GuestOrderFields) => {
     try {
       const response = await createGuestOrder(
         {
@@ -129,7 +265,7 @@ function CheckoutPage() {
             : t('checkout.error'),
       });
     }
-  });
+  };
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-6 p-4">
@@ -147,7 +283,7 @@ function CheckoutPage() {
           )}
 
           <form
-            onSubmit={(event) => void onSubmit(event)}
+            onSubmit={(event) => void handleSubmit(onSubmit)(event)}
             className="flex flex-col gap-4"
           >
             <div className="flex flex-col gap-2">
@@ -172,12 +308,16 @@ function CheckoutPage() {
                 autoComplete="tel"
                 {...register('guestPhone')}
                 aria-invalid={errors.guestPhone !== undefined}
+                placeholder="+7 (XXX) XXX-XX-XX"
               />
               {errors.guestPhone !== undefined && (
                 <p className="text-sm text-destructive">
                   {errors.guestPhone.message}
                 </p>
               )}
+              <p className="text-xs text-muted-foreground">
+                {t('checkout.phoneFormat')}
+              </p>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -225,8 +365,8 @@ function CheckoutPage() {
               )}
             </div>
 
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? t('checkout.submitting') : t('checkout.submit')}
+            <Button type="submit" disabled={guestIsSubmitting}>
+              {guestIsSubmitting ? t('checkout.submitting') : t('checkout.submit')}
             </Button>
           </form>
         </CardContent>
@@ -236,6 +376,52 @@ function CheckoutPage() {
         {t('checkout.guestInfo')}
       </p>
     </main>
+  );
+}
+
+function CheckoutPage() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const items = useCartStore((state) => state.items);
+  const clearCart = useCartStore((state) => state.clearCart);
+  const isAuthenticated = useIsAuthenticated();
+  const user = useAuthStore((state) => state.user);
+
+  if (items.length === 0) {
+    return (
+      <main className="mx-auto flex w-full max-w-md flex-col gap-6 p-4">
+        <Card>
+          <CardContent className="p-6 text-center text-muted-foreground">
+            {t('cart.empty')}
+          </CardContent>
+        </Card>
+        <Button asChild variant="outline" className="w-full">
+          <Link to="/menu">{t('nav.menu')}</Link>
+        </Button>
+      </main>
+    );
+  }
+
+  if (isAuthenticated) {
+    return (
+      <AuthCheckoutForm
+        items={items}
+        clearCart={clearCart}
+        navigate={navigate}
+        user={user}
+        t={t}
+      />
+    );
+  }
+
+  return (
+    <GuestCheckoutForm
+      items={items}
+      clearCart={clearCart}
+      navigate={navigate}
+      user={user}
+      t={t}
+    />
   );
 }
 

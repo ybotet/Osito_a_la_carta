@@ -251,8 +251,8 @@
   - **Notas de progreso (2026-10-13/14):**
     - `Cart.tsx` → navega a `/checkout` en vez de `/login`; accesible sin estar autenticado.
     - `Checkout.tsx` creado con RHF + Zod (`createGuestOrderBodySchema`), campos name/phone/email?/address/note. Submit → POST `/api/orders/guest`, clearCart, guarda token, redirige a `/orders/track/:token`.
-    - `OrderTrack.tsx` creado con useQuery al endpoint `/orders/track/:token`; usa `location.state.order` como `initialData` para evitar llamada redundante; botón "Crear cuenta" → `/register?email=`.
-    - `Register.tsx` → precarga email desde query params, muestra mensaje "email de verificación enviado" y no hace auto-login.
+    - `OrderTrack.tsx` creado con useQuery al endpoint track. Botón "Crear cuenta" → `/register?email=&name=&phone=`.
+    - `Register.tsx` → precarga email/name/phone desde query params.
     - `Orders.tsx` → sección "Pedidos como invitado" con tokens de localStorage; formateo de fecha y hora con `toLocaleString`.
     - `Layout.tsx` → botón "Mis pedidos" (invitado) → `/orders`.
     - `VerifyEmail.tsx` (nuevo) → página `/verify-email` que consume `GET /api/auth/verify-email?token=`.
@@ -263,6 +263,15 @@
     - i18n claves `checkout.*`, `track.*`, `orders.guestOrders*`, `guestOrders.*`, `auth.register.verification*` en es/ru/en.
     - `main.tsx` → rutas `/checkout`, `/orders/track/:token`, `/verify-email` registradas.
     - typecheck, lint y build pasan en client y server.
+- [x] **T-099**: Checkout híbrido (autenticados + invitados) con prefilling y formato de teléfono ruso
+  - Criterio: usuarios autenticados usan `POST /api/orders` con email pre-rellenado; invitados usan `POST /api/orders/guest` con formulario completo; campo teléfono con formato +7 (XXX) XXX-XX-XX y validación; i18n completo es/ru/en; typecheck + lint + build pasan.
+  - **Notas de progreso (2026-10-19):**
+    - `Checkout.tsx` reescrito con dos formularios separados (`AuthCheckoutForm`, `GuestCheckoutForm`) para evitar hooks condicionales; usuarios autenticados solo ven nota opcional, email pre-rellenado desde `user.email`.
+    - Formulario de invitados mantiene campos: nombre, teléfono, email, dirección, nota; placeholder y ayuda visual para formato ruso +7 (XXX) XXX-XX-XX.
+    - Claves i18n añadidas: `checkout.authInfo`, `checkout.phoneFormat`, `checkout.loginInfo` en es/ru/en.
+    - Usuario autenticado usa `POST /api/orders` (crea pedido con `userId`); invitado usa `POST /api/orders/guest` (crea pedido con `userId=null` y `trackingToken`).
+    - Separación de formularios en componentes `AuthCheckoutForm` y `GuestCheckoutForm` para cumplir `react-hooks/rules-of-hooks` y evitar hooks condicionales.
+    - Typecheck, lint y build pasan en client y server.
 
 ---
 
