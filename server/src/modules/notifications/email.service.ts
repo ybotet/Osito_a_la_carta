@@ -32,19 +32,23 @@ const sendOrderEmail = async (
     key: env.MAILGUN_API_KEY,
   });
 
-  // Determinar datos del cliente para el email
-  const isGuest = order.userId === null;
-  const clientName = isGuest ? order.guestName : customerEmail;
-  const clientPhone = isGuest ? order.guestPhone : null;
-  const deliveryAddress = isGuest ? order.deliveryAddress : null;
-  const trackingToken = isGuest ? order.trackingToken : null;
+  // Los datos del cliente (nombre, teléfono, email, dirección) se guardan en las
+  // columnas guest_* tanto para pedidos autenticados como invitados. Leer las mismas
+  // columnas en ambos casos simplifica la plantilla: no necesita ramas por tipo.
+  const clientInfo = {
+    isGuest: order.userId === null,
+    clientName: order.guestName,
+    clientPhone: order.guestPhone,
+    deliveryAddress: order.deliveryAddress,
+    trackingToken: order.trackingToken,
+  };
 
   const result = await client.messages.create(env.MAILGUN_DOMAIN, {
     from: env.MAILGUN_FROM.raw,
     to: env.CHEF_EMAIL,
     subject: `Nuevo pedido #${order.id} - Osito a la carta`,
-    text: buildOrderEmailText(order, items, customerEmail, { isGuest, clientName, clientPhone, deliveryAddress, trackingToken }),
-    html: buildOrderEmailHtml(order, items, customerEmail, { isGuest, clientName, clientPhone, deliveryAddress, trackingToken }),
+    text: buildOrderEmailText(order, items, customerEmail, clientInfo),
+    html: buildOrderEmailHtml(order, items, customerEmail, clientInfo),
   });
 
   logger.info(

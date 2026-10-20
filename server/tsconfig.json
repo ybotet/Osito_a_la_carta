@@ -6,7 +6,7 @@
     "moduleResolution": "NodeNext",
     "rootDir": "..",
     "outDir": "./dist",
-    "types": ["node"],
+    "types": ["node", "vitest/globals"],
 
     "strict": true,
     "noUncheckedIndexedAccess": true,

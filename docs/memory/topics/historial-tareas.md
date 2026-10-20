@@ -356,3 +356,34 @@
 **Impacto:** Usuarios autenticados tienen formulario completo en checkout con datos pre-rellenados; los datos se guardan automáticamente al confirmar el pedido para futuros pedidos; typecheck, lint y build pasan.
 
 **Deuda/Notas:** El email no se permite cambiar desde el perfil (solo vía registro/login); si se quiere permitir cambio de email, haría falta un flujo de verificación adicional. Los campos del perfil son opcionales en la BD (nullable) para no romper usuarios existentes.
+---
+
+## 2026-10-20 — T-093: Tests básicos de flujos críticos (registro, pedido, notificación)
+
+**Qué:** Instalación de vitest y creación de tests para auth.service, orders.service y dishes.service usando better-sqlite3 en memoria.
+
+**Cómo:**
+- Instalado itest@^3.2.7 como devDependency en server/.
+- itest.config.ts: globals, environment node, setupFiles ./src/test/setup.ts.
+- src/test/setup.ts: env vars señadas antes de imports; tablas creadas con DDL directo en :memory: (no migrate() — las migraciones 0003 usan INSERT INTO __new_orders SELECT * FROM orders con columnas inexistentes en tabla original); i.mock para db/client.js, logger.js, 
+otifications/email.service.js, 
+otifications/telegram.service.js, 
+otifications/notifications.repository.js; fterEach limpia datos con PRAGMA foreign_keys = OFF, i.clearAllMocks().
+- src/test/auth.service.test.ts: register (success, duplicate email 409, verification email sent), login (success, wrong password 401, nonexistent email 401), refresh (valid token, invalid token 401, access token instead of refresh 401), DB integrity (emailExists, findUserById).
+- src/test/orders.service.test.ts: createOrder (success with userId/total/profile data, unavailable dish 400, nonexistent dish 400, total rounding, profile empty, customer note, empty note → NULL), createGuestOrder (userId null, trackingToken, unavailable dish 400), transaccionalidad (order + items in transaction), localization (ru, en, Accept-Language header, undefined → default es).
+- src/test/dishes.service.test.ts: listDishes (default es, ru, en, Accept-Language parsing, unavailable filter, sorting by category sortOrder), getDish (available dish localized, 404 for nonexistent, 404 for disabled), createDish (success, 400 for nonexistent category), localization (ru-RU header, * wildcard, q=0 exclusion).
+- Scripts 
+pm run test (root) y 
+pm run test --workspace @osito/server.
+
+**Resultados:** 40 tests pasados en 3 archivos (12 auth, 14 orders, 14 dishes). Typecheck, lint y tests en verde.
+
+**Impacto:** Primer suite de tests automáticos en el proyecto; valida los flujos críticos de autenticación, pedidos y localización de platos antes de T-094 (despliegue PM2+Nginx).
+
+**Deuda/Notas:**
+- Tests síncronos (bcryptjs, better-sqlite3) toman ~3s; si crecen, considerar crypt async o worker pools.
+- sendVerificationEmail mock debe retornar Promise (service usa .catch()).
+- Migraciones Drizzle con ALTER TABLE (recreate pattern) fallan en DB limpia; usar DDL directo en tests.
+- El code de error en AppError no está en message; testear con instanceof y acceso a .code.
+
+## Próximas entradas (plantilla)

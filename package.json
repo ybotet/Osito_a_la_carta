@@ -19,7 +19,8 @@
     "dev": "npm run dev --workspaces --if-present",
     "dev:server": "npm run dev --workspace @osito/server",
     "dev:client": "npm run dev --workspace @osito/client",
-    "build": "npm run build --workspace @osito/client"
+    "build": "npm run build --workspace @osito/client",
+    "test": "npm run test --workspace @osito/server"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

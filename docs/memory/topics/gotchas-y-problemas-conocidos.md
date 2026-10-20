@@ -106,8 +106,8 @@ Lista viva de problemas, comportamientos sorprendentes y soluciones aplicadas. *
 | Gotcha | Síntoma | Causa | Solución |
 |--------|---------|-------|----------|
 | **`npm run test` no configurado** | `missing script: test` | Pendiente T-093 | Definir: `vitest` para unit/integration, `playwright` para E2E. Configurar en `package.json` raíz. |
-| **Tests de BD necesitan DB limpia** | Tests flaky por datos residuales | SQLite archivo compartido | `vitest` + `setupFiles` que crea `:memory:` DB o archivo temp por test suite; `drizzle-kit migrate` en setup. |
-| **Variables de entorno en tests** | `process.env.JWT_SECRET` undefined | `.env` no cargado en test runner | `process.loadEnvFile('.env.test')` en `vitest.setup.ts`; `.env.test` en `.gitignore`. |
+| **Tests de BD necesitan DB limpia** | Tests flaky por datos residuales | SQLite archivo compartido | `vitest` + `setupFiles` que crea `:memory:` DB o archivo temp por test suite; `drizzle-kit migrate` en setup. Implementado T-093: tablas creadas con DDL directo en `setup.ts`, `afterEach` limpia con `PRAGMA foreign_keys = OFF`. |
+| **Variables de entorno en tests** | `process.env.JWT_SECRET` undefined | `.env` no cargado en test runner | `process.loadEnvFile('.env.test')` en `vitest.setup.ts`; `.env.test` en `.gitignore`. Implementado T-093: env vars seteadas en `setup.ts` antes de imports. |
 
 ---
 
@@ -131,6 +131,14 @@ Lista viva de problemas, comportamientos sorprendentes y soluciones aplicadas. *
 | **`pino` no loggea en tests** | Sin output en `vitest run` | `pino-pretty` no compatible con test runner | `LOG_LEVEL=silent` en test env, o `pino({ level: process.env.LOG_LEVEL || 'silent' })`. |
 | **`react-hook-form` + Zod: `resolver` types** | Error TS: `FieldValues` genérico | `zodResolver(schema)` infiere mal si schema tiene `.transform()` | Usar `zodResolver(schema.shape)` o tipar explícito `UseFormProps<z.infer<typeof schema>>`. |
 | **`vite build` falla por `import.meta.env` en server code** | `import.meta.env` undefined en build server | Vite solo inyecta env en client; server usa `process.env` | Server **nunca** usa `import.meta.env`; solo `process.env` (validado por Zod). Client usa `import.meta.env.VITE_*`. |
+| **Migrations de Drizzle con `ALTER TABLE` (recreate) fallan en SQLite limpio** | `no such column: guest_name` al aplicar migraciones de T-098a | Migration 0003 usa `INSERT INTO __new_orders SELECT ... FROM orders` pero `orders` no tiene aún las nuevas columnas | En tests, crear tablas directamente con DDL (no usar `migrate()`); las migraciones funcionan en prod porque se aplican incrementalmente sobre datos existentes. |
+| **Env vars deben estar seteadas antes de importar módulos** | `config/env.ts` crasha con "missing env var" | Env validation runs at import time; `process.loadEnvFile` no se ejecuta en test | En `vitest.setup.ts`: set `process.env.*` **before** any imports; mock `db/client.js` y `logger.js`. |
+| **`bcryptjs` es lento (~100ms por operación)** | Tests lentos (2+ segundos) | 10 rounds es costo de hashing real | Aceptable para tests; si hay muchos, reducir rounds en test env. No usar en prod. |
+| **`vi.mock` paths son relativos al setup file, no al test** | Mocks no aplicados en module bajo test | Vitest resolve mock paths from setup file location | `vi.mock('../db/client.js')` desde `src/test/setup.ts` resuelve a `src/db/client.js`. Los services importan `../../db/client.js` que también resuelve a lo mismo. |
+| **`sendVerificationEmail` uses `void .catch()` pattern** | Mock must return Promise; else `TypeError: Cannot read properties of undefined (reading 'catch')` | Service uses fire-and-forget con `.catch()` | Mock factory debe retornar `vi.fn().mockResolvedValue(undefined)`. |
+| **Foreign key cleanup order en tests** | `FOREIGN KEY constraint failed` en `afterEach` | DELETE secuencial viola FKs (child → parent) | `sqlite.pragma('foreign_keys = OFF')` antes de limpiar, `ON` al final. |
+| **SQLite REAL (float) precision en totales** | `35.7 * 100 = 3570.0000000000005` no pasa `Number.isInteger` | Floating point arithmetic | Testear con `Math.round(total * 100) === 3570` no `Number.isInteger(total * 100)`. |
+| **`AppError.code` no está en `error.message`** | `toThrow('DISH_NOT_FOUND')` falla, mensaje es "Dish not found" | El `code` es propiedad separada de `message` en `AppError` | Castear a `{ code: string }` y verificar `.code`. |
 
 ---
 

@@ -223,7 +223,7 @@
     - Todos los llamadores actuales pasan `{ silent: true }` para evitar notificaciones duplicadas.
     - Claves i18n `errors: { title, fallback, retry, generic }` anadidas a es/ru/en.
     - `npm run typecheck` ✓, `npm run lint` ✓, `npm run build` ✓.
-- [ ] **T-093**: Tests básicos de flujos crí­ticos (registro, pedido, notificación)
+- [x] **T-093**: Tests básicos de flujos crí­ticos (registro, pedido, notificación)
   - Criterio: `npm run test` pasa.
 - [ ] **T-094**: Configurar PM2 en el VPS
   - Criterio: `pm2 status` muestra la app corriendo y con arranque automático.
@@ -290,3 +290,5 @@
 - ¿Rate limiting en endpoints públicos? в†’ evaluar en **T-092**.
 
 > **Nota:** todo el contenido técnico (decisiones, verificaciones, gotchas, historial) se ha movido a `docs/MEMORY.md` y `docs/memory/topics/`. Ver í­ndice en `docs/MEMORY.md`.
+
+
