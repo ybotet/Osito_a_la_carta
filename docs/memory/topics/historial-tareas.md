@@ -387,3 +387,23 @@ pm run test --workspace @osito/server.
 - El code de error en AppError no está en message; testear con instanceof y acceso a .code.
 
 ## Próximas entradas (plantilla)
+---
+
+## 2026-10-20 — T-094: Configurar scripts de despliegue (PM2 + Systemd + Nginx)
+
+**Qué:** Creación de server/ecosystem.config.cjs para PM2 y docs/DEPLOY.md con la guía de despliegue paso a paso.
+
+**Cómo:**
+- server/ecosystem.config.cjs: config CommonJS (.cjs) para PM2. App: osito-server, script dist/server/src/app.js, instances 1, autorestart true, max_memory_restart 512M. Env: NODE_ENV=production, PORT=3000. Logs en ./logs/ con merge_logs: true y timestamp YYYY-MM-DD HH:mm:ss.
+- docs/DEPLOY.md: 11 pasos cubriendo (1) instalación Node 22 LTS vía NodeSource, (2) clonar repo, (3) 
+pm ci en server/client, (4) configurar .env, (5) migraciones + seed, (6) build del frontend, (7) build del backend (	sc → dist/server/src/app.js), (8) pm2 start ecosystem.config.cjs, (9) arranque automático con pm2 startup systemd, (10) configuración Nginx proxy inverso (HTTP→HTTPS, /api/ → localhost:3000, /uploads/ alias, SPA fallback), (11) SSL con Let's Encrypt (certbot --nginx).
+- Nota sobre migraciones de tabla-rebuild (T-098a/MEMORY) que fallan en BD limpia: usar sqlite3 CLI directamente como workaround.
+
+**Impacto:** Guía completa de despliegue que un administrador puede seguir para poner el servidor en producción con PM2 + Systemd (arranque automático) + Nginx (proxy inverso HTTPS). El ecosystem.config.cjs permite pm2 start ecosystem.config.cjs y pm2 restart osito-server tras cada deploy.
+
+**Deuda/Notas:**
+- La configuración de Nginx y Let's Encrypt pertenecen a T-095 (no implementados aquí, solo documentados).
+- El server actual no sirve el frontend (Express solo expone API); Nginx sirve client/dist/ directamente.
+- osito.db debe estar en un path accesible por el usuario que ejecuta PM2; migraciones aplicadas antes de pm2 start.
+
+## Próximas entradas (plantilla)

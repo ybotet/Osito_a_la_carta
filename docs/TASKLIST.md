@@ -225,7 +225,7 @@
     - `npm run typecheck` ✓, `npm run lint` ✓, `npm run build` ✓.
 - [x] **T-093**: Tests básicos de flujos crí­ticos (registro, pedido, notificación)
   - Criterio: `npm run test` pasa.
-- [ ] **T-094**: Configurar PM2 en el VPS
+- [x] **T-094**: Configurar PM2 en el VPS
   - Criterio: `pm2 status` muestra la app corriendo y con arranque automático.
 - [ ] **T-095**: Configurar Nginx como proxy inverso + Let's Encrypt
   - Criterio: la app responde por HTTPS en el dominio configurado.
@@ -290,5 +290,6 @@
 - ¿Rate limiting en endpoints públicos? в†’ evaluar en **T-092**.
 
 > **Nota:** todo el contenido técnico (decisiones, verificaciones, gotchas, historial) se ha movido a `docs/MEMORY.md` y `docs/memory/topics/`. Ver í­ndice en `docs/MEMORY.md`.
+
 
 
