@@ -10,6 +10,7 @@ import {
 } from '../../../shared/schemas';
 import { ApiError } from '@/api/http';
 import { createOrder, createGuestOrder } from '@/api/orders';
+import { updateUserProfile } from '@/api/auth';
 import { useCartStore } from '@/store/cart';
 import { useAuthStore, useIsAuthenticated } from '@/store/auth';
 import { saveToken } from '@/lib/guest-orders';
@@ -36,6 +37,10 @@ type GuestOrderFields = {
 type AuthOrderFields = {
   items: { dishId: number; quantity: number }[];
   customerNote?: string;
+  name: string;
+  phone: string;
+  email: string;
+  deliveryAddress: string;
 };
 
 function AuthCheckoutForm({
@@ -48,7 +53,7 @@ function AuthCheckoutForm({
   items: { dishId: number; quantity: number }[];
   clearCart: () => void;
   navigate: ReturnType<typeof useNavigate>;
-  user: { email: string } | null;
+  user: { email: string; name?: string | null; phone?: string | null; deliveryAddress?: string | null } | null;
   t: ReturnType<typeof useTranslation>['t'];
 }) {
   const authSchema = useMemo(() => {
@@ -67,6 +72,26 @@ function AuthCheckoutForm({
           { message: 'No se puede repetir el mismo plato en un pedido' },
         ),
       customerNote: z.string().trim().max(500).optional(),
+      name: z
+        .string()
+        .trim()
+        .min(2, { message: t('checkout.nameMin') })
+        .max(100, { message: t('checkout.nameMax') }),
+      phone: z
+        .string()
+        .trim()
+        .min(5, { message: t('checkout.phoneMin') })
+        .max(20, { message: t('checkout.phoneMax') }),
+      email: z
+        .string()
+        .trim()
+        .email({ message: t('auth.errors.emailFormat') })
+        .max(254, { message: t('auth.errors.emailMax') }),
+      deliveryAddress: z
+        .string()
+        .trim()
+        .min(5, { message: t('checkout.addressMin') })
+        .max(500, { message: t('checkout.addressMax') }),
     });
   }, [t]);
 
@@ -81,6 +106,17 @@ function AuthCheckoutForm({
     [items],
   );
 
+  const authDefaultValues = useMemo(
+    () => ({
+      ...baseValues,
+      name: user?.name ?? '',
+      phone: user?.phone ?? '',
+      email: user?.email ?? '',
+      deliveryAddress: user?.deliveryAddress ?? '',
+    }),
+    [baseValues, user?.name, user?.phone, user?.email, user?.deliveryAddress],
+  );
+
   const {
     register,
     handleSubmit,
@@ -88,11 +124,20 @@ function AuthCheckoutForm({
     formState: { errors, isSubmitting: authIsSubmitting },
   } = useForm<AuthOrderFields>({
     resolver: zodResolver(authSchema),
-    defaultValues: baseValues,
+    defaultValues: authDefaultValues,
   });
 
   const onSubmitAuth = async (values: AuthOrderFields) => {
     try {
+      // Guardar el perfil si ha cambiado
+      const profileData = {
+        name: values.name.trim(),
+        phone: values.phone.trim(),
+        deliveryAddress: values.deliveryAddress.trim(),
+      };
+
+      await updateUserProfile(profileData, { silent: true });
+
       const response = await createOrder(
         values.items,
         values.customerNote?.trim() || undefined,
@@ -137,6 +182,73 @@ function AuthCheckoutForm({
             onSubmit={(event) => void handleSubmit(onSubmitAuth)(event)}
             className="flex flex-col gap-4"
           >
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="name">{t('checkout.name')}</Label>
+              <Input
+                id="name"
+                autoComplete="name"
+                {...register('name')}
+                aria-invalid={errors.name !== undefined}
+              />
+              {errors.name !== undefined && (
+                <p className="text-sm text-destructive">
+                  {errors.name.message}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="phone">{t('checkout.phone')}</Label>
+              <Input
+                id="phone"
+                autoComplete="tel"
+                {...register('phone')}
+                aria-invalid={errors.phone !== undefined}
+                placeholder="+7 (XXX) XXX-XX-XX"
+              />
+              {errors.phone !== undefined && (
+                <p className="text-sm text-destructive">
+                  {errors.phone.message}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {t('checkout.phoneFormat')}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="email">{t('checkout.email')}</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                {...register('email')}
+                aria-invalid={errors.email !== undefined}
+                readOnly
+                disabled
+              />
+              {errors.email !== undefined && (
+                <p className="text-sm text-destructive">
+                  {errors.email.message}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="deliveryAddress">{t('checkout.address')}</Label>
+              <Input
+                id="deliveryAddress"
+                autoComplete="street-address"
+                {...register('deliveryAddress')}
+                aria-invalid={errors.deliveryAddress !== undefined}
+              />
+              {errors.deliveryAddress !== undefined && (
+                <p className="text-sm text-destructive">
+                  {errors.deliveryAddress.message}
+                </p>
+              )}
+            </div>
+
             <div className="flex flex-col gap-2">
               <Label htmlFor="customerNote">{t('checkout.note')}</Label>
               <Input

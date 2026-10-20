@@ -9,7 +9,7 @@ import type { ApiAuthUser } from '../api/auth.types';
 const STORAGE_KEY = 'osito-auth';
 
 /**
- * Estado de sesión: lo mínimo para falar con la API y para pintar quién es.
+ * Estado de sesión: lo mínimo para hablar con la API y para pintar quién es.
  *
  * **Los tokens son parte del estado y no un cierre del `fetch`.** El backend no tiene
  * sesiones ni cookies (`POST /api/auth/login` devuelve el token en el cuerpo y nada más
@@ -29,6 +29,7 @@ type AuthState = {
     refreshToken: string,
   ) => void;
   clearSession: () => void;
+  updateProfile: (profile: Partial<Pick<ApiAuthUser, 'name' | 'phone' | 'deliveryAddress'>>) => void;
 };
 
 /**
@@ -80,6 +81,18 @@ export const useAuthStore = create<AuthState>()(
       clearSession: () => {
         const { _hasHydrated } = useAuthStore.getState();
         set({ user: null, accessToken: null, refreshToken: null, _hasHydrated });
+      },
+
+      /**
+       * Actualiza el perfil del usuario (nombre, teléfono, dirección).
+       * Actualiza tanto el estado local como el localStorage a través de persist.
+       */
+      updateProfile: (profile) => {
+        set((state) => ({
+          user: state.user
+            ? { ...state.user, ...profile }
+            : null,
+        }));
       },
     }),
     {

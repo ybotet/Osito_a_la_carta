@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 import { env } from '../../config/index.js';
 import { logger } from '../../logger.js';
 import { ConflictError, UnauthorizedError } from '../../shared/errors.js';
@@ -12,11 +13,13 @@ import {
   insertUser,
   updateEmailVerificationToken,
   verifyUserEmail,
+  updateUserProfile as updateUserProfileRepo,
 } from './auth.repository.js';
 import {
   loginResponseSchema,
   refreshClaimsSchema,
   refreshResponseSchema,
+  updateUserProfileBodySchema,
   userSchema,
 } from './auth.schema.js';
 import type { LoginBody, RefreshBody, RegisterBody } from './auth.schema.js';
@@ -227,6 +230,9 @@ const loginUser = (body: LoginBody) => {
       email: user.email,
       role: user.role,
       preferredLang: user.preferredLang,
+      name: user.name,
+      phone: user.phone,
+      deliveryAddress: user.deliveryAddress,
     },
   });
 };
@@ -320,4 +326,12 @@ const refreshAccessToken = (body: RefreshBody) => {
   return refreshResponseSchema.parse({ accessToken: signAccessToken(user) });
 };
 
-export { loginUser, refreshAccessToken, registerUser, verifyEmail };
+export { loginUser, refreshAccessToken, registerUser, verifyEmail, updateUserProfile };
+
+/**
+ * Actualiza el perfil del usuario (nombre, teléfono, dirección de entrega).
+ */
+const updateUserProfile = (userId: number, body: z.infer<typeof updateUserProfileBodySchema>) => {
+  const parsed = updateUserProfileBodySchema.parse(body);
+  return updateUserProfileRepo(userId, parsed);
+};

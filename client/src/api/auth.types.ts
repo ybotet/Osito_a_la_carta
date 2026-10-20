@@ -29,6 +29,9 @@ export type ApiAuthUser = {
   email: string;
   role: ApiUserRole;
   preferredLang: ApiPreferredLang;
+  name: string | null;
+  phone: string | null;
+  deliveryAddress: string | null;
 };
 
 /**

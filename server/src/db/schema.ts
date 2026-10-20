@@ -19,6 +19,9 @@ export const users = sqliteTable('users', {
     .default('es'),
   emailVerified: integer('email_verified').notNull().default(0),
   emailVerificationToken: text('email_verification_token'),
+  name: text('name'),
+  phone: text('phone'),
+  deliveryAddress: text('delivery_address'),
   createdAt: integer('created_at')
     .notNull()
     .default(sql`(unixepoch())`),
@@ -130,6 +133,7 @@ export const notificationLogs = sqliteTable('notification_logs', {
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+export type UserProfile = Pick<User, 'name' | 'phone' | 'deliveryAddress'>;
 export type Category = typeof categories.$inferSelect;
 export type NewCategory = typeof categories.$inferInsert;
 export type Dish = typeof dishes.$inferSelect;

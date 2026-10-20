@@ -94,8 +94,13 @@
     "date": "Дата",
     "status": "Статус",
     "total": "Итого",
-    "items": "Позиции",
-    "statuses": {
+"items": "Позиции",
+    "phone": "Телефон",
+    "email": "Email",
+    "name": "Имя",
+    "address": "Адрес доставки",
+      "notProvided": "Не указано",
+      "statuses": {
       "pending": "Ожидает",
       "preparing": "Готовится",
       "sent": "Отправлен",
@@ -361,6 +366,12 @@
     "retry": "Попробовать снова",
     "createAccount": "Создать аккаунт",
     "createAccountHint": "Хотите создать аккаунт? Мы заполним ваши данные.",
+    "date": "Дата",
+    "name": "Имя",
+    "phone": "Телефон",
+    "email": "Email",
+    "address": "Адрес доставки",
+    "note": "Заметка для шефа",
     "status": "Статус",
     "total": "Итого",
     "items": "Блюда"

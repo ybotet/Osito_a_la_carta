@@ -342,3 +342,17 @@
 **Impacto:** Checkout unificado para autenticados e invitados; autenticados tienen UX simplificada (solo nota); invitados tienen formulario completo con ayuda de formato de teléfono ruso; typecheck, lint y build pasan.
 
 **Deuda/Notas:** El modelo de usuario (`ApiAuthUser`) solo tiene `id`, `email`, `role`, `preferredLang` — no hay nombre, teléfono ni dirección guardados en BD, por lo que solo se pre-rellena email. Si en el futuro se añaden esos campos al usuario, se pueden pre-rellenar también.
+
+## 2026-10-19 — T-100: Perfil de usuario con datos de entrega guardados
+
+**Qué:** Se añadió la capacidad de guardar y reutilizar datos de entrega (nombre, teléfono, dirección) para usuarios autenticados, que se pre-rellenan en el checkout y se guardan automáticamente al confirmar un pedido.
+
+**Cómo:**
+- BD: añadidas columnas `name`, `phone`, `deliveryAddress` a tabla `users` (migración 0005).
+- Backend: endpoint `PUT /api/users/me` para actualizar perfil; `login` y `refresh` devuelven los nuevos campos (`name`, `phone`, `deliveryAddress`); `POST /api/orders` para autenticados no requiere datos de contacto (se usan los del perfil si no se envían en el body).
+- Frontend: `ApiAuthUser` extendido con `name`, `phone`, `deliveryAddress`; `useAuthStore` con acción `updateProfile`; `Checkout.tsx` formulario completo para autenticados pre-rellenado con datos del perfil (nombre, teléfono, email, dirección, nota); al confirmar se guarda el perfil via `PUT /api/users/me` y luego se crea el pedido con `POST /api/orders`.
+- i18n: reutilizadas claves existentes `checkout.authInfo`, `checkout.phoneFormat`, `checkout.loginInfo`, `checkout.name`, `checkout.phone`, `checkout.email`, `checkout.address`, `checkout.note`.
+
+**Impacto:** Usuarios autenticados tienen formulario completo en checkout con datos pre-rellenados; los datos se guardan automáticamente al confirmar el pedido para futuros pedidos; typecheck, lint y build pasan.
+
+**Deuda/Notas:** El email no se permite cambiar desde el perfil (solo vía registro/login); si se quiere permitir cambio de email, haría falta un flujo de verificación adicional. Los campos del perfil son opcionales en la BD (nullable) para no romper usuarios existentes.

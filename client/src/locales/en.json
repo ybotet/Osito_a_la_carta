@@ -94,8 +94,13 @@
     "date": "Date",
     "status": "Status",
     "total": "Total",
-    "items": "Items",
-    "statuses": {
+"items": "Items",
+    "phone": "Phone",
+    "email": "Email",
+    "name": "Name",
+    "address": "Delivery address",
+      "notProvided": "Not provided",
+      "statuses": {
       "pending": "Pending",
       "preparing": "Preparing",
       "sent": "Sent",
@@ -361,6 +366,12 @@
     "retry": "Try again",
     "createAccount": "Create account",
     "createAccountHint": "Want to create an account? We'll save your details.",
+    "date": "Date",
+    "name": "Name",
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Delivery address",
+    "note": "Note for the chef",
     "status": "Status",
     "total": "Total",
     "items": "Items"

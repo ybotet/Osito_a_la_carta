@@ -272,6 +272,14 @@
     - Usuario autenticado usa `POST /api/orders` (crea pedido con `userId`); invitado usa `POST /api/orders/guest` (crea pedido con `userId=null` y `trackingToken`).
     - Separación de formularios en componentes `AuthCheckoutForm` y `GuestCheckoutForm` para cumplir `react-hooks/rules-of-hooks` y evitar hooks condicionales.
     - Typecheck, lint y build pasan en client y server.
+- [x] **T-100**: Perfil de usuario con datos de entrega guardados
+  - Criterio: usuarios autenticados pueden guardar nombre, teléfono y dirección; al hacer checkout se muestra el formulario completo pre-rellenado; al confirmar pedido se guardan los datos para futuros pedidos; i18n es/ru/en; typecheck + lint + build pasan.
+  - **Notas de progreso (2026-10-19):**
+    - BD: añadidos campos `name`, `phone`, `deliveryAddress` a tabla `users` (migración 0005).
+    - Backend: endpoint `PUT /api/users/me` para actualizar perfil; `login` y `refresh` devuelven los nuevos campos; `POST /api/orders` para autenticados usa datos del perfil si no se envían en el body.
+    - Frontend: `ApiAuthUser` extendido con `name`, `phone`, `deliveryAddress`; `useAuthStore` con `updateProfile`; `Checkout.tsx` formulario completo para autenticados pre-rellenado con datos del perfil; al confirmar se guarda el perfil via `PUT /api/users/me`.
+    - i18n claves `checkout.authInfo`, `checkout.phoneFormat`, `checkout.loginInfo` ya existían; reutilizadas.
+    - Typecheck, lint y build pasan en client y server.
 
 ---
 

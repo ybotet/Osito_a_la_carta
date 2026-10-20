@@ -13,6 +13,9 @@ const publicUserProjection = {
   email: users.email,
   role: users.role,
   preferredLang: users.preferredLang,
+  name: users.name,
+  phone: users.phone,
+  deliveryAddress: users.deliveryAddress,
 };
 
 /**
@@ -49,11 +52,14 @@ const emailExists = (email: string) =>
  * T-022 con `isAvailable`): quien se registra no decide si es admin. `preferredLang` sí
  * viene del body porque es el idioma que el usuario está viendo, no un permiso.
  *
+ * **`name`, `phone`, `deliveryAddress` son opcionales** y se guardan si vienen en el body
+ * (para el registro normal no vienen, pero el endpoint de actualización de perfil los usa).
+ *
  * `.returning()` evita el `SELECT` de lectura posterior: el `INSERT` de SQLite ya
  * devuelve la fila insertada.
  */
 const insertUser = (
-  values: Pick<NewUser, 'email' | 'passwordHash' | 'preferredLang'>,
+  values: Pick<NewUser, 'email' | 'passwordHash' | 'preferredLang' | 'name' | 'phone' | 'deliveryAddress'>,
 ) =>
   db
     .insert(users)
@@ -62,6 +68,9 @@ const insertUser = (
       passwordHash: values.passwordHash,
       role: 'customer',
       preferredLang: values.preferredLang,
+      name: values.name ?? null,
+      phone: values.phone ?? null,
+      deliveryAddress: values.deliveryAddress ?? null,
     })
     .returning(publicUserProjection)
     .get();
@@ -78,6 +87,9 @@ const authUserProjection = {
   passwordHash: users.passwordHash,
   role: users.role,
   preferredLang: users.preferredLang,
+  name: users.name,
+  phone: users.phone,
+  deliveryAddress: users.deliveryAddress,
 };
 
 /**
@@ -150,4 +162,19 @@ const updateEmailVerificationToken = (
     .where(eq(users.id, userId))
     .run();
 
-export { emailExists, findUserByEmail, findUserById, findUserByVerificationToken, insertUser, updateEmailVerificationToken, verifyUserEmail };
+export { emailExists, findUserByEmail, findUserById, findUserByVerificationToken, insertUser, updateEmailVerificationToken, verifyUserEmail, updateUserProfile };
+
+/**
+ * Actualiza el perfil del usuario (nombre, teléfono, dirección de entrega).
+ * Devuelve la proyección pública del usuario actualizado.
+ */
+const updateUserProfile = (
+  userId: number,
+  values: Partial<Pick<NewUser, 'name' | 'phone' | 'deliveryAddress'>>,
+) =>
+  db
+    .update(users)
+    .set(values)
+    .where(eq(users.id, userId))
+    .returning(publicUserProjection)
+    .get();

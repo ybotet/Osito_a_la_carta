@@ -65,13 +65,6 @@ const loginUser = async (
     silent: options?.silent,
   })) as ApiLoginResponse;
 
-export { loginUser, registerUser, verifyEmail };
-export type { RegisterRequest };
-
-/**
- * Verifica el email: `GET /api/auth/verify-email?token=...`
- * Devuelve el usuario verificado.
- */
 const verifyEmail = async (
   token: string,
   options?: { silent?: boolean },
@@ -80,3 +73,22 @@ const verifyEmail = async (
     `/api/auth/verify-email?token=${encodeURIComponent(token)}`,
     { silent: options?.silent },
   )) as ApiAuthUser;
+
+/**
+ * Actualiza el perfil del usuario autenticado: `PUT /api/users/me`.
+ *
+ * Permite actualizar nombre, teléfono y dirección de entrega.
+ * Devuelve el usuario actualizado.
+ */
+const updateUserProfile = async (
+  body: Partial<Pick<ApiAuthUser, 'name' | 'phone' | 'deliveryAddress'>>,
+  options?: { silent?: boolean },
+): Promise<ApiAuthUser> =>
+  (await apiRequest('/api/users/me', {
+    method: 'PUT',
+    body,
+    silent: options?.silent,
+  })) as ApiAuthUser;
+
+export { loginUser, registerUser, updateUserProfile, verifyEmail };
+export type { RegisterRequest };

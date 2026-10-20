@@ -94,8 +94,13 @@
     "date": "Fecha",
     "status": "Estado",
     "total": "Total",
-    "items": "Artículos",
-    "statuses": {
+"items": "Artículos",
+    "phone": "Teléfono",
+    "email": "Email",
+    "name": "Nombre",
+    "address": "Dirección de entrega",
+      "notProvided": "No proporcionado",
+      "statuses": {
       "pending": "Pendiente",
       "preparing": "Preparando",
       "sent": "Enviado",
@@ -361,6 +366,12 @@
     "retry": "Volver a intentar",
     "createAccount": "Creá tu cuenta",
     "createAccountHint": "¿Querés crear una cuenta? Te guardamos tus datos.",
+    "date": "Fecha",
+    "name": "Nombre",
+    "phone": "Teléfono",
+    "email": "Email",
+    "address": "Dirección de entrega",
+    "note": "Nota para el chef",
     "status": "Estado",
     "total": "Total",
     "items": "Platos"

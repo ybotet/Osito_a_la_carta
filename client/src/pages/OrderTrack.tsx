@@ -85,6 +85,19 @@ function OrderTrackPage() {
   const language = i18n.resolvedLanguage ?? i18n.language ?? 'es';
   const order = data.order;
 
+  const formatDateTime = (timestamp: number): string => {
+    return new Date(timestamp * 1000).toLocaleString(
+      language,
+      {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      },
+    );
+  };
+
   return (
     <main className="mx-auto max-w-3xl p-4">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -103,6 +116,10 @@ function OrderTrackPage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
+              <p className="text-sm text-muted-foreground">{t('track.date')}</p>
+              <p className="font-medium">{formatDateTime(order.createdAt)}</p>
+            </div>
+            <div>
               <p className="text-sm text-muted-foreground">{t('track.status')}</p>
               <span
                 className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${
@@ -113,8 +130,24 @@ function OrderTrackPage() {
               </span>
             </div>
             <div>
+              <p className="text-sm text-muted-foreground">{t('track.name')}</p>
+              <p className="font-medium">{order.guestName ?? t('orders.notProvided')}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">{t('track.phone')}</p>
+              <p className="font-medium">{order.guestPhone ?? t('orders.notProvided')}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">{t('track.email')}</p>
+              <p className="font-medium">{order.guestEmail ?? data.contactEmail ?? t('orders.notProvided')}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">{t('track.address')}</p>
+              <p className="font-medium">{order.deliveryAddress ?? t('orders.notProvided')}</p>
+            </div>
+            <div className="col-span-2">
               <p className="text-sm text-muted-foreground">{t('track.total')}</p>
-              <p className="font-medium">
+              <p className="font-medium text-lg">
                 {formatPrice(order.total, language)}
               </p>
             </div>
@@ -136,7 +169,7 @@ function OrderTrackPage() {
 
           {order.customerNote && order.customerNote.length > 0 && (
             <div>
-              <p className="text-sm text-muted-foreground">{t('cart.note')}</p>
+              <p className="text-sm text-muted-foreground">{t('track.note')}</p>
               <p className="text-sm">{order.customerNote}</p>
             </div>
           )}

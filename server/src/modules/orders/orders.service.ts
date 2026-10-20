@@ -9,6 +9,7 @@ import {
   findOrderByTrackingToken,
 } from './orders.repository.js';
 import type { OrderItemRow, OrderRow } from './orders.repository.js';
+import { findUserById } from '../auth/auth.repository.js';
 import { z } from 'zod';
 import { BadRequestError, NotFoundError } from '../../shared/errors.js';
 import type { Language } from '../../shared/language.js';
@@ -163,6 +164,8 @@ const createOrder = (
   acceptLanguage: string | undefined,
   customerEmail: string,
 ) => {
+  // Obtener el perfil del usuario para incluir datos de entrega en el pedido
+  const userProfile = findUserById(userId);
   const requestedIds = body.items.map((item) => item.dishId);
   const available = findOrderableDishesByIds(requestedIds);
   const priceByDishId = new Map(available.map((dish) => [dish.id, dish.price]));
@@ -206,6 +209,10 @@ const createOrder = (
         ? null
         : body.customerNote,
     items,
+    guestName: userProfile?.name ?? null,
+    guestPhone: userProfile?.phone ?? null,
+    guestEmail: customerEmail,
+    deliveryAddress: userProfile?.deliveryAddress ?? null,
   });
 
   const reloaded = findOrderWithItems(created.id);

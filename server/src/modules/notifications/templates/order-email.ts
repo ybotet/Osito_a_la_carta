@@ -53,11 +53,10 @@ export const buildOrderEmailHtml = (
   customerEmail: string,
   guestInfo?: GuestInfo,
 ): string => {
-  const isGuest = guestInfo?.isGuest ?? false;
-  const clientName = guestInfo?.clientName ?? customerEmail;
-  const clientPhone = guestInfo?.clientPhone ?? null;
-  const deliveryAddress = guestInfo?.deliveryAddress ?? null;
-  const trackingToken = guestInfo?.trackingToken ?? null;
+  const clientName = guestInfo?.clientName ?? order.guestName ?? null;
+  const clientPhone = guestInfo?.clientPhone ?? order.guestPhone ?? null;
+  const deliveryAddress = guestInfo?.deliveryAddress ?? order.deliveryAddress ?? null;
+  const trackingToken = guestInfo?.trackingToken ?? order.trackingToken ?? null;
 
   const noteHtml =
     order.customerNote === null || order.customerNote.length === 0
@@ -67,14 +66,14 @@ export const buildOrderEmailHtml = (
     <p style="margin: 0; font-size: 14px; color: #92400e;"><strong>Nota del cliente:</strong> ${order.customerNote}</p>
   </div>`;
 
-  const guestInfoHtml = isGuest ? `
+  const clientInfoHtml = `
   <div style="margin-top: 16px; padding: 16px; background-color: #f0fdf4; border-radius: 8px; border-left: 4px solid #22c55e;">
-    <p style="margin: 0 0 8px 0; font-size: 14px; color: #166534; font-weight: 600;">Datos del cliente invitado:</p>
+    <p style="margin: 0 0 8px 0; font-size: 14px; color: #166534; font-weight: 600;">Datos del cliente:</p>
     ${clientName ? `<p style="margin: 4px 0; font-size: 14px; color: #1f2937;">Nombre: ${clientName}</p>` : ''}
     ${clientPhone ? `<p style="margin: 4px 0; font-size: 14px; color: #1f2937;">Teléfono: ${clientPhone}</p>` : ''}
     ${deliveryAddress ? `<p style="margin: 4px 0; font-size: 14px; color: #1f2937;">Dirección de entrega: ${deliveryAddress}</p>` : ''}
     ${trackingToken ? `<p style="margin: 4px 0; font-size: 14px; color: #1f2937;">Token de seguimiento: ${trackingToken}</p>` : ''}
-  </div>` : '';
+  </div>`;
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -119,23 +118,33 @@ export const buildOrderEmailHtml = (
                     <p style="margin: 4px 0 0; font-size: 16px; font-weight: 600; color: #1f2937;">${formatDate(order.createdAt)}</p>
                   </td>
                 </tr>
+                <tr>
+                  <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                    <p style="margin: 0; font-size: 14px; color: #6b7280;">Estado</p>
+                    <p style="margin: 4px 0 0; font-size: 16px; font-weight: 600; color: #1f2937;">${order.status}</p>
+                  </td>
+                  <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                    <p style="margin: 0; font-size: 14px; color: #6b7280;">Cliente</p>
+                    <p style="margin: 4px 0 0; font-size: 16px; font-weight: 600; color: #1f2937;">${clientName ?? customerEmail}</p>
+                  </td>
+                </tr>
               </table>
 
               <!-- Customer Info -->
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom: 24px;">
                 <tr>
                   <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
-                    <p style="margin: 0; font-size: 14px; color: #6b7280;">Cliente</p>
-                    <p style="margin: 4px 0 0; font-size: 16px; font-weight: 600; color: #1f2937;">${clientName}</p>
-                  </td>
-                  <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
                     <p style="margin: 0; font-size: 14px; color: #6b7280;">Email</p>
                     <p style="margin: 4px 0 0; font-size: 16px; font-weight: 600; color: #1f2937;">${customerEmail}</p>
                   </td>
+                  ${clientPhone ? `<td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                    <p style="margin: 0; font-size: 14px; color: #6b7280;">Teléfono</p>
+                    <p style="margin: 4px 0 0; font-size: 16px; font-weight: 600; color: #1f2937;">${clientPhone}</p>
+                  </td>` : ''}
                 </tr>
               </table>
 
-              ${guestInfoHtml}
+              ${clientInfoHtml}
 
               <!-- Items Table -->
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; margin-bottom: 24px;">
@@ -200,6 +209,11 @@ export const buildOrderEmailText = (
   customerEmail: string,
   guestInfo?: GuestInfo,
 ): string => {
+  const clientName = guestInfo?.clientName ?? order.guestName ?? null;
+  const clientPhone = guestInfo?.clientPhone ?? order.guestPhone ?? null;
+  const deliveryAddress = guestInfo?.deliveryAddress ?? order.deliveryAddress ?? null;
+  const trackingToken = guestInfo?.trackingToken ?? order.trackingToken ?? null;
+
   const noteText =
     order.customerNote === null || order.customerNote.length === 0
       ? ''
@@ -214,21 +228,29 @@ export const buildOrderEmailText = (
 
   const adminOrderUrl = `${env.PUBLIC_ORIGIN}/admin/orders/${order.id}`;
 
-  const guestInfoText = guestInfo?.isGuest ? `
-Datos del cliente invitado:
-${guestInfo.clientName ? `Nombre: ${guestInfo.clientName}` : ''}
-${guestInfo.clientPhone ? `Teléfono: ${guestInfo.clientPhone}` : ''}
-${guestInfo.deliveryAddress ? `Dirección de entrega: ${guestInfo.deliveryAddress}` : ''}
-${guestInfo.trackingToken ? `Token de seguimiento: ${guestInfo.trackingToken}` : ''}` : '';
+  const clientInfoLines = [
+    clientName ? `Nombre: ${clientName}` : '',
+    clientPhone ? `Teléfono: ${clientPhone}` : '',
+    deliveryAddress ? `Dirección de entrega: ${deliveryAddress}` : '',
+    trackingToken ? `Token de seguimiento: ${trackingToken}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const clientInfoText = clientInfoLines
+    ? `
+Datos del cliente:
+${clientInfoLines}`
+    : '';
 
   return `========================================
   Osito a la carta - Nuevo pedido #${order.id}
   ========================================
 
   Fecha: ${formatDate(order.createdAt)}
-  Cliente: ${customerEmail}
   Estado: ${order.status}
-${guestInfoText}
+  Cliente: ${clientName ?? customerEmail}
+  Email: ${customerEmail}${clientInfoText}
 
   --- Platos ---
   ${lines}

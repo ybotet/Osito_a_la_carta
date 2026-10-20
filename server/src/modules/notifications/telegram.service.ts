@@ -15,6 +15,15 @@ const formatMoney = (value: number): string =>
     currency: 'EUR',
   }).format(value);
 
+const formatDate = (timestamp: number): string =>
+  new Date(timestamp * 1000).toLocaleString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
 const buildTelegramMessage = (
   order: OrderRow,
   items: LocalizedOrderItem[],
@@ -31,22 +40,36 @@ const buildTelegramMessage = (
     )
     .join('\n');
 
-  const date = new Date(order.createdAt * 1000).toLocaleString('es-ES');
+  const date = formatDate(order.createdAt);
 
-  // Datos del cliente invitado si aplica
-  const guestInfo = order.userId === null
-    ? `\n👤 *Invitado:*\nNombre: ${order.guestName ?? 'N/A'}\nTeléfono: ${order.guestPhone ?? 'N/A'}\nDirección: ${order.deliveryAddress ?? 'N/A'}\nToken: ${order.trackingToken ?? 'N/A'}`
+  const statusLabel = order.status;
+
+  const isGuest = order.userId === null;
+  const clientName = isGuest ? order.guestName : order.guestName;
+  const clientPhone = isGuest ? order.guestPhone : order.guestPhone;
+  const clientEmail = isGuest ? order.guestEmail : order.guestEmail;
+  const deliveryAddress = order.deliveryAddress;
+  const trackingToken = order.trackingToken;
+
+  const clientInfo = `
+👤 *Cliente:* ${clientName ?? 'N/A'}
+📧 *Email:* ${clientEmail ?? 'N/A'}
+📞 *Teléfono:* ${clientPhone ?? 'N/A'}
+🏠 *Dirección:* ${deliveryAddress ?? 'N/A'}`;
+
+  const tokenInfo = trackingToken
+    ? `\n🔗 *Token de seguimiento:* ${trackingToken}`
     : '';
 
   return `🍽️ *Nuevo pedido #${order.id}*
-👤 Cliente: (email no disponible en order)
-${guestInfo}
-📝 Nota: ${note}
+📅 *Fecha:* ${date}
+📊 *Estado:* ${statusLabel}
+${clientInfo}
+📝 *Nota:* ${note}
 ---- Items ----
 ${lines}
 ---- Total ----
-💰 ${formatMoney(order.total)}
-🕐 ${date}`;
+💰 ${formatMoney(order.total)}${tokenInfo}`;
 };
 
 /**

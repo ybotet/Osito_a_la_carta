@@ -36,6 +36,13 @@
       "when": 1791897317487,
       "tag": "0004_fuzzy_blob",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1792443127351,
+      "tag": "0005_lazy_tusk",
+      "breakpoints": true
     }
   ]
 }

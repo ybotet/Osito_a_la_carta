@@ -72,6 +72,9 @@ const userSchema = z.object({
   email: z.string(),
   role: z.enum(['customer', 'admin']),
   preferredLang: z.enum(['es', 'ru', 'en']),
+  name: z.string().nullable(),
+  phone: z.string().nullable(),
+  deliveryAddress: z.string().nullable(),
 });
 
 /**
@@ -168,6 +171,33 @@ const refreshResponseSchema = z.object({
   accessToken: z.string().min(1),
 });
 
+/**
+ * Body de `PUT /api/users/me` para actualizar el perfil del usuario.
+ *
+ * **Todos los campos son opcionales**: el usuario puede actualizar solo los que quiera.
+ * La validación es la misma que en el checkout de invitados para mantener consistencia.
+ */
+const updateUserProfileBodySchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, { message: 'El nombre debe tener al menos 2 caracteres' })
+    .max(100, { message: 'El nombre no puede superar 100 caracteres' })
+    .optional(),
+  phone: z
+    .string()
+    .trim()
+    .min(5, { message: 'El teléfono debe tener al menos 5 caracteres' })
+    .max(20, { message: 'El teléfono no puede superar 20 caracteres' })
+    .optional(),
+  deliveryAddress: z
+    .string()
+    .trim()
+    .min(5, { message: 'La dirección de entrega debe tener al menos 5 caracteres' })
+    .max(500, { message: 'La dirección de entrega no puede superar 500 caracteres' })
+    .optional(),
+});
+
 export {
   accessClaimsSchema,
   loginBodySchema,
@@ -176,6 +206,7 @@ export {
   refreshClaimsSchema,
   refreshResponseSchema,
   registerBodySchema,
+  updateUserProfileBodySchema,
   userSchema,
 };
 
@@ -183,4 +214,6 @@ export type AccessClaims = z.infer<typeof accessClaimsSchema>;
 export type LoginBody = z.infer<typeof loginBodySchema>;
 export type RefreshBody = z.infer<typeof refreshBodySchema>;
 export type RefreshClaims = z.infer<typeof refreshClaimsSchema>;
+export type RefreshResponse = z.infer<typeof refreshResponseSchema>;
 export type RegisterBody = z.infer<typeof registerBodySchema>;
+export type UpdateUserProfileBody = z.infer<typeof updateUserProfileBodySchema>;

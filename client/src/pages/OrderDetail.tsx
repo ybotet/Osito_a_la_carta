@@ -27,6 +27,10 @@ function OrderDetailPage() {
     status: string;
     total: number;
     customerNote: string | null;
+    guestName: string | null;
+    guestPhone: string | null;
+    guestEmail: string | null;
+    deliveryAddress: string | null;
     items: { dishId: number; name: string; quantity: number; unitPrice: number }[];
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,13 +61,15 @@ function OrderDetailPage() {
     load();
   }, [id, isAuthenticated, t]);
 
-  const formatDate = (timestamp: number): string => {
-    return new Date(timestamp * 1000).toLocaleDateString(
+  const formatDateTime = (timestamp: number): string => {
+    return new Date(timestamp * 1000).toLocaleString(
       i18n.resolvedLanguage ?? i18n.language ?? 'es',
       {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
       },
     );
   };
@@ -107,21 +113,37 @@ function OrderDetailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <p className="text-sm text-muted-foreground">{t('orders.date')}</p>
-              <p className="font-medium">{formatDate(order.createdAt)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">{t('orders.status')}</p>
-              <span
-                className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-medium ${
-                  STATUS_BADGE_CLASSES[order.status] ?? 'bg-gray-100 text-gray-800'
-                }`}
-              >
-                {t(`orders.statuses.${order.status}`)}
-              </span>
-            </div>
+           <div className="grid gap-4 sm:grid-cols-2">
+             <div>
+               <p className="text-sm text-muted-foreground">{t('orders.date')}</p>
+               <p className="font-medium">{formatDateTime(order.createdAt)}</p>
+             </div>
+             <div>
+               <p className="text-sm text-muted-foreground">{t('orders.status')}</p>
+               <span
+                 className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-medium ${
+                   STATUS_BADGE_CLASSES[order.status] ?? 'bg-gray-100 text-gray-800'
+                 }`}
+               >
+                 {t(`orders.statuses.${order.status}`)}
+               </span>
+             </div>
+             <div>
+               <p className="text-sm text-muted-foreground">{t('orders.name')}</p>
+               <p className="font-medium">{order.guestName ?? t('orders.notProvided')}</p>
+             </div>
+             <div>
+               <p className="text-sm text-muted-foreground">{t('orders.email')}</p>
+               <p className="font-medium">{order.guestEmail ?? t('orders.notProvided')}</p>
+             </div>
+             <div>
+               <p className="text-sm text-muted-foreground">{t('orders.phone')}</p>
+               <p className="font-medium">{order.guestPhone ?? t('orders.notProvided')}</p>
+             </div>
+             <div>
+               <p className="text-sm text-muted-foreground">{t('orders.address')}</p>
+               <p className="font-medium">{order.deliveryAddress ?? t('orders.notProvided')}</p>
+             </div>
             <div className="sm:col-span-2">
               <p className="text-sm text-muted-foreground">{t('cart.total')}</p>
               <p className="text-2xl font-bold">

@@ -1,10 +1,12 @@
 import { Router } from 'express';
-import { loginUser, refreshAccessToken, registerUser, verifyEmail } from './auth.service.js';
+import { loginUser, refreshAccessToken, registerUser, updateUserProfile, verifyEmail } from './auth.service.js';
 import {
   loginBodySchema,
   refreshBodySchema,
   registerBodySchema,
+  updateUserProfileBodySchema,
 } from './auth.schema.js';
+import { requireAuth } from '../../middleware/auth.js';
 import { BadRequestError, NotFoundError } from '../../shared/errors.js';
 
 const authRouter = Router();
@@ -71,6 +73,24 @@ authRouter.get('/auth/verify-email', (req, res) => {
   }
 
   res.json(result);
+});
+
+/**
+ * Actualización del perfil del usuario autenticado.
+ *
+ * **Requiere autenticación** (`requireAuth`). Actualiza los campos que se envíen
+ * (name, phone, deliveryAddress). Devuelve la representación pública del usuario
+ * actualizada.
+ */
+authRouter.put('/users/me', requireAuth, (req, res) => {
+  const body = updateUserProfileBodySchema.parse(req.body);
+  const user = req.user;
+
+  if (user === undefined) {
+    throw new Error('Usuario no encontrado en la sesión');
+  }
+
+  res.json(updateUserProfile(user.id, body));
 });
 
 export { authRouter };
