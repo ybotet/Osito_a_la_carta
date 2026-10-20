@@ -181,90 +181,230 @@ sudo systemctl status pm2-$USER
 
 ---
 
-## Paso 10: Configurar Nginx como proxy inverso
+## Paso 10: Configurar Nginx como proxy inverso + HTTPS
 
-Crear configuración de sitio:
+### 10.1: Archivo de configuración de sitio
+
+Crear el archivo de configuración del sitio:
 
 ```bash
 sudo nano /etc/nginx/sites-available/osito
 ```
 
-```nginx
+### 10.2: Server block (explicación detallada)
+
+\`\`\`nginx
+# --- HTTP: redirect a HTTPS ---
 server {
     listen 80;
+    listen [::]:80;
     server_name osito.tudominio.com;
-    # Redirect HTTP → HTTPS (T-095)
+
+    # Let Certbot HTTP-01 challenge respond on /.well-known/acme-challenge/
+    # This location must come before the redirect so challenges succeed.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    # Redirect all other HTTP traffic to HTTPS
     return 301 https://$server_name$request_uri;
 }
 
+# --- HTTPS: todo el tráfico real ---
 server {
-    listen 443 ssl;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name osito.tudominio.com;
 
-    # Certificados TLS (Let's Encrypt — T-095)
+    # --- Certificados TLS (Let's Encrypt) ---
     ssl_certificate /etc/letsencrypt/live/osito.tudominio.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/osito.tudominio.com/privkey.pem;
+
+    # Seguridad TLS (recomendado por Let's Encrypt)
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparams /etc/letsencrypt/ssl-dhparams.pem;
 
-    # Frontend (SPA)
-    root /var/www/osito/client/dist;
-    index index.html;
+    # --- Gzip: comprimir respuestas ---
+    # Reduce el tamaño de transferencia para HTML, CSS, JS, SVG, JSON, etc.
+    gzip on;
+    gzip_vary on;                       # Añade "Vary: Accept-Encoding" para proxies CDN
+    gzip_proxied any;                   # Comprime respuestas para proxied requests
+    gzip_comp_level 6;                  # Nivel de compresión (1-9; 6 = buen balance)
+    gzip_min_length 256;                # No comprimir archivos menores a 256 bytes
+    gzip_types
+        text/plain
+        text/css
+        text/xml
+        text/javascript
+        application/json
+        application/javascript
+        application/xml
+        application/xml+rss
+        application/xhtml+xml
+        image/svg+xml;
 
-    # API → server Express en 3000
+    # --- Cache de assets estáticos ---
+    # Los assets compilados (CSS, JS, imágenes build) son inmutables por hash.
+    # Cache-Control "public, immutable" permite cache agresivo (1y) sin revalidación.
+    location ~* \.(js|css|woff2|woff|ttf|eot|ico|png|jpg|jpeg|gif|svg|webp|avif)$ {
+        # Frontend build assets (React/Vite bundle)
+        root /var/www/osito/client/dist;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        # No logging de assets para reducir I/O en logs
+        access_log off;
+    }
+
+    # --- Imágenes subidas (user-generated content) ---
+    # Usa alias (no root) para mapear /uploads/ a un directorio fuera de client/dist
+    location /uploads/ {
+        alias /var/www/osito/uploads/;
+        expires 1d;
+        add_header Cache-Control "public, max-age=86400";
+        access_log off;
+    }
+
+    # --- API → Express (Node.js en localhost:3000) ---
     location /api/ {
-        proxy_pass http://localhost:3000/api/;
+        proxy_pass http://127.0.0.1:3000/api/;   # Trailing slash preserva el path
+        proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSockets support (si se necesita en el futuro)
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
     }
 
-    # Imágenes subidas
-    location /uploads/ {
-        alias /var/www/osito/uploads/;
-        expires 1d;
-        add_header Cache-Control "public, immutable";
-    }
+    # --- Frontend SPA (React Router) ---
+    root /var/www/osito/client/dist;
+    index index.html;
 
-    # SPA fallback (React Router)
+    # try_files: intenta el archivo, luego directorio, luego cae en index.html (SPA fallback)
     location / {
         try_files $uri $uri/ /index.html;
     }
 }
-```
+\`\`\`
 
-Activar y recargar:
+#### Explicación de directivas clave
 
-```bash
+| Directiva | Propósito |
+|-----------|-----------|
+| `proxy_pass http://127.0.0.1:3000/api/;` | Reenvía `/api/*` al backend Express. El trailing slash hace que Nginx reemplace el prefijo `/api/` → mantiene compatibilidad con rutas del server. |
+| `proxy_set_header Host $host;` | Preserva el Hostname original; el server Express usa `req.get('host')` para construir URLs absolutas (`PUBLIC_ORIGIN`). |
+| `proxy_set_header X-Forwarded-Proto $scheme;` | Le dice al backend que la conexión original es HTTPS (necesario para cookies `Secure` en el futuro). |
+| `location ~* \.(js\|css\|...)$` | Regex case-insensitive para assets buildados. `expires 1y` + `immutable` permite cacheo agresivo porque Vite incluye hash en los nombres de archivo. |
+| `location /uploads/` con `alias` | `alias` (no `root`) mapea el path URL directamente al directorio; con `root` se añadiría `/uploads/` al path interno causando 404. |
+| `try_files $uri $uri/ /index.html` | SPA fallback: si no existe el archivo, sirve `index.html` y deja que React Router resuelva. |
+| `gzip_types` | Lista de tipos MIME a comprimir. No incluir tipos binarios (imágenes) que ya están comprimidos. |
+
+### 10.3: Activar el sitio
+
+\`\`\`bash
+# Crear directorio para challenges de Let's Encrypt
+sudo mkdir -p /var/www/certbot
+
+# Habilitar el sitio (el default debe estar deshabilitado)
 sudo ln -s /etc/nginx/sites-available/osito /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-```
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# Crear directorio de uploads y asegurar permisos
+sudo mkdir -p /var/www/osito/uploads
+sudo chown -R $USER:$USER /var/www/osito/uploads
+
+# Verificar configuración y recargar
+sudo nginx -t
+sudo systemctl reload nginx
+
+# Verificar redirect HTTP → HTTPS
+curl -I http://osito.tudominio.com
+# Debería devolver: HTTP/1.1 301 Moved Permanently → https://osito.tudominio.com
+\`\`\`
 
 ---
 
-## Step 11: SSL con Let's Encrypt (T-095)
+## Paso 11: SSL con Let's Encrypt (certbot)
 
-```bash
+### 11.1: Instalar certbot
+
+\`\`\`bash
+sudo apt update
 sudo apt install certbot python3-certbot-nginx -y
+\`\`\`
 
+### 11.2: Obtener certificado HTTPS
+
+\`\`\`bash
 sudo certbot --nginx \
+  --email chef@osito.tudominio.com \
+  --agree-tos \
   -d osito.tudominio.com
+\`\`\`
 
-# Auto-renovación (ya configurada por certbot, pero verificar):
+Certbot hará lo siguiente automáticamente:
+1. Valida el dominio con HTTP-01 challenge en `/.well-known/acme-challenge/`.
+2. Descarga el certificado a `/etc/letsencrypt/live/osito.tudominio.com/`.
+3. Modifica tu configuración de Nginx para incluir los certificados SSL.
+4. Configura el redirect HTTP → HTTPS.
+
+> **Nota:** Si tu configuración ya tiene `ssl_certificate` definido manualmente (como en el Paso 10.2), certbot detectará la configuración existente y la modificará si es necesario. Para evitar conflictos, puedes usar `--nginx` que sincroniza automáticamente con tu server block.
+
+### 11.3: Verificar HTTPS
+
+\`\`\`bash
+# Verifica que Nginx responde por HTTPS
+curl -I https://osito.tudominio.com
+# Debería devolver: HTTP/2 200
+
+# Verifica el certificado
+openssl s_client -connect osito.tudominio.com:443 -servername osito.tudominio.com < /dev/null 2>/dev/null | openssl x509 -noout -dates -subject
+\`\`\`
+
+### 11.4: Renovación automática del certificado
+
+Let's Encrypt emite certificados válidos por **90 días**. Certbot configura automáticamente un **systemd timer** que ejecuta `certbot renew` dos veces al día (a las 00:00 y 12:00) en sistemas con systemd.
+
+\`\`\`bash
+# Verifica que el timer de renovación está activo
+systemctl list-timers | grep certbot
+# Debería mostrar: certbot.timer (activado, próxima ejecución dentro de ~12h)
+
+# Verifica el estado del servicio
+sudo systemctl status certbot.timer
+
+# Forzar una renovación de prueba (valida que todo funciona sin tocar el certificado activo)
 sudo certbot renew --dry-run
-```
+
+# Verifica la fecha de expiración actual
+sudo certbot certificates
+\`\`\`
+
+#### Qué hace `certbot renew`
+
+- Revisa todos los certificados configurados en `/etc/letsencrypt/live/`.
+- Si un certificado expira en menos de 30 días, lo renueva automáticamente.
+- Al renovar, recarga Nginx (`--deploy-hook "systemctl reload nginx"` o implícito con `--nginx`).
+- Si la renovación falla, certbot retiene el certificado anterior hasta 90 días adicionales (modo "grace period").
+
+#### Monitoreo de renovaciones
+
+- **Logs:** Las renovaciones se registran en `/var/log/letsencrypt/letsencrypt.log`.
+- **Cron alternativo:** Si el sistema no tiene systemd (ej. contenedores), certbot instala un cron job en `/etc/cron.d/certbot` como fallback.
+- **Alertas:** Certbot no envía alertas por fallos. Considera agregar un check en tu monitoreo VPS o un cron que verifique `certbot certificates` y avise al chef si falta menos de 14 días.
 
 ---
 
-## Resumen de comandos rápidos
+## Resumen de comandos rápidos (incluye HTTPS)
 
-```bash
+\`\`\`bash
 cd /var/www/osito/server
 
 # Deploy nuevo
 git pull
-cd ../client && npm ci && npm run build && cp -r dist/* ../server/src/public/
+cd ../client && npm ci && npm run build
 cd ../server && npm ci && npm run build && npm run db:migrate
 pm2 restart osito-server
 
@@ -272,9 +412,40 @@ pm2 restart osito-server
 pm2 status
 pm2 logs osito-server
 
-# Resurrección automática (ya configurado)
-# Reinicia el VPS y verifica:
+# Reinicia y verifica arranque automático
 sudo reboot
-# Tras reboot:
 pm2 status   # osito-server debería estar online
-```
+
+# HTTPS (verificado manualmente tras deploy)
+sudo certbot renew --dry-run
+sudo systemctl status certbot.timer
+
+# Verificar HTTP → HTTPS redirect
+curl -I http://osito.tudominio.com
+# Debería devolver: 301 → https://osito.tudominio.com
+\`\`\`
+
+---
+
+## Verificación final (criterio de aceptación T-095)
+
+1. **HTTPS responde con certificado válido:**
+   \`\`\`bash
+   curl -I https://osito.tudominio.com
+   # HTTP/2 200
+   \`\`\`
+2. **Redirect HTTP → HTTPS:**
+   \`\`\`bash
+   curl -I http://osito.tudominio.com
+   # 301 Moved Permanently → https://
+   \`\`\`
+3. **API responde a través de Nginx (no directo):**
+   \`\`\`bash
+   curl -s https://osito.tudominio.com/api/health
+   # {"status":"ok","timestamp":...}
+   \`\`\`
+4. **Certificado válido y renovación automática:**
+   \`\`\`bash
+   sudo certbot certificates      # muestra fecha de expiración
+   sudo systemctl status certbot.timer  # timer activo
+   \`\`\`

@@ -387,7 +387,28 @@ pm run test --workspace @osito/server.
 - El code de error en AppError no está en message; testear con instanceof y acceso a .code.
 
 ## Próximas entradas (plantilla)
+
 ---
+
+## 2026-10-20 — T-095: Documentar configuración de Nginx + Let's Encrypt en docs/DEPLOY.md
+
+**Qué:** Documentación completa de la configuración de Nginx como proxy inverso con HTTPS mediante Let's Encrypt, incluyendo explicación detallada de directivas y renovación automática.
+
+**Cómo:**
+- Reemplazado y ampliado la sección "Paso 10" de DEPLOY.md: server block HTTP→HTTPS con `return 301`, server block HTTPS con:
+  - `proxy_pass http://127.0.0.1:3000/api/` para `/api/` con headers `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto`, `Upgrade` (WebSocket ready)
+  - Gzip habilitado (`gzip on`, `gzip_vary`, `gzip_proxied any`, `gzip_comp_level 6`, `gzip_min_length 256`, lista de `gzip_types` para text/CSS/JS/JSON/SVG)
+  - Cache de assets estáticos con `location ~* \.(js|css|...)$` → `expires 1y`, `Cache-Control "public, immutable"` (Vite build assets con hash)
+  - `location /uploads/` con `alias` + `expires 1d` (content dinámico, cache corto)
+  - SPA fallback con `try_files $uri $uri/ /index.html`
+- Tabla de explicación de directivas clave (`proxy_pass`, `proxy_set_header Host`, `X-Forwarded-Proto`, cache `alias` vs `root`, `gzip_types`, `try_files`)
+- Sección "Paso 11": instalación de certbot, obtención de certificado con `certbot --nginx -d`, verificación con `openssl s_client`, renovación automática con `certbot renew --dry-run`, verificación del `certbot.timer` de systemd, documentación de logs y monitoreo
+- Agregado "Verificación final" con 4 checks: HTTPS 200, HTTP→301 redirect, API por HTTPS, timer de renovación activo
+- Actualizado "Resumen de comandos rápidos" con HTTPS checks
+
+**Impacto:** Un administrador puede poner HTTPS en producción siguiendo la guía paso a paso. La explicación detallada de directivas ayuda a entender el porqué de cada configuración (especialmente `alias` vs `root` para uploads, y `immutable` para assets con hash).
+
+**Deuda/Notas:** La configuración de Nginx depende de que Node PM2 ya esté corriendo en localhost:3000 (T-094). Let's Encrypt requiere que el DNS apunte al VPS antes de ejecutar certbot.
 
 ## 2026-10-20 — T-094: Configurar scripts de despliegue (PM2 + Systemd + Nginx)
 
@@ -395,8 +416,7 @@ pm run test --workspace @osito/server.
 
 **Cómo:**
 - server/ecosystem.config.cjs: config CommonJS (.cjs) para PM2. App: osito-server, script dist/server/src/app.js, instances 1, autorestart true, max_memory_restart 512M. Env: NODE_ENV=production, PORT=3000. Logs en ./logs/ con merge_logs: true y timestamp YYYY-MM-DD HH:mm:ss.
-- docs/DEPLOY.md: 11 pasos cubriendo (1) instalación Node 22 LTS vía NodeSource, (2) clonar repo, (3) 
-pm ci en server/client, (4) configurar .env, (5) migraciones + seed, (6) build del frontend, (7) build del backend (	sc → dist/server/src/app.js), (8) pm2 start ecosystem.config.cjs, (9) arranque automático con pm2 startup systemd, (10) configuración Nginx proxy inverso (HTTP→HTTPS, /api/ → localhost:3000, /uploads/ alias, SPA fallback), (11) SSL con Let's Encrypt (certbot --nginx).
+- docs/DEPLOY.md: 11 pasos cubriendo (1) instalación Node 22 LTS vía NodeSource, (2) clonar repo, (3) npm ci en server/client, (4) configurar .env, (5) migraciones + seed, (6) build del frontend, (7) build del backend (tsc → dist/server/src/app.js), (8) pm2 start ecosystem.config.cjs, (9) arranque automático con pm2 startup systemd, (10) configuración Nginx proxy inverso (HTTP→HTTPS, /api/ → localhost:3000, /uploads/ alias, SPA fallback), (11) SSL con Let's Encrypt (certbot --nginx).
 - Nota sobre migraciones de tabla-rebuild (T-098a/MEMORY) que fallan en BD limpia: usar sqlite3 CLI directamente como workaround.
 
 **Impacto:** Guía completa de despliegue que un administrador puede seguir para poner el servidor en producción con PM2 + Systemd (arranque automático) + Nginx (proxy inverso HTTPS). El ecosystem.config.cjs permite pm2 start ecosystem.config.cjs y pm2 restart osito-server tras cada deploy.

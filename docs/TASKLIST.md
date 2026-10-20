@@ -227,7 +227,8 @@
   - Criterio: `npm run test` pasa.
 - [x] **T-094**: Configurar PM2 en el VPS
   - Criterio: `pm2 status` muestra la app corriendo y con arranque automático.
-- [ ] **T-095**: Configurar Nginx como proxy inverso + Let's Encrypt
+  - **Notas de progreso:** Documentado en `docs/DEPLOY.md` (T-094). Nginx config cubierto en T-095.
+- [x] **T-095**: Configurar Nginx como proxy inverso + Let's Encrypt
   - Criterio: la app responde por HTTPS en el dominio configurado.
 - [ ] **T-096**: Script de backup diario de `osito.db`
   - Criterio: cron ejecuta `cp osito.db backups/osito-$(date).db` cada dí­a.
