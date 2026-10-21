@@ -18,6 +18,7 @@ import Stats from './pages/Stats.tsx';
 import AdminOrders from './pages/admin/Orders.tsx';
 import AdminOrderDetail from './pages/admin/OrderDetail.tsx';
 import AdminDishForm from './pages/admin/DishForm.tsx';
+import AdminUsers from './pages/admin/Users.tsx';
 import AdminCategories from './pages/admin/Categories.tsx';
 import Layout from './components/Layout.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
@@ -89,6 +90,7 @@ createRoot(rootElement).render(
                 <Route path="/admin/dishes/create" element={<AdminDishForm />} />
                 <Route path="/admin/dishes/:id" element={<AdminDishForm />} />
                 <Route path="/admin/categories" element={<AdminCategories />} />
+                <Route path="/admin/users" element={<AdminUsers />} />
               </Route>
             </Routes>
           </ErrorBoundary>

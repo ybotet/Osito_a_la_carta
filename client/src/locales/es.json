@@ -60,6 +60,7 @@
     "stats": "Estadísticas",
     "admin": "Panel chef",
     "adminCategories": "Categorías",
+    "adminUsers": "Usuarios",
     "guestOrders": "Pedidos de invitado",
     "openMenu": "Abrir menú",
     "closeMenu": "Cerrar menú"
@@ -264,8 +265,29 @@
         "ingredientsEsRequired": "Los ingredientes en español son requeridos",
         "ingredientsRuRequired": "Los ingredientes en ruso son requeridos",
         "ingredientsEnRequired": "Los ingredientes en inglés son requeridos"
+        }
+      },
+      "users": {
+        "title": "Panel del chef - Usuarios",
+        "listTitle": "Todos los usuarios",
+        "loading": "Cargando usuarios…",
+        "empty": "No hay usuarios.",
+        "error": "No se han podido cargar los usuarios. Inténtalo de nuevo en unos minutos.",
+        "retry": "Reintentar",
+        "refresh": "Actualizar",
+        "colId": "#",
+        "colEmail": "Email",
+        "colRole": "Rol",
+        "colName": "Nombre",
+        "colPhone": "Teléfono",
+        "colAddress": "Dirección de entrega",
+        "colVerified": "Email verificado",
+        "colCreated": "Creado el",
+        "verified": "Sí",
+        "unverified": "No",
+        "roleCustomer": "Cliente",
+        "roleAdmin": "Admin"
       }
-    }
   },
   "stats": {
     "title": "Mis estadísticas",

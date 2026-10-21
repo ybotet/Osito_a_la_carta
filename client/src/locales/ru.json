@@ -60,6 +60,7 @@
     "stats": "Статистика",
     "admin": "Панель шефа",
     "adminCategories": "Категории",
+    "adminUsers": "Пользователи",
     "guestOrders": "Заказы гостей",
     "openMenu": "Открыть меню",
     "closeMenu": "Закрыть меню"
@@ -264,8 +265,29 @@
         "ingredientsEsRequired": "Испанские ингредиенты обязательны",
         "ingredientsRuRequired": "Русские ингредиенты обязательны",
         "ingredientsEnRequired": "Английские ингредиенты обязательны"
+        }
+      },
+      "users": {
+        "title": "Панель шефа — Пользователи",
+        "listTitle": "Все пользователи",
+        "loading": "Загружаем пользователей…",
+        "empty": "Пользователей нет.",
+        "error": "Не удалось загрузить пользователей. Попробуйте ещё раз через пару минут.",
+        "retry": "Повторить",
+        "refresh": "Обновить",
+        "colId": "№",
+        "colEmail": "Email",
+        "colRole": "Роль",
+        "colName": "Имя",
+        "colPhone": "Телефон",
+        "colAddress": "Адрес доставки",
+        "colVerified": "Email подтверждён",
+        "colCreated": "Создан",
+        "verified": "Да",
+        "unverified": "Нет",
+        "roleCustomer": "Клиент",
+        "roleAdmin": "Админ"
       }
-    }
   },
   "stats": {
     "title": "Моя статистика",

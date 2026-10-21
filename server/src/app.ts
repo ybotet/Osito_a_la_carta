@@ -8,6 +8,7 @@ import { authRouter } from './modules/auth/auth.routes.js';
 import { ordersRouter } from './modules/orders/orders.routes.js';
 import { adminOrdersRouter } from './modules/orders/admin.routes.js';
 import { statsRouter } from './modules/stats/stats.routes.js';
+import { adminUsersRouter } from './modules/users/users.routes.js';
 import { UPLOADS_URL_PREFIX } from './modules/dishes/dishes.uploads.js';
 import { errorHandler, notFoundHandler } from './shared/error.middleware.js';
 
@@ -42,6 +43,7 @@ app.use('/api', authRouter);
 app.use('/api', ordersRouter);
 app.use('/api', adminOrdersRouter);
 app.use('/api', statsRouter);
+app.use('/api', adminUsersRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

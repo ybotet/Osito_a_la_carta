@@ -386,7 +386,36 @@ pm run test --workspace @osito/server.
 - Migraciones Drizzle con ALTER TABLE (recreate pattern) fallan en DB limpia; usar DDL directo en tests.
 - El code de error en AppError no está en message; testear con instanceof y acceso a .code.
 
-## Próximas entradas (plantilla)
+449: ## Próximas entradas (plantilla)
+
+---
+
+## 2026-10-21 — T-101: Poner el logo como favicon e icono de la aplicación
+
+**Qué:** Se configuró `client/public/images/osito.jpg` como favicon e icono de la aplicación PWA.
+
+**Cómo:**
+- `client/index.html`: agregado `<link rel="icon" href="/images/osito.jpg" />` como favicon principal.
+- `client/vite.config.ts`: agregado `images/osito.jpg` a `includeAssets` y como `icons` en el manifest PWA (192x192 y 512x512, purpose `any` y `maskable`). Agregado `jpg` a `globPatterns` de precache.
+
+**Impacto:** El favicon de `osito.jpg` se muestra en la pestaña del navegador y la app PWA usa la imagen del osito como icono de instalación. Typecheck, lint y build pasan.
+
+**Deuda/Notas:** La imagen `osito.jpg` es el logo existente; no se generaron versiones optimizadas de iconos adicionales.
+
+---
+
+## 2026-10-21 — T-102: Panel de admin: listar usuarios
+
+**Qué:** Se creó un panel de administración para listar usuarios, con endpoint backend y página frontend.
+
+**Cómo:**
+- Backend: `server/src/modules/users/users.repository.ts` con `findAllUsers()` usando proyección pública (sin `passwordHash`). `server/src/modules/users/users.routes.ts` con `GET /api/admin/users` protegido por `requireAdmin`. Rutas registradas en `server/src/app.ts`.
+- Frontend: `client/src/api/users.ts` con `listAdminUsers()`. `client/src/pages/admin/Users.tsx` con guard de admin (redirige a `/menu` si no es admin), tabla con columnas: id, email, role, name, phone, address, emailVerified, createdAt. Skeleton y estado de error. Ruta `/admin/users` en `main.tsx`. Nav link en `Layout.tsx` (solo admin). i18n en es/ru/en (`admin.users.*`, `nav.adminUsers`).
+- Tipo cliente `ApiAuthUser` extendido con `emailVerified: number` y `createdAt: number` (coinciden con el schema Drizzle `integer(...).default(sql\`(unixepoch())\`)`).
+
+**Impacto:** Un admin autenticado puede ver todos los usuarios desde `/admin/users`, con datos de contacto y estado de verificación. Typecheck, lint pasan en client y server.
+
+**Deuda/Notas:** La tabla no tiene paginación. Para gestión futura (editar role/verificación) se añadirían endpoints PATCH.
 
 ---
 

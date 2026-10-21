@@ -32,7 +32,7 @@ export default defineConfig({
         'images/osito.jpg',
       ],
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+         globPatterns: ['**/*.{js,css,html,svg,png,ico,jpg}'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },
       manifest: {
@@ -44,32 +44,56 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         categories: ['restaurant', 'food', 'shopping'],
-        icons: [
-          {
-            src: '/icons/osito-icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
-            src: '/icons/osito-icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-          {
-            src: '/icons/osito-icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
-            src: '/icons/osito-icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-        ],
+         icons: [
+           {
+             src: '/images/osito.jpg',
+             sizes: '192x192',
+             type: 'image/jpeg',
+             purpose: 'any',
+           },
+           {
+             src: '/images/osito.jpg',
+             sizes: '192x192',
+             type: 'image/jpeg',
+             purpose: 'maskable',
+           },
+           {
+             src: '/images/osito.jpg',
+             sizes: '512x512',
+             type: 'image/jpeg',
+             purpose: 'any',
+           },
+           {
+             src: '/images/osito.jpg',
+             sizes: '512x512',
+             type: 'image/jpeg',
+             purpose: 'maskable',
+           },
+           {
+             src: '/icons/osito-icon-192.png',
+             sizes: '192x192',
+             type: 'image/png',
+             purpose: 'any',
+           },
+           {
+             src: '/icons/osito-icon-192.png',
+             sizes: '192x192',
+             type: 'image/png',
+             purpose: 'maskable',
+           },
+           {
+             src: '/icons/osito-icon-512.png',
+             sizes: '512x512',
+             type: 'image/png',
+             purpose: 'any',
+           },
+           {
+             src: '/icons/osito-icon-512.png',
+             sizes: '512x512',
+             type: 'image/png',
+             purpose: 'maskable',
+           },
+         ],
       },
       devOptions: {
         enabled: false,

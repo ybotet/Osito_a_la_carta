@@ -60,6 +60,7 @@
     "stats": "My statistics",
     "admin": "Chef panel",
     "adminCategories": "Categories",
+    "adminUsers": "Users",
     "guestOrders": "Guest orders",
     "openMenu": "Open menu",
     "closeMenu": "Close menu"
@@ -264,8 +265,29 @@
         "ingredientsEsRequired": "Spanish ingredients are required",
         "ingredientsRuRequired": "Russian ingredients are required",
         "ingredientsEnRequired": "English ingredients are required"
+        }
+      },
+      "users": {
+        "title": "Chef panel — Users",
+        "listTitle": "All users",
+        "loading": "Loading users…",
+        "empty": "No users.",
+        "error": "We could not load users. Please try again in a few minutes.",
+        "retry": "Retry",
+        "refresh": "Refresh",
+        "colId": "#",
+        "colEmail": "Email",
+        "colRole": "Role",
+        "colName": "Name",
+        "colPhone": "Phone",
+        "colAddress": "Delivery address",
+        "colVerified": "Email verified",
+        "colCreated": "Created",
+        "verified": "Yes",
+        "unverified": "No",
+        "roleCustomer": "Customer",
+        "roleAdmin": "Admin"
       }
-    }
   },
   "stats": {
     "title": "My statistics",

@@ -1,6 +1,6 @@
 ﻿# MEMORY.md вЂ” BitГЎcora de decisiones y trabajo (Г­ndice)
 
-> Гљltima actualizaciГіn: 2026-10-08
+> Гљltima actualizaciГіn: 2026-10-21
 
 Este es el **Г­ndice** de la memoria del proyecto. El contenido tГ©cnico completo estГЎ en `docs/memory/topics/`.
 

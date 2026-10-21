@@ -32,6 +32,8 @@ export type ApiAuthUser = {
   name: string | null;
   phone: string | null;
   deliveryAddress: string | null;
+  emailVerified: number;
+  createdAt: number;
 };
 
 /**

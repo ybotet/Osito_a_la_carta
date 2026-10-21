@@ -120,6 +120,18 @@ const NavLinks = ({ onClick, full = false }: NavButtonProps) => {
         </Button>
       )}
 
+      {isAdmin && (
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className={buttonClass}
+          onClick={onClick}
+        >
+          <Link to="/admin/users">{t('nav.adminUsers')}</Link>
+        </Button>
+      )}
+
       {!isAuthenticated && (
         <>
           <Button

@@ -1,7 +1,7 @@
 ﻿# TASKLIST.md  Osito a la carta
 
 > Leyenda: `[ ]` pendiente В· `[~]` en progreso В· `[x]` completada В· `[!]` bloqueada
-> Última actualización: 2026-10-17
+> Última actualización: 2026-10-21
 
 ---
 
@@ -281,6 +281,10 @@
     - Frontend: `ApiAuthUser` extendido con `name`, `phone`, `deliveryAddress`; `useAuthStore` con `updateProfile`; `Checkout.tsx` formulario completo para autenticados pre-rellenado con datos del perfil; al confirmar se guarda el perfil via `PUT /api/users/me`.
     - i18n claves `checkout.authInfo`, `checkout.phoneFormat`, `checkout.loginInfo` ya existían; reutilizadas.
     - Typecheck, lint y build pasan en client y server.
+- [x] **T-101**: Poner el logo (osito.jpg) como favicon e icono de la aplicación
+  - Criterio: favicon visible en pestaña del navegador; icono disponible para PWA (manifest, 192x192/512x512, any + maskable); `npm run build` pasa.
+- [x] **T-102**: Panel de admin: listar usuarios
+  - Criterio: endpoint `GET /api/admin/users` (requiere admin) lista usuarios sin `passwordHash`; página `/admin/users` con guard admin, tabla de usuarios con i18n es/ru/en; typecheck, lint y build pasan.
 
 ---
 
