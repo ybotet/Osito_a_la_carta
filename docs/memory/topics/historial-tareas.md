@@ -426,4 +426,24 @@ pm run test --workspace @osito/server.
 - El server actual no sirve el frontend (Express solo expone API); Nginx sirve client/dist/ directamente.
 - osito.db debe estar en un path accesible por el usuario que ejecuta PM2; migraciones aplicadas antes de pm2 start.
 
+## 2026-10-21 — T-096: Script de backup diario de osito.db
+
+**Qué:** Script `server/scripts/backup.sh` que crea backups diarios de la base de datos SQLite y mantiene los últimos 30 días. Documentación en `docs/DEPLOY.md` con instrucciones de crontab y restauración.
+
+**Cómo:**
+- `server/scripts/backup.sh`: script Bash con `set -euo pipefail`. Usa `sqlite3 DB ".backup FILE"` (no `cp`) para consistencia — ver gotcha en MEMORY.md ("Backup cp copia DB corrupta").
+- Resuelve `DATABASE_URL` desde `.env` (o fallback `./osito.db`). La ruta se relaciona respecto al directorio del script (`SCRIPT_DIR`), no al `cwd` del crontab.
+- Guarda backups en `backups/osito-YYYY-MM-DD.db`.
+- Limpieza: `find backups -name 'osito-*.db' -mtime +30 -delete` (mantiene 30 días).
+- Verifica existencia de la base y del `sqlite3` CLI antes de proceder.
+- `docs/DEPLOY.md`: sección "Paso 12" con (12.1) instalar sqlite3 CLI, (12.2) configurar crontab (`0 3 * * * /var/www/osito/server/scripts/backup.sh >> /var/log/osito-backup.log 2>&1`), (12.3) verificar backups.
+- Sección "Paso 13": instrucciones de restauración con `.restore` + `PRAGMA integrity_check`.
+
+**Impacto:** Backups diarios automáticos a las 03:00, con retención de 30 días y documentación de restauración. Evita pérdida de datos por hardware corrupto o error humano.
+
+**Deuda/Notas:**
+- El script asume `sqlite3` CLI instalado; el crontab debe ejecutarse como el usuario que ejecuta PM2 (permisos sobre `backups/` y `osito.db`).
+- `.backup` de SQLite puede bloquear brevemente la escritura durante el checkpoint (normalmente <1 segundo).
+- Los backups no incluyen `osito.db-wal`/`osito.db-shm` (el `.backup` checkpointea antes de copiar).
+
 ## Próximas entradas (plantilla)

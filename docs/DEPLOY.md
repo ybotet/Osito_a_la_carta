@@ -449,3 +449,96 @@ curl -I http://osito.tudominio.com
    sudo certbot certificates      # muestra fecha de expiración
    sudo systemctl status certbot.timer  # timer activo
    \`\`\`
+
+---
+
+## Paso 12: Backup diario de la base de datos (T-096)
+
+### Script de backup
+
+El script de backup está en `server/scripts/backup.sh`. Usa la utilidad `.backup` de `sqlite3` (no `cp`) para garantizar una copia consistente incluso si el server está escribiendo.
+
+\`\`\`bash
+# Ejecutar manualmente (desde cualquier directorio)
+/var/www/osito/server/scripts/backup.sh
+
+# Salida esperada:
+# [backup] Iniciando backup de /var/www/osito/server/osito.db → backups/osito-2026-10-21.db
+# [backup] Backup completado: backups/osito-2026-10-21.db (4.0K)
+# [backup] Limpiando backups antiguos (más de 30 días)...
+# [backup] Backups restantes: 15
+# [backup] OK
+\`\`\`
+
+El script hace lo siguiente:
+
+1. **Resuelve `DATABASE_URL`** desde `.env` (o usa `./osito.db` como fallback). La ruta se relaciona respecto al directorio del script, no al `cwd` del crontab, para que funcione desde cualquier directorio.
+2. **Verifica** que la base y `sqlite3` CLI existen.
+3. **`sqlite3 DB ".backup FILE"`** — copia consistente (el `.backup` de SQLite realiza un checkpoint y copia página a página, evitando bloqueos).
+4. **Guarda** en `backups/osito-YYYY-MM-DD.db` (fecha del día).
+5. **Limpia** backups de más de 30 días con `find ... -mtime +30 -delete`.
+
+### 12.1: Instalar sqlite3 CLI
+
+\`\`\`bash
+sudo apt install sqlite3 -y
+sqlite3 --version    # 3.x
+\`\`\`
+
+### 12.2: Configurar crontab (ejecución automática diaria)
+
+\`\`\`bash
+# Editar el crontab del usuario que ejecuta PM2
+crontab -e
+
+# Agregar esta línea para backup diario a las 03:00:
+0 3 * * * /var/www/osito/server/scripts/backup.sh >> /var/log/osito-backup.log 2>&1
+\`\`\`
+
+Esto ejecuta el backup **todos los días a las 03:00** (horario bajo tráfico). La salida se redirige a `/var/log/osito-backup.log` para auditoría.
+
+### 12.3: Verificar backups programados
+
+\`\`\`bash
+# Ver el crontab activo
+crontab -l
+
+# Ver logs de backup
+tail -f /var/log/osito-backup.log
+
+# Listar backups existentes
+ls -lh backups/
+\`\`\`
+
+---
+
+## Paso 13: Restaurar desde un backup (T-096)
+
+### Escenario: base de datos corrupta o borrada accidentalmente
+
+\`\`\`bash
+# 1. Detener el server (evitar escrituras durante restore)
+pm2 stop osito-server
+
+# 2. Hacer backup del estado actual (por si acaso)
+cp osito.db osito.db.emergencia.$(date +%Y%m%d)
+
+# 3. Restaurar desde el backup deseado
+sqlite3 osito.db ".restore backups/osito-2026-10-21.db"
+
+# 4. Verificar integridad
+sqlite3 osito.db "PRAGMA integrity_check;"
+# Debería devolver: ok
+
+# 5. Reiniciar
+pm2 start osito-server
+\`\`\`
+
+#### Explicación de `.restore`
+
+| Comando | Propósito |
+|---------|-----------|
+| `sqlite3 osito.db ".restore backups/osito-XXXX-XX-XX.db"` | Copia todo el contenido del backup a `osito.db`, incluyendo schema y datos. `.restore` es el inverso atómico de `.backup`. |
+| `PRAGMA integrity_check;` | Verifica que la base restaurada no esté corrupta. |
+
+> **Importante:** `.restore` reescribe la base completa. No se pueden mezclar datos de dos bases con `.restore`.</think>

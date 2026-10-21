@@ -230,7 +230,7 @@
   - **Notas de progreso:** Documentado en `docs/DEPLOY.md` (T-094). Nginx config cubierto en T-095.
 - [x] **T-095**: Configurar Nginx como proxy inverso + Let's Encrypt
   - Criterio: la app responde por HTTPS en el dominio configurado.
-- [ ] **T-096**: Script de backup diario de `osito.db`
+- [x] **T-096**: Script de backup diario de `osito.db`
   - Criterio: cron ejecuta `cp osito.db backups/osito-$(date).db` cada dí­a.
 - [x] **T-097**: Portada informativa y tema claro/oscuro
   - Criterio: la portada presenta el negocio, enlaza el menú y muestra platos destacados; la interfaz ofrece un control accesible de tema que conserva la preferencia manual; textos completos en es/ru/en.
@@ -291,6 +291,7 @@
 - ¿Rate limiting en endpoints públicos? в†’ evaluar en **T-092**.
 
 > **Nota:** todo el contenido técnico (decisiones, verificaciones, gotchas, historial) se ha movido a `docs/MEMORY.md` y `docs/memory/topics/`. Ver í­ndice en `docs/MEMORY.md`.
+
 
 
 
